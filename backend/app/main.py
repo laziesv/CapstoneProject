@@ -1,15 +1,16 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
-from app.database import Base, engine
-from app.models import *
 from app.routes.auth import router as auth_router
+from app.core.startup import startup
 
 
-app = FastAPI(title="DEVA API", version="1.0.0")
+app = FastAPI(
+    title="DEVA API",
+    version="1.0.0"
+)
 
-# ── CORS ─────────────────────────────────────────────────
+# ── CORS ────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -18,29 +19,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ── Startup ─────────────────────────────────────────────
+startup()
 
-def test_database_connection():
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-
-        print("✅ Database connected")
-
-    except Exception as e:
-        print("❌ Database connection failed")
-        print(e)
-
-
-# Test database
-test_database_connection()
-
-# Create tables
-Base.metadata.create_all(bind=engine)
-
-# ── Routers ──────────────────────────────────────────────
+# ── Routers ─────────────────────────────────────────────
 app.include_router(auth_router, prefix="/api")
 
 
+# ── Root ────────────────────────────────────────────────
 @app.get("/")
 def root():
     return {
