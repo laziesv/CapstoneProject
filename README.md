@@ -278,13 +278,11 @@ CREATE DATABASE deva_db;
 สร้างไฟล์ `.env`
 
 ```env
-DATABASE_URL=postgresql://postgres:password@localhost:5432/deva_db
-
-SECRET_KEY=your-secret-key
-
-ALGORITHM=HS256
-
-ACCESS_TOKEN_EXPIRE_MINUTES=60
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=capstone
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
 ```
 
 ---

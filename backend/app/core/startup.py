@@ -34,7 +34,7 @@ def seed_admin():
     if not exists:
         admin = User(
             username="admin",
-            email="admin@deva.local",
+            email="admin@example.com",
             password_hash=hash_password("admin1234"),
             full_name="ผู้ดูแลระบบ",
             rank="ผู้บริหาร",
