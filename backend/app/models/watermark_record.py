@@ -6,7 +6,8 @@ from sqlalchemy import (
     String,
     Float,
     Enum,
-    TIMESTAMP
+    TIMESTAMP,
+    func,
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -26,20 +27,29 @@ class WatermarkRecord(Base):
 
     evidence_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("evidence_items.evidence_id")
+        ForeignKey("evidence_items.evidence_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
 
     embedded_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id")
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
     )
 
+    # ไฟล์ต้นฉบับก่อนฝังลายน้ำ
     original_image_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("evidence_files.file_id")
+        ForeignKey("evidence_files.file_id", ondelete="RESTRICT"),
     )
 
-    watermark_hash = Column(String(50))
+    # ไฟล์ผลลัพธ์หลังฝังลายน้ำ
+    watermarked_image_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("evidence_files.file_id", ondelete="RESTRICT"),
+    )
+
+    watermark_hash = Column(String(64))  # SHA-256 hex
 
     strength = Column(Float)
 
@@ -49,4 +59,4 @@ class WatermarkRecord(Base):
 
     verification_score = Column(Float)
 
-    embedded_at = Column(TIMESTAMP)
+    embedded_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

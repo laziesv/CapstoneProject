@@ -5,8 +5,10 @@ from sqlalchemy import (
     String,
     ForeignKey,
     Enum,
+    Boolean,
     TIMESTAMP,
-    Text
+    Text,
+    func,
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -24,30 +26,48 @@ class Case(Base):
         default=uuid.uuid4
     )
 
-    case_number = Column(String(30), unique=True)
+    case_number = Column(String(30), unique=True, nullable=False, index=True)
 
-    title = Column(String(255))
+    title = Column(String(255), nullable=False)
 
     description = Column(Text)
 
-    status = Column(Enum(CaseStatus))
+    status = Column(
+        Enum(CaseStatus),
+        nullable=False,
+        server_default=CaseStatus.OPEN.value,
+        index=True,
+    )
 
     created_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id")
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
 
     assigned_officer = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id")
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
+        index=True,
     )
 
-    incident_date = Column(TIMESTAMP)
+    incident_date = Column(TIMESTAMP(timezone=True))
 
     location = Column(String(255))
 
-    created_at = Column(TIMESTAMP)
+    # ── retention / legal hold ──────────────────────────
+    legal_hold = Column(Boolean, nullable=False, server_default="false")
 
-    updated_at = Column(TIMESTAMP)
+    retention_until = Column(TIMESTAMP(timezone=True))
 
-    closed_at = Column(TIMESTAMP)
+    # ── soft delete ─────────────────────────────────────
+    is_deleted = Column(Boolean, nullable=False, server_default="false", index=True)
+
+    deleted_at = Column(TIMESTAMP(timezone=True))
+
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    updated_at = Column(TIMESTAMP(timezone=True), onupdate=func.now())
+
+    closed_at = Column(TIMESTAMP(timezone=True))

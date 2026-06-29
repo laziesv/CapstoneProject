@@ -6,7 +6,8 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     TIMESTAMP,
-    Text
+    Text,
+    func,
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -26,15 +27,18 @@ class AccessLog(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id")
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
 
     evidence_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("evidence_items.evidence_id")
+        ForeignKey("evidence_items.evidence_id", ondelete="RESTRICT"),
+        index=True,
     )
 
-    action = Column(Enum(AuditAction))
+    action = Column(Enum(AuditAction), nullable=False)
 
     action_type = Column(String(50))
 
@@ -42,10 +46,14 @@ class AccessLog(Base):
 
     user_agent = Column(Text)
 
-    tx_internal_id = Column(Text)
+    # FK จริงไปยังธุรกรรม blockchain (เดิมเป็น Text)
+    tx_internal_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("blockchain_transactions.tx_internal_id", ondelete="SET NULL"),
+    )
 
-    result = Column(Enum(AuditResult))
+    result = Column(Enum(AuditResult), nullable=False, server_default=AuditResult.SUCCESS.value)
 
     reason = Column(Text)
 
-    accessed_at = Column(TIMESTAMP)
+    accessed_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), index=True)

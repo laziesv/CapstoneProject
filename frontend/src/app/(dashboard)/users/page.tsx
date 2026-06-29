@@ -1,0 +1,217 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { UserPlus, Loader2, CheckCircle2, AlertCircle, ShieldAlert } from "lucide-react";
+import { authFetch, getUser, type AuthUser } from "@/lib/auth";
+
+const ROLES = ["admin", "investigator", "officer", "viewer"];
+
+// ยศตำรวจไทย เรียงจากสูงไปต่ำ
+const POLICE_RANKS = [
+  // ชั้นสัญญาบัตร
+  "พลตำรวจเอก",
+  "พลตำรวจโท",
+  "พลตำรวจตรี",
+  "พันตำรวจเอก",
+  "พันตำรวจโท",
+  "พันตำรวจตรี",
+  "ร้อยตำรวจเอก",
+  "ร้อยตำรวจโท",
+  "ร้อยตำรวจตรี",
+  // ชั้นประทวน
+  "ดาบตำรวจ",
+  "จ่าสิบตำรวจ",
+  "สิบตำรวจเอก",
+  "สิบตำรวจโท",
+  "สิบตำรวจตรี",
+  "พลตำรวจ",
+];
+
+const emptyForm = {
+  username: "",
+  email: "",
+  password: "",
+  full_name: "",
+  rank: "",
+  department: "",
+  badge_number: "",
+  role: "officer",
+};
+
+export default function UsersPage() {
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [users, setUsers] = useState<AuthUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState(emptyForm);
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authFetch("/api/users");
+      if (res.ok) setUsers(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const admin = getUser()?.role === "admin";
+    setIsAdmin(admin);
+    if (admin) loadUsers();
+  }, [loadUsers]);
+
+  const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+
+    if (form.password.length < 8) {
+      setMsg({ type: "err", text: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" });
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await authFetch("/api/users", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setMsg({ type: "ok", text: `เพิ่มผู้ใช้ "${form.username}" สำเร็จ` });
+        setForm(emptyForm);
+        loadUsers();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setMsg({ type: "err", text: data.detail?.toString?.() || "เพิ่มผู้ใช้ไม่สำเร็จ" });
+      }
+    } catch {
+      setMsg({ type: "err", text: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (isAdmin === null) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <ShieldAlert className="h-10 w-10 text-danger" />
+        <p className="text-lg font-semibold">ไม่มีสิทธิ์เข้าถึง</p>
+        <p className="text-sm text-muted">หน้านี้สำหรับผู้ดูแลระบบเท่านั้น</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Manage Users</h1>
+        <p className="text-sm text-muted mt-1">จัดการบัญชีเจ้าหน้าที่</p>
+      </div>
+
+      {/* Add user form */}
+      <form onSubmit={submit} className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <UserPlus className="h-5 w-5 text-primary" />
+          <h2 className="font-semibold">เพิ่มผู้ใช้ใหม่</h2>
+        </div>
+
+        {msg && (
+          <div className={`mb-4 flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${msg.type === "ok" ? "bg-success-light text-success" : "bg-danger-light text-danger"}`}>
+            {msg.type === "ok" ? <CheckCircle2 className="h-4 w-4 flex-shrink-0" /> : <AlertCircle className="h-4 w-4 flex-shrink-0" />}
+            <span>{msg.text}</span>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="ชื่อผู้ใช้ *"><input required value={form.username} onChange={set("username")} className={inputCls} autoComplete="off" /></Field>
+          <Field label="อีเมล *"><input required type="email" value={form.email} onChange={set("email")} className={inputCls} autoComplete="off" /></Field>
+          <Field label="รหัสผ่าน * (≥ 8 ตัว)"><input required type="password" value={form.password} onChange={set("password")} className={inputCls} autoComplete="new-password" /></Field>
+          <Field label="สิทธิ์ (role)">
+            <select value={form.role} onChange={set("role")} className={inputCls}>
+              {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </Field>
+          <Field label="ชื่อ-นามสกุล"><input value={form.full_name} onChange={set("full_name")} className={inputCls} /></Field>
+          <Field label="ยศ">
+            <select value={form.rank} onChange={set("rank")} className={inputCls}>
+              <option value="">— เลือกยศ —</option>
+              {POLICE_RANKS.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </Field>
+          <Field label="หน่วยงาน"><input value={form.department} onChange={set("department")} className={inputCls} /></Field>
+          <Field label="เลขบัตร"><input value={form.badge_number} onChange={set("badge_number")} className={inputCls} /></Field>
+        </div>
+
+        <button type="submit" disabled={submitting} className="mt-5 flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-60">
+          {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+          เพิ่มผู้ใช้
+        </button>
+      </form>
+
+      {/* Users table */}
+      <div className="rounded-xl border border-border bg-surface shadow-sm overflow-hidden">
+        <div className="border-b border-border px-5 py-4">
+          <h2 className="font-semibold">รายชื่อผู้ใช้ ({users.length})</h2>
+        </div>
+        {loading ? (
+          <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted">
+                <th className="px-5 py-3 font-medium">ผู้ใช้</th>
+                <th className="px-5 py-3 font-medium">อีเมล</th>
+                <th className="px-5 py-3 font-medium">หน่วยงาน</th>
+                <th className="px-5 py-3 font-medium">สิทธิ์</th>
+                <th className="px-5 py-3 font-medium">สถานะ</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {users.map((u) => (
+                <tr key={u.user_id} className="hover:bg-surface-hover transition-colors">
+                  <td className="px-5 py-3">
+                    <p className="font-medium">{u.full_name || u.username}</p>
+                    <p className="text-xs text-muted">@{u.username} · {u.badge_number || "-"}</p>
+                  </td>
+                  <td className="px-5 py-3 text-muted">{u.email}</td>
+                  <td className="px-5 py-3 text-muted">{u.department || "-"}</td>
+                  <td className="px-5 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${u.role === "admin" ? "bg-primary-light text-primary" : "bg-slate-100 text-text-secondary"}`}>{u.role}</span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${u.is_active ? "bg-success-light text-success" : "bg-danger-light text-danger"}`}>
+                      {u.is_active ? "active" : "inactive"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const inputCls = "mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary";
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="text-xs font-medium text-muted">{label}</label>
+      {children}
+    </div>
+  );
+}

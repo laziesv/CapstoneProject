@@ -1,8 +1,18 @@
 "use client";
+import { useEffect, useState } from "react";
 import { Bell, Search } from "lucide-react";
-import { currentUser } from "@/lib/mockData";
+import { getUser, type AuthUser } from "@/lib/auth";
 
 export default function TopBar() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    setUser(getUser());
+  }, []);
+
+  const displayName = user?.full_name || user?.username || "ผู้ใช้งาน";
+  const badge = user?.badge_number || user?.rank || "";
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-surface px-6">
       {/* Search */}
@@ -23,11 +33,11 @@ export default function TopBar() {
         </button>
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
-            {currentUser.full_name.charAt(0)}
+            {displayName.charAt(0)}
           </div>
           <div className="text-sm">
-            <p className="font-medium leading-tight">{currentUser.full_name}</p>
-            <p className="text-xs text-muted">{currentUser.badge_number}</p>
+            <p className="font-medium leading-tight">{displayName}</p>
+            {badge && <p className="text-xs text-muted">{badge}</p>}
           </div>
         </div>
       </div>
