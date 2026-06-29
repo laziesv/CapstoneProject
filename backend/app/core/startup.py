@@ -1,12 +1,16 @@
+import os
 from datetime import datetime, timezone
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.auth import hash_password
-from app.database import Base, engine
+from app.database import engine
 from app.models import *
 from app.models.user import User
+
+# backend/ (ที่อยู่ของ alembic.ini)
+_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
 
 def test_database_connection():
@@ -14,16 +18,22 @@ def test_database_connection():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
 
-        print("✅ Database connected")
+        print("[OK] Database connected")
 
     except Exception as e:
-        print("❌ Database connection failed")
+        print("[ERROR] Database connection failed")
         print(e)
 
 
-def create_tables():
-    Base.metadata.create_all(bind=engine)
-    print("✅ Tables created")
+def run_migrations():
+    """ปรับฐานข้อมูลให้เป็นเวอร์ชันล่าสุดด้วย Alembic (idempotent — no-op ถ้าอยู่ที่ head แล้ว)"""
+    from alembic.config import Config
+    from alembic import command
+
+    cfg = Config(os.path.join(_BACKEND_DIR, "alembic.ini"))
+    cfg.set_main_option("script_location", os.path.join(_BACKEND_DIR, "alembic"))
+    command.upgrade(cfg, "head")
+    print("[OK] Alembic migrations applied (head)")
 
 
 def seed_admin():
@@ -40,6 +50,7 @@ def seed_admin():
             rank="ผู้บริหาร",
             department="Digital Forensics",
             badge_number="DEVA-001",
+            role="admin",
             is_active=True,
             created_at=datetime.now(timezone.utc),
         )
@@ -47,15 +58,18 @@ def seed_admin():
         db.add(admin)
         db.commit()
 
-        print("✅ Admin seeded")
+        print("[OK] Admin seeded")
 
     else:
-        print("ℹ️ Admin already exists")
+        print("[INFO] Admin already exists")
 
     db.close()
 
 
 def startup():
     test_database_connection()
-    create_tables()
+    run_migrations()
     seed_admin()
+
+    from app.core.seed import seed_sample_data
+    seed_sample_data()

@@ -7,7 +7,8 @@ from sqlalchemy import (
     Enum,
     Boolean,
     TIMESTAMP,
-    Text
+    Text,
+    func,
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -25,32 +26,54 @@ class EvidenceItem(Base):
         default=uuid.uuid4
     )
 
-    evidence_number = Column(String(30), unique=True)
+    evidence_number = Column(String(30), unique=True, nullable=False, index=True)
 
     case_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("cases.case_id")
+        ForeignKey("cases.case_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
 
     uploaded_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("users.user_id")
+        ForeignKey("users.user_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
 
-    category = Column(String(50))
+    category = Column(String(50), nullable=False)
 
     description = Column(Text)
 
     original_filename = Column(String(255))
 
-    status = Column(Enum(EvidenceStatus))
+    # canonical hash ของหลักฐาน (SHA-256 hex = 64 ตัว)
+    file_hash_sha256 = Column(String(64), index=True)
 
-    is_watermarked = Column(Boolean, default=False)
+    status = Column(
+        Enum(EvidenceStatus),
+        nullable=False,
+        server_default=EvidenceStatus.PENDING.value,
+        index=True,
+    )
 
-    is_blockchain_verified = Column(Boolean, default=False)
+    is_watermarked = Column(Boolean, nullable=False, server_default="false")
 
-    captured_at = Column(TIMESTAMP)
+    is_blockchain_verified = Column(Boolean, nullable=False, server_default="false")
 
-    uploaded_at = Column(TIMESTAMP)
+    # ── retention / legal hold ──────────────────────────
+    legal_hold = Column(Boolean, nullable=False, server_default="false")
 
-    verified_at = Column(TIMESTAMP)
+    retention_until = Column(TIMESTAMP(timezone=True))
+
+    # ── soft delete ─────────────────────────────────────
+    is_deleted = Column(Boolean, nullable=False, server_default="false", index=True)
+
+    deleted_at = Column(TIMESTAMP(timezone=True))
+
+    captured_at = Column(TIMESTAMP(timezone=True))
+
+    uploaded_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    verified_at = Column(TIMESTAMP(timezone=True))

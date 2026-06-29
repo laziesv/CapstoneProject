@@ -4,7 +4,8 @@ from sqlalchemy import (
     Column,
     String,
     Boolean,
-    TIMESTAMP
+    TIMESTAMP,
+    func,
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -21,13 +22,11 @@ class User(Base):
         default=uuid.uuid4
     )
 
+    username = Column(String(50), unique=True, nullable=False, index=True)
+
+    email = Column(String(255), unique=True, nullable=False, index=True)
+
     password_hash = Column(String(255), nullable=False)
-
-    email = Column(String(255), unique=True, nullable=False)
-
-    username = Column(String(50), unique=True, nullable=False)
-
-    badge_number = Column(String(20))
 
     full_name = Column(String(100))
 
@@ -35,12 +34,16 @@ class User(Base):
 
     department = Column(String(100))
 
+    badge_number = Column(String(20))
+
     profile_image_url = Column(String)
 
-    is_active = Column(Boolean, default=True)
+    role = Column(String(20), nullable=False, server_default="officer", index=True)
 
-    created_at = Column(TIMESTAMP)
+    is_active = Column(Boolean, nullable=False, server_default="true")
 
-    updated_at = Column(TIMESTAMP)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
-    last_login_at = Column(TIMESTAMP)
+    updated_at = Column(TIMESTAMP(timezone=True), onupdate=func.now())
+
+    last_login_at = Column(TIMESTAMP(timezone=True))

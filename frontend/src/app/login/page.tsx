@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Fingerprint, Eye, EyeOff, Shield, Lock, User, AlertCircle, Loader2 } from "lucide-react";
+import { API_BASE, setSession, isAuthenticated } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,28 +13,34 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ถ้า login อยู่แล้ว เด้งเข้า dashboard เลย
+  useEffect(() => {
+    if (isAuthenticated()) {
+      router.replace("/dashboard");
+    }
+  }, [router]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/api/auth/login", {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         setError(data.detail || "เข้าสู่ระบบไม่สำเร็จ");
         setLoading(false);
         return;
       }
 
       const data = await res.json();
-      localStorage.setItem("deva_token", data.access_token);
-      localStorage.setItem("deva_user", JSON.stringify(data.user));
+      setSession(data.access_token, data.user);
       router.push("/dashboard");
     } catch {
       setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");

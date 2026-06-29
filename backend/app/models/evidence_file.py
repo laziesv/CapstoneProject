@@ -3,10 +3,13 @@ import uuid
 from sqlalchemy import (
     Column,
     String,
+    Integer,
     ForeignKey,
     BigInteger,
+    Boolean,
     Enum,
-    TIMESTAMP
+    TIMESTAMP,
+    func,
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -26,7 +29,9 @@ class EvidenceFile(Base):
 
     evidence_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("evidence_items.evidence_id")
+        ForeignKey("evidence_items.evidence_id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
     )
 
     file_type = Column(Enum(FileType))
@@ -39,6 +44,11 @@ class EvidenceFile(Base):
 
     file_size_bytes = Column(BigInteger)
 
-    file_hash = Column(String(64))
+    file_hash = Column(String(64), nullable=False)  # SHA-256 hex
 
-    created_at = Column(TIMESTAMP)
+    # ไฟล์ต้นฉบับ vs ไฟล์ derivative (เช่นที่ฝัง watermark แล้ว)
+    is_original = Column(Boolean, nullable=False, server_default="true")
+
+    version = Column(Integer, nullable=False, server_default="1")
+
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

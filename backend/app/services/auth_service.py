@@ -5,8 +5,11 @@ from sqlalchemy.orm import Session
 
 from app.auth import (
     create_access_token,
-    verify_password
+    verify_password,
+    hash_password
 )
+
+from app.models.user import User
 
 from app.repositories.user_repository import (
     get_user_by_username
@@ -55,3 +58,29 @@ def login_user(
         "access_token": token,
         "user": user,
     }
+
+
+def change_password(
+    db: Session,
+    user: User,
+    current_password: str,
+    new_password: str,
+):
+    # ตรวจรหัสผ่านปัจจุบัน
+    if not verify_password(current_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รหัสผ่านปัจจุบันไม่ถูกต้อง",
+        )
+
+    # กันตั้งรหัสเดิมซ้ำ
+    if verify_password(new_password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รหัสผ่านใหม่ต้องไม่ซ้ำกับรหัสผ่านเดิม",
+        )
+
+    user.password_hash = hash_password(new_password)
+    user.updated_at = datetime.now(timezone.utc)
+
+    db.commit()

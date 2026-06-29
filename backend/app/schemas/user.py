@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 # ── Base ────────────────────────────────────────────────
@@ -19,7 +19,8 @@ class UserBase(BaseModel):
 
 # ── Create ──────────────────────────────────────────────
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(min_length=8)
+    role: str = "officer"
 
 
 # ── Update ──────────────────────────────────────────────
@@ -36,6 +37,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     user_id: UUID
 
+    role: str = "officer"
     is_active: bool
 
     created_at: Optional[datetime] = None
