@@ -12,8 +12,6 @@ from app.models.evidence import EvidenceItem
 from app.models.blockchain_transaction import BlockchainTransaction
 from app.models.access_log import AccessLog
 from app.models.evidence_file import EvidenceFile
-from app.models.custody_event import CustodyEvent
-from app.models.integrity_check import IntegrityCheck
 from app.models.enums import (
     CaseStatus,
     EvidenceStatus,
@@ -21,7 +19,6 @@ from app.models.enums import (
     BlockchainAction,
     AuditAction,
     AuditResult,
-    CustodyAction,
 )
 
 
@@ -193,30 +190,6 @@ def seed_sample_data():
         is_original=True, version=1, created_at=_dt("2026-04-11T08:15:00"),
     )
     db.add(f1)
-    db.flush()
-
-    # ── chain of custody ของ e1 ─────────────────────────
-    db.add_all([
-        CustodyEvent(evidence_id=e1.evidence_id, action=CustodyAction.COLLECTED,
-                     from_user_id=None, to_user_id=officer_id,
-                     location="จุดเกิดเหตุ ซ.สุขุมวิท 23", notes="เก็บหลักฐานจากที่เกิดเหตุ",
-                     occurred_at=_dt("2026-04-10T14:25:00")),
-        CustodyEvent(evidence_id=e1.evidence_id, action=CustodyAction.CHECKED_IN,
-                     from_user_id=officer_id, to_user_id=officer_id,
-                     location="คลังหลักฐาน กองพิสูจน์หลักฐาน", notes="นำเข้าคลังหลังอัปโหลด",
-                     occurred_at=_dt("2026-04-11T08:30:00")),
-        CustodyEvent(evidence_id=e1.evidence_id, action=CustodyAction.CHECKED_OUT,
-                     from_user_id=officer_id, to_user_id=somsak.user_id,
-                     location="ห้องตรวจพิสูจน์", notes="เบิกเพื่อตรวจสอบลายน้ำ",
-                     occurred_at=_dt("2026-04-15T08:45:00")),
-    ])
-
-    # ── ประวัติตรวจ integrity ของไฟล์ e1 ────────────────
-    db.add(IntegrityCheck(
-        evidence_file_id=f1.file_id, checked_by=officer_id,
-        expected_hash=f1.file_hash, computed_hash=f1.file_hash, is_match=True,
-        notes="ตรวจความสมบูรณ์ตอนยืนยันหลักฐาน", checked_at=_dt("2026-04-15T09:00:00"),
-    ))
 
     db.commit()
     db.close()

@@ -20,14 +20,14 @@
 
 ## แบ่งตารางเป็น 4 กลุ่ม
 
-ทั้ง 10 ตารางจัดกลุ่มตามหน้าที่ได้แบบนี้ เห็นภาพรวมก่อนจะเข้าใจง่ายขึ้นมาก:
+ทั้ง 8 ตารางจัดกลุ่มตามหน้าที่ได้แบบนี้ เห็นภาพรวมก่อนจะเข้าใจง่ายขึ้นมาก:
 
 | กลุ่ม | ตาราง | ทำหน้าที่ |
 |------|-------|----------|
 | 👤 **คน** | `users` | เจ้าหน้าที่ที่ใช้ระบบ (ตำรวจ) |
 | 📁 **เนื้อหาหลัก** | `cases` → `evidence_items` → `evidence_files` | คดี → หลักฐาน → ไฟล์จริง |
-| 🔐 **ความน่าเชื่อถือ** | `watermark_records`, `blockchain_transactions`, `integrity_checks` | พิสูจน์ว่าหลักฐานไม่ถูกปลอม/แก้ |
-| 📝 **ประวัติ** | `custody_events`, `access_logs`, `audit_trails` | บันทึกว่าใครทำอะไรเมื่อไหร่ |
+| 🔐 **ความน่าเชื่อถือ** | `watermark_records`, `blockchain_transactions` | พิสูจน์ว่าหลักฐานไม่ถูกปลอม/แก้ |
+| 📝 **ประวัติ** | `access_logs`, `audit_trails` | บันทึกว่าใครเข้าถึง/แก้ไขอะไรเมื่อไหร่ |
 
 ## โครงสร้างแบบลำดับชั้น (เนื้อหาหลัก)
 
@@ -49,28 +49,25 @@
 | # | สิ่งที่เกิดในโลกจริง | ตารางที่ถูกบันทึก | บันทึกอะไร |
 |---|---------------------|-------------------|-----------|
 | 1 | เปิดคดีใหม่ | `cases` | "คดีลักทรัพย์ ซ.สุขุมวิท 23", สถานะ OPEN |
-| 2 | เก็บภาพจากที่เกิดเหตุ | `custody_events` | action=**COLLECTED**, ผู้ครอบครอง=สมชาย, สถานที่=ที่เกิดเหตุ |
-| 3 | อัปโหลดเข้าระบบ | `evidence_items` + `evidence_files` | สร้างหลักฐาน EV-2026-00101 + เก็บไฟล์ jpg พร้อม**คำนวณ SHA-256 hash** ของไฟล์ |
-| 4 | ฝังลายน้ำกันปลอม | `watermark_records` | อัลกอริทึม DWT, ความเข้ม, คะแนนตรวจสอบ |
-| 5 | บันทึกลง blockchain | `blockchain_transactions` | tx_hash ที่**แก้ไม่ได้** เป็นหลักฐานว่ามีไฟล์นี้ ณ เวลานี้ |
-| 6 | นำเข้าเก็บในคลัง | `custody_events` | action=**CHECKED_IN**, สถานที่=คลังหลักฐาน |
-| 7 | เพื่อนร่วมงานมาเปิดดู | `access_logs` | user=สมศักดิ์, action=view, result=success, IP |
-| 8 | เบิกไปตรวจพิสูจน์ | `custody_events` | action=**CHECKED_OUT**, ส่งมอบ สมชาย→สมศักดิ์ |
-| 9 | ตรวจว่าไฟล์ไม่ถูกแก้ | `integrity_checks` | คำนวณ hash ใหม่เทียบของเดิม → ตรงกัน (is_match=✅) |
-| 10 | แก้ไขรายละเอียดคดี | `audit_trails` | เก็บค่า**ก่อน**→**หลัง** (JSONB) ว่าใครแก้อะไร |
+| 2 | อัปโหลดภาพหลักฐานเข้าระบบ | `evidence_items` + `evidence_files` | สร้างหลักฐาน EV-2026-00101 + เก็บไฟล์ jpg พร้อม**คำนวณ SHA-256 hash** ของไฟล์ |
+| 3 | ฝังลายน้ำกันปลอม | `watermark_records` | อัลกอริทึม DWT, ความเข้ม, คะแนนตรวจสอบ |
+| 4 | บันทึกลง blockchain | `blockchain_transactions` | tx_hash ที่**แก้ไม่ได้** เป็นหลักฐานว่ามีไฟล์นี้ ณ เวลานี้ |
+| 5 | เพื่อนร่วมงานมาเปิดดู/ดาวน์โหลด | `access_logs` | user=สมศักดิ์, action=view, result=success, IP, เวลา |
+| 6 | แก้ไขรายละเอียดคดี | `audit_trails` | เก็บค่า**ก่อน**→**หลัง** (JSONB) ว่าใครแก้อะไร |
 
-> 💡 สังเกตว่า **กลุ่มประวัติ** (custody/access/audit) ถูกเขียนเรื่อยๆ ทุกครั้งที่มีการกระทำ —
-> นี่แหละคือ "หลักฐานว่าหลักฐานน่าเชื่อถือ" ที่ใช้ในศาล
+> 💡 สังเกตว่า **กลุ่มประวัติ** (`access_logs` / `audit_trails`) ถูกเขียนเรื่อยๆ ทุกครั้งที่มีการกระทำ —
+> โดยเฉพาะ `access_logs` ที่ตอบคำถามหลัก **"ใครเข้าถึงหลักฐานบ้าง"**
 
-## 3 เสาหลักของความน่าเชื่อถือ (อธิบายเพิ่ม)
+## เสาหลักของความน่าเชื่อถือ
 
-หลายคนงงว่าทำไมต้องมีตั้ง 3 ตารางสำหรับ "ความน่าเชื่อถือ" — เพราะมันกันคนละเรื่อง:
+หลักฐานน่าเชื่อถือได้ด้วยกลไกหลายชั้นที่กันคนละเรื่อง:
 
-| ตาราง | กันอะไร | เปรียบเทียบ |
-|-------|---------|------------|
-| `integrity_checks` (Hash) | ไฟล์ถูกแก้แม้แต่ 1 bit จะรู้ทันที | ลายเซ็นดิจิทัลของไฟล์ |
-| `watermark_records` (ลายน้ำ) | ฝังข้อมูลซ่อนในภาพ พิสูจน์เจ้าของ/แหล่งที่มา | ตราประทับซ่อนในธนบัตร |
-| `blockchain_transactions` | บันทึกที่ลบ/แก้ย้อนหลังไม่ได้ ว่ามีไฟล์นี้ตั้งแต่เมื่อไหร่ | ประทับเวลาที่ปลอมไม่ได้ |
+| กลไก | เก็บที่ไหน | กันอะไร | เปรียบเทียบ |
+|------|-----------|---------|------------|
+| **Hash (SHA-256)** | `evidence_files.file_hash`, `evidence_items.file_hash_sha256` | ไฟล์ถูกแก้แม้แต่ 1 bit จะรู้ทันที | ลายเซ็นดิจิทัลของไฟล์ |
+| **ลายน้ำ** | `watermark_records` | ฝังข้อมูลซ่อนในภาพ พิสูจน์เจ้าของ/แหล่งที่มา | ตราประทับซ่อนในธนบัตร |
+| **Blockchain** | `blockchain_transactions` | บันทึกที่ลบ/แก้ย้อนหลังไม่ได้ ว่ามีไฟล์นี้ตั้งแต่เมื่อไหร่ | ประทับเวลาที่ปลอมไม่ได้ |
+| **Access log** | `access_logs` | บันทึกว่าใครเข้าถึงหลักฐานเมื่อไหร่ | สมุดเซ็นชื่อเข้า-ออก |
 
 ## วิธีตารางเชื่อมกัน (Foreign Key)
 
@@ -89,17 +86,15 @@
 ```
 users ──┐
         ├─< cases ──< evidence_items ──< evidence_files
-        │                  │                  │
+        │                  │
         │                  ├─< watermark_records
         │                  ├─< blockchain_transactions
-        │                  ├─< access_logs >── (FK) blockchain_transactions
-        │                  ├─< custody_events        (chain of custody)
-        │                  └─< (evidence_files) ──< integrity_checks
+        │                  └─< access_logs >── (FK) blockchain_transactions
         └─< audit_trails
 ```
 
 - หลักฐาน 1 ชิ้น (`evidence_items`) อยู่ใน 1 คดี (`cases`) และมีได้หลายไฟล์ (`evidence_files`)
-- ทุกการกระทำกับหลักฐานถูกบันทึกใน `access_logs` / `audit_trails` / `custody_events`
+- ใครเข้าถึงหลักฐานถูกบันทึกใน `access_logs` · การแก้ไขข้อมูลบันทึกใน `audit_trails`
 
 ## ข้อตกลงการออกแบบ (Conventions)
 
@@ -323,42 +318,9 @@ users ──┐
 | `reason` | text | |
 | `created_at` | timestamptz | **not null** default now(), index |
 
----
-
-## 9. `custody_events` — ห่วงโซ่การครอบครอง (Chain of Custody) 🆕
-
-**หัวใจของ DEMS** — บันทึกทุกครั้งที่หลักฐานเปลี่ยนมือ/เบิก/คืน
-เพื่อพิสูจน์ความต่อเนื่องของการครอบครองในชั้นศาล
-
-| คอลัมน์ | ชนิด | หมายเหตุ |
-|--------|------|---------|
-| `custody_id` | UUID PK | |
-| `evidence_id` | UUID → evidence_items | **not null**, RESTRICT, index |
-| `action` | enum CustodyAction | **not null** — COLLECTED/TRANSFERRED/CHECKED_OUT/CHECKED_IN/RELEASED/DISPOSED |
-| `from_user_id` | UUID → users | ผู้ส่งมอบ (NULL ตอน COLLECTED ครั้งแรก) |
-| `to_user_id` | UUID → users | **not null** — ผู้ครอบครองคนใหม่ |
-| `location` | varchar(255) | สถานที่ส่งมอบ/จัดเก็บ |
-| `notes` | text | |
-| `signature_hash` | varchar(64) | ลายเซ็นดิจิทัลยืนยันการส่งมอบ |
-| `occurred_at` | timestamptz | **not null** default now(), index — เวลาที่เกิดเหตุการณ์ |
-| `created_at` | timestamptz | **not null** default now() |
-
----
-
-## 10. `integrity_checks` — ประวัติตรวจความสมบูรณ์ของไฟล์ 🆕
-
-ทุกครั้งที่ตรวจว่าไฟล์ยังไม่ถูกแก้ไข — คำนวณ hash ใหม่เทียบกับที่บันทึกไว้
-
-| คอลัมน์ | ชนิด | หมายเหตุ |
-|--------|------|---------|
-| `check_id` | UUID PK | |
-| `evidence_file_id` | UUID → evidence_files | **not null**, RESTRICT, index |
-| `checked_by` | UUID → users | ผู้ตรวจ (ระบบ/เจ้าหน้าที่) |
-| `expected_hash` | varchar(64) | **not null** — hash ที่บันทึกไว้ตอนรับหลักฐาน |
-| `computed_hash` | varchar(64) | **not null** — hash ที่คำนวณตอนตรวจ |
-| `is_match` | bool | **not null**, index — ตรงกันหรือไม่ (false = ไฟล์ถูกดัดแปลง!) |
-| `notes` | text | |
-| `checked_at` | timestamptz | **not null** default now(), index |
+> 📌 **หมายเหตุเรื่อง scope:** ระบบนี้จัดเก็บ**หลักฐานดิจิทัล** (ไฟล์ภาพ) การติดตาม "ใครเข้าถึง"
+> จึงใช้ `access_logs` เป็นหลัก — ไม่ได้ใช้ตาราง chain-of-custody แบบกายภาพ (เบิก/ส่งมอบของจริง)
+> และไม่มีตารางประวัติ hash แยก (เก็บ hash ไว้ที่ `evidence_files.file_hash` พอ)
 
 ---
 

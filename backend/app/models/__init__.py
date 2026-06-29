@@ -9,8 +9,6 @@ from app.models.watermark_record import WatermarkRecord
 from app.models.blockchain_transaction import BlockchainTransaction
 from app.models.access_log import AccessLog
 from app.models.audit_trail import AuditTrail
-from app.models.custody_event import CustodyEvent
-from app.models.integrity_check import IntegrityCheck
 
 __all__ = [
     "User",
@@ -21,6 +19,4 @@ __all__ = [
     "BlockchainTransaction",
     "AccessLog",
     "AuditTrail",
-    "CustodyEvent",
-    "IntegrityCheck",
 ]

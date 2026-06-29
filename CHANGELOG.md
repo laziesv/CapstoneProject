@@ -19,7 +19,6 @@
   - `reset_db.py` เปลี่ยนมาใช้ alembic upgrade
   - workflow แก้ schema: `alembic revision --autogenerate` → `alembic upgrade head` (ดู `docs/DATABASE.md`)
 - **ปรับ database schema ทั้งหมดตามมาตรฐาน DEMS + เอกสารอธิบายทุกตาราง**
-  - เพิ่ม 2 ตารางใหม่: `custody_events` (chain of custody) + `integrity_checks` (ประวัติตรวจ hash) — `backend/app/models/custody_event.py`, `backend/app/models/integrity_check.py`
   - ทุกตาราง: เปลี่ยน timestamp เป็น `TIMESTAMP WITH TIME ZONE` + `server_default now()`, เพิ่ม `NOT NULL` บนคอลัมน์สำคัญ, เพิ่ม index บน FK/คอลัมน์ที่ filter บ่อย, FK เป็น `ON DELETE RESTRICT`
   - เพิ่ม soft delete (`is_deleted`/`deleted_at`) + retention (`legal_hold`/`retention_until`) ใน cases/evidence
   - เพิ่ม `file_hash_sha256` ใน evidence_items, แก้ `watermark_hash` 50→64, แก้ `access_logs.tx_internal_id` จาก text เป็น FK UUID จริง

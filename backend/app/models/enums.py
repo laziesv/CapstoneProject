@@ -48,13 +48,3 @@ class AuditAction(str, enum.Enum):
 class AuditResult(str, enum.Enum):
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
-
-
-class CustodyAction(str, enum.Enum):
-    """เหตุการณ์ใน chain of custody ของหลักฐาน"""
-    COLLECTED = "COLLECTED"        # เก็บหลักฐานจากที่เกิดเหตุ
-    TRANSFERRED = "TRANSFERRED"    # ส่งมอบระหว่างเจ้าหน้าที่
-    CHECKED_OUT = "CHECKED_OUT"    # เบิกออกจากคลัง
-    CHECKED_IN = "CHECKED_IN"      # คืนเข้าคลัง
-    RELEASED = "RELEASED"          # ปล่อยคืน/ส่งต่อหน่วยงานอื่น
-    DISPOSED = "DISPOSED"          # ทำลาย/จำหน่ายตามกำหนด
