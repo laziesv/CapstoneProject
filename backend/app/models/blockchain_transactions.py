@@ -20,26 +20,13 @@ from app.models.enums import BlockchainAction
 class BlockchainTransaction(Base):
     __tablename__ = "blockchain_transactions"
 
-    tx_internal_id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
-    )
+    tx_internal_id = Column(UUID(as_uuid=True),primary_key=True,default=uuid.uuid4)
 
     tx_hash = Column(String(66), nullable=False, index=True)  # 0x + 64 hex
 
-    evidence_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("evidence_items.evidence_id", ondelete="RESTRICT"),
-        nullable=False,
-        index=True,
-    )
+    evidence_id = Column(UUID(as_uuid=True),ForeignKey("evidence_items.evidence_id", ondelete="RESTRICT"),nullable=False,index=True,)
 
-    initiated_by = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.user_id", ondelete="RESTRICT"),
-        index=True,
-    )
+    initiated_by = Column(UUID(as_uuid=True),ForeignKey("users.user_id", ondelete="RESTRICT"),index=True,)
 
     action_type = Column(Enum(BlockchainAction), nullable=False)
 

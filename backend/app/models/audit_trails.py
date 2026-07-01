@@ -20,17 +20,9 @@ from app.models.enums import AuditAction, AuditResult
 class AuditTrail(Base):
     __tablename__ = "audit_trails"
 
-    audit_id = Column(
-        UUID(as_uuid=True),
-        primary_key=True,
-        default=uuid.uuid4
-    )
+    audit_id = Column(UUID(as_uuid=True),primary_key=True,default=uuid.uuid4)
 
-    user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.user_id", ondelete="RESTRICT"),
-        index=True,
-    )
+    user_id = Column(UUID(as_uuid=True),ForeignKey("users.user_id", ondelete="RESTRICT"),index=True,)
 
     entity_type = Column(String(50), nullable=False, index=True)
 
@@ -47,5 +39,7 @@ class AuditTrail(Base):
     result = Column(Enum(AuditResult), nullable=False, server_default=AuditResult.SUCCESS.value)
 
     reason = Column(Text)
+
+    accessed_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), index=True)
 
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), index=True)

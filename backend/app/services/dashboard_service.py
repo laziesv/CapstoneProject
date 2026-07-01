@@ -39,7 +39,7 @@ def get_dashboard(db: Session) -> DashboardResponse:
         RecentActivity(
             log_id=log.log_id,
             user_name=full_name,
-            action=log.action_type,
+            action=log.action.value,
             evidence_number=evidence_number,
             result=(log.result.value.lower() if log.result else "success"),
             accessed_at=log.accessed_at,

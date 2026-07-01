@@ -39,10 +39,8 @@ class BlockchainAction(str, enum.Enum):
 
 
 class AuditAction(str, enum.Enum):
-    CREATE = "CREATE"
-    UPDATE = "UPDATE"
-    DELETE = "DELETE"
     VIEW = "VIEW"
+    DOWNLOAD = "DOWNLOAD"
 
 
 class AuditResult(str, enum.Enum):
