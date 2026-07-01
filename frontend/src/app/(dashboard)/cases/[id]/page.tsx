@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { mockCases, mockEvidence } from "@/lib/mockData";
+import { mockCases, mockEvidence } from "@/utils/mockData";
 import { ArrowLeft, MapPin, Calendar, UploadCloud } from "lucide-react";
 
 const statusStyle: Record<string, string> = {

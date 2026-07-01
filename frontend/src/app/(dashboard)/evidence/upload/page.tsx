@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { UploadCloud, MapPin, X, Shield, Loader2, CheckCircle2, ChevronRight } from "lucide-react";
-import { mockCases, currentUser } from "@/lib/mockData";
+import { mockCases, currentUser } from "@/utils/mockData";
 
 type Step = 1 | 2 | 3 | 4;
 

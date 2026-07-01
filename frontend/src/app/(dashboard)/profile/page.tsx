@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Mail, Hash, Building, Star, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
-import { getUser, authFetch, type AuthUser } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
+import { authService, ApiError } from "@/services";
 
 export default function ProfilePage() {
-  const [u, setU] = useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    setU(getUser());
-  }, []);
+  const { user: u } = useAuth();
 
   if (!u) {
     return (
@@ -77,22 +74,14 @@ function ChangePasswordForm() {
 
     setLoading(true);
     try {
-      const res = await authFetch("/api/auth/change-password", {
-        method: "POST",
-        body: JSON.stringify({ current_password: current, new_password: next }),
-      });
-
-      if (res.ok) {
-        setMsg({ type: "ok", text: "เปลี่ยนรหัสผ่านสำเร็จ" });
-        setCurrent("");
-        setNext("");
-        setConfirm("");
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setMsg({ type: "err", text: data.detail?.toString?.() || "เปลี่ยนรหัสผ่านไม่สำเร็จ" });
-      }
-    } catch {
-      setMsg({ type: "err", text: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้" });
+      await authService.changePassword(current, next);
+      setMsg({ type: "ok", text: "เปลี่ยนรหัสผ่านสำเร็จ" });
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+    } catch (err) {
+      const text = err instanceof ApiError ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้";
+      setMsg({ type: "err", text });
     } finally {
       setLoading(false);
     }

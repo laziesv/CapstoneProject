@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { UserPlus, Loader2, CheckCircle2, AlertCircle, ShieldAlert } from "lucide-react";
-import { authFetch, getUser, type AuthUser } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
+import { userService, ApiError } from "@/services";
+import type { AuthUser } from "@/interfaces";
 
 const ROLES = ["admin", "investigator", "officer", "viewer"];
 
@@ -39,7 +41,8 @@ const emptyForm = {
 };
 
 export default function UsersPage() {
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const { user } = useAuth();
+  const isAdmin = user ? user.role === "admin" : null;
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
@@ -49,18 +52,17 @@ export default function UsersPage() {
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authFetch("/api/users");
-      if (res.ok) setUsers(await res.json());
+      setUsers(await userService.list());
+    } catch {
+      // ไม่มีสิทธิ์/โหลดไม่ได้ — ปล่อยรายการว่าง
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const admin = getUser()?.role === "admin";
-    setIsAdmin(admin);
-    if (admin) loadUsers();
-  }, [loadUsers]);
+    if (isAdmin) loadUsers();
+  }, [isAdmin, loadUsers]);
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -76,20 +78,13 @@ export default function UsersPage() {
 
     setSubmitting(true);
     try {
-      const res = await authFetch("/api/users", {
-        method: "POST",
-        body: JSON.stringify(form),
-      });
-      if (res.ok) {
-        setMsg({ type: "ok", text: `เพิ่มผู้ใช้ "${form.username}" สำเร็จ` });
-        setForm(emptyForm);
-        loadUsers();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        setMsg({ type: "err", text: data.detail?.toString?.() || "เพิ่มผู้ใช้ไม่สำเร็จ" });
-      }
-    } catch {
-      setMsg({ type: "err", text: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้" });
+      await userService.create(form);
+      setMsg({ type: "ok", text: `เพิ่มผู้ใช้ "${form.username}" สำเร็จ` });
+      setForm(emptyForm);
+      loadUsers();
+    } catch (err) {
+      const text = err instanceof ApiError ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้";
+      setMsg({ type: "err", text });
     } finally {
       setSubmitting(false);
     }

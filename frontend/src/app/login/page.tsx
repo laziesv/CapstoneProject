@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Fingerprint, Eye, EyeOff, Shield, Lock, User, AlertCircle, Loader2 } from "lucide-react";
-import { API_BASE, setSession, isAuthenticated } from "@/lib/auth";
+import { isAuthenticated } from "@/utils/session";
+import { authService, ApiError } from "@/services";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -26,24 +27,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.detail || "เข้าสู่ระบบไม่สำเร็จ");
-        setLoading(false);
-        return;
-      }
-
-      const data = await res.json();
-      setSession(data.access_token, data.user);
+      await authService.login(username, password);
       router.push("/dashboard");
-    } catch {
-      setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+      }
     } finally {
       setLoading(false);
     }

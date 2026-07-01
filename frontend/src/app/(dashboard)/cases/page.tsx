@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { mockCases } from "@/lib/mockData";
+import { mockCases } from "@/utils/mockData";
 import { Plus, Search } from "lucide-react";
 
 const statusStyle: Record<string, string> = {

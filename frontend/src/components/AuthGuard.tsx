@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { getToken, fetchCurrentUser, setSession, clearSession } from "@/lib/auth";
+import { getToken, setSession, clearSession } from "@/utils/session";
+import { authService } from "@/services";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -20,18 +21,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }
 
       // ตรวจ token กับ backend ว่ายังใช้ได้จริง
-      const user = await fetchCurrentUser();
-      if (!active) return;
-
-      if (!user) {
+      try {
+        const user = await authService.me();
+        if (!active) return;
+        // sync ข้อมูล user ล่าสุด แล้วปล่อยให้เข้าได้
+        setSession(token, user);
+        setChecking(false);
+      } catch {
+        if (!active) return;
         clearSession();
         router.replace("/login");
-        return;
       }
-
-      // sync ข้อมูล user ล่าสุด แล้วปล่อยให้เข้าได้
-      setSession(token, user);
-      setChecking(false);
     })();
 
     return () => {

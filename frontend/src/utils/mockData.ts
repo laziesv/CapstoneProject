@@ -1,4 +1,4 @@
-import { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/types";
+import { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
 
 export const currentUser = {
   user_id: "u-001",

@@ -3,32 +3,8 @@
 import { useEffect, useState } from "react";
 import { Images, FolderOpen, Link2, ShieldCheck, ArrowUpRight, UploadCloud, Clock, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { authFetch } from "@/lib/auth";
-
-interface DashboardData {
-  stats: {
-    total_evidence: number;
-    active_cases: number;
-    blockchain_tx: number;
-    verified: number;
-  };
-  recent_evidence: {
-    evidence_id: string;
-    evidence_number: string | null;
-    description: string | null;
-    thumbnail_url: string | null;
-    is_watermarked: boolean;
-    is_blockchain_verified: boolean;
-  }[];
-  recent_activity: {
-    log_id: string;
-    user_name: string | null;
-    action: string | null;
-    evidence_number: string | null;
-    result: string;
-    accessed_at: string | null;
-  }[];
-}
+import { dashboardService } from "@/services";
+import type { DashboardData } from "@/interfaces";
 
 const statConfig = [
   { key: "total_evidence", label: "Total Evidence", icon: Images, color: "text-primary", bg: "bg-primary-light", accent: "before:bg-primary" },
@@ -45,14 +21,9 @@ export default function DashboardPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await authFetch("/api/dashboard");
-        if (!res.ok) {
-          setError("โหลดข้อมูลไม่สำเร็จ");
-          return;
-        }
-        setData(await res.json());
+        setData(await dashboardService.get());
       } catch {
-        setError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+        setError("โหลดข้อมูลไม่สำเร็จ");
       } finally {
         setLoading(false);
       }

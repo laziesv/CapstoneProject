@@ -1,8 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logout, getUser } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard,
   FolderOpen,
@@ -31,12 +30,9 @@ const adminItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user, signOut } = useAuth();
 
-  useEffect(() => {
-    setIsAdmin(getUser()?.role === "admin");
-  }, []);
-
+  const isAdmin = user?.role === "admin";
   const items = isAdmin ? [...navItems, ...adminItems] : navItems;
 
   return (
@@ -81,7 +77,7 @@ export default function Sidebar() {
           Profile
         </Link>
         <button
-          onClick={logout}
+          onClick={signOut}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
         >
           <LogOut className="h-[18px] w-[18px]" />
