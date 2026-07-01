@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Fingerprint, Eye, EyeOff, Shield, Lock, User, AlertCircle, Loader2 } from "lucide-react";
+import { ShieldCheck, Eye, EyeOff, Lock, User, AlertCircle, Loader2 } from "lucide-react";
 import { isAuthenticated } from "@/utils/session";
 import { authService, ApiError } from "@/services";
 
@@ -42,75 +42,63 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
-      {/* Animated background */}
-      <div className="login-bg">
-        <div className="login-bg-orb login-bg-orb-1" />
-        <div className="login-bg-orb login-bg-orb-2" />
-        <div className="login-bg-orb login-bg-orb-3" />
-        <div className="login-bg-grid" />
-      </div>
-
-      <div className="login-container">
-        {/* Left panel — branding */}
-        <div className="login-branding">
-          <div className="login-branding-content">
-            <div className="login-logo-badge">
-              <Fingerprint className="login-logo-icon" />
-            </div>
-            <h1 className="login-brand-title">DEVA</h1>
-            <p className="login-brand-subtitle">
-              Digital Evidence Vault<br />& Authentication
-            </p>
-            <div className="login-brand-divider" />
-            <p className="login-brand-desc">
-              ระบบคลังหลักฐานดิจิทัลรับรองด้วยลายน้ำและบล็อกเชน
-            </p>
-
-            {/* Feature pills */}
-            <div className="login-features">
-              <div className="login-feature-pill">
-                <Shield className="login-feature-icon" />
-                <span>Watermark Protected</span>
-              </div>
-              <div className="login-feature-pill">
-                <Lock className="login-feature-icon" />
-                <span>Blockchain Verified</span>
-              </div>
-            </div>
+      <div className="login-shell">
+        {/* ── Left: official branding ── */}
+        <aside className="login-brand">
+          <div className="login-emblem">
+            <ShieldCheck />
           </div>
 
-          {/* Decorative fingerprint watermark */}
-          <Fingerprint className="login-branding-watermark" />
-        </div>
+          <p className="login-agency">ระบบรับรองหลักฐานดิจิทัล</p>
+          <h1 className="login-title">DEVA</h1>
+          <p className="login-subtitle">
+            คลังหลักฐานภาพดิจิทัลรับรองด้วยลายน้ำและบล็อกเชน
+          </p>
 
-        {/* Right panel — form */}
-        <div className="login-form-panel">
-          <div className="login-form-wrapper">
-            {/* Mobile logo */}
-            <div className="login-mobile-logo">
-              <Fingerprint className="login-mobile-logo-icon" />
-              <span className="login-mobile-logo-text">DEVA</span>
+          <div className="login-rule" />
+
+          <p className="login-desc">
+            Blockchain &amp; Watermark-based Digital Evidence Authentication
+          </p>
+
+          <div className="login-notice">
+            <ShieldCheck />
+            <span>
+              ระบบสำหรับเจ้าหน้าที่ผู้ได้รับอนุญาตเท่านั้น
+              การเข้าใช้งานทุกครั้งจะถูกบันทึกเพื่อการตรวจสอบ
+            </span>
+          </div>
+        </aside>
+
+        {/* ── Right: form ── */}
+        <main className="login-main">
+          <div className="login-form-box">
+            {/* โลโก้สำหรับจอเล็ก */}
+            <div className="login-mobilebrand">
+              <ShieldCheck />
+              <span className="login-mobilebrand-text">DEVA</span>
             </div>
 
-            <div className="login-form-header">
-              <h2 className="login-form-title">เข้าสู่ระบบ</h2>
-              <p className="login-form-desc">ลงชื่อเข้าใช้เพื่อเข้าถึงคลังหลักฐาน</p>
-            </div>
+            <h2 className="login-heading">เข้าสู่ระบบ</h2>
+            <p className="login-subheading">
+              กรุณาลงชื่อเข้าใช้ด้วยบัญชีเจ้าหน้าที่
+            </p>
 
             <form onSubmit={handleLogin} className="login-form" id="login-form">
-              {/* Error */}
               {error && (
-                <div className="login-error" id="login-error">
-                  <AlertCircle className="login-error-icon" />
+                <div className="login-error" id="login-error" role="alert">
+                  <AlertCircle />
                   <span>{error}</span>
                 </div>
               )}
 
               {/* Username */}
               <div className="login-field">
-                <label htmlFor="username" className="login-label">ชื่อผู้ใช้</label>
-                <div className="login-input-wrapper">
-                  <User className="login-input-icon" />
+                <label htmlFor="username" className="login-label">
+                  ชื่อผู้ใช้
+                </label>
+                <div className="login-inputwrap">
+                  <User className="login-inicon" />
                   <input
                     id="username"
                     type="text"
@@ -127,9 +115,11 @@ export default function LoginPage() {
 
               {/* Password */}
               <div className="login-field">
-                <label htmlFor="password" className="login-label">รหัสผ่าน</label>
-                <div className="login-input-wrapper">
-                  <Lock className="login-input-icon" />
+                <label htmlFor="password" className="login-label">
+                  รหัสผ่าน
+                </label>
+                <div className="login-inputwrap">
+                  <Lock className="login-inicon" />
                   <input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -143,11 +133,12 @@ export default function LoginPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="login-toggle-pw"
+                    className="login-toggle"
                     id="toggle-password"
                     tabIndex={-1}
+                    aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
                   >
-                    {showPassword ? <EyeOff className="login-toggle-pw-icon" /> : <Eye className="login-toggle-pw-icon" />}
+                    {showPassword ? <EyeOff /> : <Eye />}
                   </button>
                 </div>
               </div>
@@ -170,12 +161,13 @@ export default function LoginPage() {
               </button>
             </form>
 
-            {/* Footer */}
-            <p className="login-footer">
-              DEVA Evidence System &copy; {new Date().getFullYear()}
+            <p className="login-foot">
+              DEVA Evidence System &middot; สงวนลิขสิทธิ์ &copy; {new Date().getFullYear()}
+              <br />
+              การเข้าถึงโดยไม่ได้รับอนุญาตถือเป็นความผิดตามกฎหมาย
             </p>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );

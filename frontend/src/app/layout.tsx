@@ -6,7 +6,7 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DEVA — Digital Evidence Vault & Authentication",
+  title: "DEVA — Blockchain & Watermark-based Digital Evidence Authentication",
   description: "คลังหลักฐานภาพดิจิทัลรับรองด้วยลายน้ำและบล็อกเชน",
 };
 
