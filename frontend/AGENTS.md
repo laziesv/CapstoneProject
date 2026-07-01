@@ -42,12 +42,29 @@ src/
 ├── components/
 │   ├── AuthGuard.tsx         # ป้องกัน route ที่ต้อง auth
 │   └── layout/               # Sidebar, TopBar
-├── lib/
-│   ├── auth.ts               # จัดการ session/token + authFetch
-│   └── mockData.ts           # Mock data (บางหน้ายังใช้อยู่)
-└── types/
-    └── index.ts              # TypeScript type definitions ทั้งหมด
+├── config/                   # constant (API_BASE, storage keys)
+├── interfaces/               # TypeScript types/DTOs ทั้งหมด (auth/user/evidence/dashboard)
+├── services/                 # API layer
+│   ├── http/                 # client.ts (fetch+token+ApiError) + auth/dashboard/user services
+│   └── index.ts              # barrel: import { authService } from "@/services"
+├── contexts/                 # React contexts (AuthContext)
+├── hooks/                    # custom hooks (useAuth)
+└── utils/                    # session helpers + mockData
 ```
+
+## Layering (สำคัญ)
+
+```
+component → hooks/contexts → services → services/http → utils/session + config
+                                 ↑
+                            interfaces (types ที่ใช้ร่วมกันทุกชั้น)
+```
+
+- **config/** — ค่าคงที่ (API_BASE, TOKEN_KEY)
+- **interfaces/** — type/DTO ทั้งหมด import ผ่าน `@/interfaces`
+- **utils/session.ts** — เก็บ/อ่าน token+user ใน localStorage (ไม่ยุ่ง network)
+- **services/** — เรียก API ผ่าน `service.method()` (typed, โยน `ApiError`) — component ไม่เรียก fetch ตรง
+- **contexts/AuthContext + hooks/useAuth** — เข้าถึง user ปัจจุบันใน component (`const { user, signOut } = useAuth()`)
 
 ## Code style
 
@@ -55,7 +72,7 @@ src/
 - **Path alias** — import จาก `@/components/...` แทน relative paths ยาว
 - **Tailwind CSS v4** — ใช้ utility classes ตาม custom theme ใน `globals.css`
 - **lucide-react** — library icon เดียวที่ใช้ใน project นี้
-- **ไม่มี** axios หรือ fetch wrapper — ใช้ `authFetch` จาก `@/lib/auth` (แนบ token ให้อัตโนมัติ)
+- **ไม่มี** axios — เรียก API ผ่าน `service.method()` จาก `@/services` (client ใน `services/http/client.ts` แนบ token ให้อัตโนมัติ)
 - ไม่ใช้ `pnpm` — project นี้ใช้ `npm` เท่านั้น
 
 ## Design system
@@ -72,9 +89,9 @@ src/
 
 ## Auth & data patterns
 
-- Auth ใช้ JWT token จาก `POST /api/auth/login` — เก็บผ่าน `@/lib/auth` (`setSession`/`getUser`/`logout`)
-- ทุก request ที่ต้อง auth ใช้ `authFetch()` (แนบ Bearer token + logout อัตโนมัติเมื่อ 401)
-- Roles: `admin`, `investigator`, `officer`, `viewer` — เมนู/หน้า admin เช็ค `getUser()?.role === "admin"`
+- Auth ใช้ JWT token จาก `POST /api/auth/login` — เก็บผ่าน `@/utils/session` (`setSession`/`getUser`/`clearSession`)
+- ทุก request ที่ต้อง auth ผ่าน `request()` ใน `services/http/client.ts` (แนบ Bearer token + logout อัตโนมัติเมื่อ 401)
+- Roles: `admin`, `investigator`, `officer`, `viewer` — component เช็คสิทธิ์ผ่าน `useAuth()` → `user?.role === "admin"`
 - หน้าใน `(dashboard)/` ถูกครอบด้วย `AuthGuard` (redirect ไป /login ถ้าไม่มี token)
 
 ## Backend API

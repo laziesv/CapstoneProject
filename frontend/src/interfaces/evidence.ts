@@ -1,4 +1,5 @@
-export type Role = "admin" | "investigator" | "officer" | "viewer";
+// ── Evidence / case / blockchain domain interfaces ──────
+
 export type CaseStatus = "open" | "investigating" | "closed" | "archived";
 export type EvidenceCategory = "crime_scene" | "forensic" | "surveillance" | "document";
 export type EvidenceStatus = "pending" | "verified" | "flagged" | "rejected";
@@ -8,19 +9,6 @@ export type TxAction = "upload" | "access" | "verify" | "transfer" | "flag";
 export type TxStatus = "pending" | "confirmed" | "failed";
 export type AccessAction = "view" | "download" | "print" | "share" | "export";
 export type AccessResult = "success" | "denied" | "unauthorized";
-
-export interface User {
-  user_id: string;
-  username: string;
-  email: string;
-  full_name: string;
-  badge_number: string;
-  rank: string;
-  department: string;
-  role: Role;
-  profile_image_url?: string;
-  is_active: boolean;
-}
 
 export interface Case {
   case_id: string;

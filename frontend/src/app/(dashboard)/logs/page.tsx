@@ -1,4 +1,4 @@
-import { mockLogs } from "@/lib/mockData";
+import { mockLogs } from "@/utils/mockData";
 import { Search } from "lucide-react";
 
 const actionStyle: Record<string, string> = {

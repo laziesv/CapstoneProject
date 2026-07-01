@@ -1,14 +1,9 @@
 "use client";
-import { useEffect, useState } from "react";
 import { Bell, Search } from "lucide-react";
-import { getUser, type AuthUser } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function TopBar() {
-  const [user, setUser] = useState<AuthUser | null>(null);
-
-  useEffect(() => {
-    setUser(getUser());
-  }, []);
+  const { user } = useAuth();
 
   const displayName = user?.full_name || user?.username || "ผู้ใช้งาน";
   const badge = user?.badge_number || user?.rank || "";

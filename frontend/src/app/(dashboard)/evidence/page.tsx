@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { mockEvidence } from "@/lib/mockData";
+import { mockEvidence } from "@/utils/mockData";
 import { Search, Grid3X3, List } from "lucide-react";
 
 const categoryLabel: Record<string, string> = {

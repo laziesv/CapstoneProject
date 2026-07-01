@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { mockEvidence, mockTx, mockLogs } from "@/lib/mockData";
+import { mockEvidence, mockTx, mockLogs } from "@/utils/mockData";
 import { ArrowLeft, ShieldCheck, Link2, Clock, Info, Fingerprint } from "lucide-react";
 
 const categoryLabel: Record<string, string> = { crime_scene: "Crime Scene", forensic: "Forensic", surveillance: "Surveillance", document: "Document" };
