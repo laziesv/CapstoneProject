@@ -4,14 +4,14 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.auth import hash_password
+from app.core.auth import hash_password
 from app.database import engine
-from app.models.user import User
-from app.models.case import Case
-from app.models.evidence import EvidenceItem
-from app.models.blockchain_transaction import BlockchainTransaction
-from app.models.access_log import AccessLog
-from app.models.evidence_file import EvidenceFile
+from app.models.users import User
+from app.models.cases import Case
+from app.models.evidence_items import EvidenceItem
+from app.models.blockchain_transactions import BlockchainTransaction
+from app.models.access_logs import AccessLog
+from app.models.evidence_files import EvidenceFile
 from app.models.enums import (
     CaseStatus,
     EvidenceStatus,

@@ -3,15 +3,10 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.auth import hash_password
-from app.models.user import User
+from app.core.auth import hash_password
+from app.models.users import User
 from app.schemas.user import UserCreate
-from app.repositories.user_repository import (
-    get_user_by_username,
-    get_user_by_email,
-    create_user,
-    list_users,
-)
+from app.repositories.user_repository import UserRepository
 
 ALLOWED_ROLES = {"admin", "investigator", "officer", "viewer"}
 
@@ -25,13 +20,13 @@ def create_new_user(db: Session, data: UserCreate) -> User:
         )
 
     # กัน username/email ซ้ำ
-    if get_user_by_username(db, data.username):
+    if UserRepository.get_by_username(db, data.username):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="ชื่อผู้ใช้นี้ถูกใช้แล้ว",
         )
 
-    if get_user_by_email(db, data.email):
+    if UserRepository.get_by_email(db, data.email):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="อีเมลนี้ถูกใช้แล้ว",
@@ -51,8 +46,8 @@ def create_new_user(db: Session, data: UserCreate) -> User:
         created_at=datetime.now(timezone.utc),
     )
 
-    return create_user(db, user)
+    return UserRepository.create(db, user)
 
 
 def list_all_users(db: Session):
-    return list_users(db)
+    return UserRepository.list(db)
