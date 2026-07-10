@@ -1,14 +1,53 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { mockEvidence, mockTx, mockLogs } from "@/utils/mockData";
-import { ArrowLeft, ShieldCheck, Link2, Clock, Info, Fingerprint } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { getCases } from "@/utils/caseStore";
+import { canSeeCase } from "@/utils/caseAccess";
+import type { Case } from "@/interfaces";
 
 const categoryLabel: Record<string, string> = { crime_scene: "Crime Scene", forensic: "Forensic", surveillance: "Surveillance", document: "Document" };
 const statusStyle: Record<string, string> = { pending: "bg-amber-50 text-amber-700", verified: "bg-green-50 text-green-700", flagged: "bg-red-50 text-red-700" };
 
-export default async function EvidenceDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default function EvidenceDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const [cases, setCases] = useState<Case[] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setCases(getCases());
+    })();
+  }, []);
+
+  if (!user || cases === null) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   const evidence = mockEvidence.find((e) => e.evidence_id === id);
   if (!evidence) return <p className="p-6">Evidence not found</p>;
+
+  const caseData = cases.find((c) => c.case_id === evidence.case_id);
+  const allowed = user.role === "admin" ? true : caseData ? canSeeCase(user, caseData) : false;
+
+  if (!allowed) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <ShieldAlert className="h-10 w-10 text-danger" />
+        <p className="text-lg font-semibold">ไม่มีสิทธิ์เข้าถึงหลักฐานนี้</p>
+        <p className="text-sm text-muted">หลักฐานนี้อยู่ในคดีนอกความรับผิดชอบของคุณ</p>
+        <Link href="/evidence" className="mt-2 text-sm text-primary hover:underline">← กลับไปคลังหลักฐาน</Link>
+      </div>
+    );
+  }
 
   const relatedTx = mockTx.filter((t) => t.evidence_id === id);
   const relatedLogs = mockLogs.filter((l) => l.evidence_id === id);

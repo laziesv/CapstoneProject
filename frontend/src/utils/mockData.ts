@@ -12,11 +12,33 @@ export const currentUser = {
   is_active: true,
 };
 
+// ── ทำเนียบผู้ใช้ (mock) พร้อมสายบังคับบัญชา ──────────────
+// คีย์ด้วย username ให้ตรงกับ seed user จริงของ backend (จับคู่กับ useAuth().user.username)
+// supervisor = username ของหัวหน้า (null = ไม่มีหัวหน้า/เป็นหัวหน้าสูงสุด)
+export interface MockUser {
+  username: string;
+  full_name: string;
+  rank: string;
+  department: string;
+  role: string;
+  supervisor: string | null;
+}
+
+export const mockUsers: MockUser[] = [
+  { username: "admin", full_name: "ผู้ดูแลระบบ", rank: "ผู้บริหาร", department: "Digital Forensics", role: "admin", supervisor: null },
+  // หัวหน้า (ชั้นสัญญาบัตร → สร้างคดีได้)
+  { username: "somsak.p", full_name: "พ.ต.ท.สมศักดิ์ ภักดี", rank: "พันตำรวจโท", department: "กองพิสูจน์หลักฐาน", role: "officer", supervisor: null },
+  // ลูกน้องของ somsak (ชั้นประทวน → สร้างไม่ได้)
+  { username: "wichai.s", full_name: "ด.ต.วิชัย สมบูรณ์", rank: "ดาบตำรวจ", department: "งานสืบสวน", role: "officer", supervisor: "somsak.p" },
+];
+
+// created_by / assigned_officer อ้างด้วย username (ตรงกับ mockUsers/seed)
+// somsak.p (หัวหน้า) เป็นผู้สร้างทุกคดี, assign สลับให้ตัวเอง/ลูกน้อง wichai.s
 export const mockCases: Case[] = [
-  { case_id: "c-001", case_number: "CASE-2026-0042", title: "คดีลักทรัพย์ ซ.สุขุมวิท 23", description: "เหตุลักทรัพย์ภายในอาคารพาณิชย์", status: "investigating", created_by: "u-001", assigned_officer: "u-001", incident_date: "2026-04-10", location: "ซ.สุขุมวิท 23 กรุงเทพฯ", created_at: "2026-04-11T08:00:00Z", evidence_count: 8 },
-  { case_id: "c-002", case_number: "CASE-2026-0058", title: "คดีทำร้ายร่างกาย ตลาดนัด", description: "เหตุทำร้ายร่างกายบริเวณตลาดนัด", status: "open", created_by: "u-001", assigned_officer: "u-001", incident_date: "2026-04-22", location: "ตลาดนัดจตุจักร กรุงเทพฯ", created_at: "2026-04-22T14:30:00Z", evidence_count: 3 },
-  { case_id: "c-003", case_number: "CASE-2026-0061", title: "คดีวิ่งราวทรัพย์ สยามสแควร์", description: "เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์", status: "open", created_by: "u-002", assigned_officer: "u-001", incident_date: "2026-04-28", location: "สยามสแควร์ กรุงเทพฯ", created_at: "2026-04-28T10:15:00Z", evidence_count: 5 },
-  { case_id: "c-004", case_number: "CASE-2025-0189", title: "คดียาเสพติด ลาดพร้าว", description: "จับกุมยาเสพติดย่านลาดพร้าว", status: "closed", created_by: "u-001", assigned_officer: "u-001", incident_date: "2025-12-05", location: "ลาดพร้าว กรุงเทพฯ", created_at: "2025-12-05T16:00:00Z", evidence_count: 12 },
+  { case_id: "c-001", case_number: "CASE-2026-0042", title: "คดีลักทรัพย์ ซ.สุขุมวิท 23", description: "เหตุลักทรัพย์ภายในอาคารพาณิชย์", status: "investigating", created_by: "somsak.p", assigned_officer: "somsak.p", incident_date: "2026-04-10", location: "ซ.สุขุมวิท 23 กรุงเทพฯ", created_at: "2026-04-11T08:00:00Z", evidence_count: 8 },
+  { case_id: "c-002", case_number: "CASE-2026-0058", title: "คดีทำร้ายร่างกาย ตลาดนัด", description: "เหตุทำร้ายร่างกายบริเวณตลาดนัด", status: "open", created_by: "somsak.p", assigned_officer: "wichai.s", incident_date: "2026-04-22", location: "ตลาดนัดจตุจักร กรุงเทพฯ", created_at: "2026-04-22T14:30:00Z", evidence_count: 3 },
+  { case_id: "c-003", case_number: "CASE-2026-0061", title: "คดีวิ่งราวทรัพย์ สยามสแควร์", description: "เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์", status: "open", created_by: "somsak.p", assigned_officer: "wichai.s", incident_date: "2026-04-28", location: "สยามสแควร์ กรุงเทพฯ", created_at: "2026-04-28T10:15:00Z", evidence_count: 5 },
+  { case_id: "c-004", case_number: "CASE-2025-0189", title: "คดียาเสพติด ลาดพร้าว", description: "จับกุมยาเสพติดย่านลาดพร้าว", status: "closed", created_by: "somsak.p", assigned_officer: "somsak.p", incident_date: "2025-12-05", location: "ลาดพร้าว กรุงเทพฯ", created_at: "2025-12-05T16:00:00Z", evidence_count: 12 },
 ];
 
 export const mockEvidence: EvidenceItem[] = [

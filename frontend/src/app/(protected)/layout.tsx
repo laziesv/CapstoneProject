@@ -3,7 +3,7 @@ import TopBar from "@/components/layout/TopBar";
 import AuthGuard from "@/components/AuthGuard";
 import { AuthProvider } from "@/contexts/AuthContext";
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
       <AuthProvider>

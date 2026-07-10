@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { UploadCloud, ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { UploadCloud, ShieldCheck, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 
 export default function VerifyPage() {
   const [file, setFile] = useState<File | null>(null);

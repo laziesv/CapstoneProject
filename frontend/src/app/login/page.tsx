@@ -49,7 +49,6 @@ export default function LoginPage() {
             <ShieldCheck />
           </div>
 
-          <p className="login-agency">ระบบรับรองหลักฐานดิจิทัล</p>
           <h1 className="login-title">DEVA</h1>
           <p className="login-subtitle">
             คลังหลักฐานภาพดิจิทัลรับรองด้วยลายน้ำและบล็อกเชน

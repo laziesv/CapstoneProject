@@ -1,17 +1,54 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Link from "next/link";
-import { mockCases, mockEvidence } from "@/utils/mockData";
-import { ArrowLeft, MapPin, Calendar, UploadCloud } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Loader2, ShieldAlert, UploadCloud } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { getCases } from "@/utils/caseStore";
+import { canSeeCase } from "@/utils/caseAccess";
+import { mockEvidence } from "@/utils/mockData";
+import type { Case } from "@/interfaces";
 
 const statusStyle: Record<string, string> = {
   open: "bg-blue-50 text-blue-700",
   investigating: "bg-amber-50 text-amber-700",
   closed: "bg-slate-100 text-slate-500",
+  archived: "bg-slate-50 text-slate-400",
 };
 
-export default async function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const caseData = mockCases.find((c) => c.case_id === id);
+export default function CaseDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const [cases, setCases] = useState<Case[] | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setCases(getCases());
+    })();
+  }, []);
+
+  if (!user || cases === null) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const caseData = cases.find((c) => c.case_id === id);
   if (!caseData) return <p className="p-6">Case not found</p>;
+
+  if (!canSeeCase(user, caseData)) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
+        <ShieldAlert className="h-10 w-10 text-danger" />
+        <p className="text-lg font-semibold">ไม่มีสิทธิ์เข้าถึงคดีนี้</p>
+        <p className="text-sm text-muted">คดีนี้อยู่นอกความรับผิดชอบของคุณ</p>
+        <Link href="/cases" className="mt-2 text-sm text-primary hover:underline">← กลับไปหน้าคดี</Link>
+      </div>
+    );
+  }
 
   const evidenceList = mockEvidence.filter((e) => e.case_id === id);
 
@@ -40,9 +77,15 @@ export default async function CaseDetailPage({ params }: { params: Promise<{ id:
       {/* Evidence in Case */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Evidence ({evidenceList.length})</h2>
-        <Link href="/evidence/upload" className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors">
-          <UploadCloud className="h-4 w-4" /> Upload
-        </Link>
+        {/* อัพโหลดได้เฉพาะผู้รับผิดชอบคดี (non-admin ที่ผ่าน guard มาถึงตรงนี้ = รับผิดชอบ) */}
+        {user.role !== "admin" && (
+          <Link
+            href={`/evidence/upload?case=${caseData.case_id}`}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+          >
+            <UploadCloud className="h-4 w-4" /> อัพโหลดหลักฐาน
+          </Link>
+        )}
       </div>
 
       <div className="grid grid-cols-3 gap-4">

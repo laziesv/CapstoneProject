@@ -1,33 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { UserPlus, Loader2, CheckCircle2, AlertCircle, ShieldAlert } from "lucide-react";
-import { useAuth } from "@/hooks/useAuth";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { UserPlus, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { userService, ApiError } from "@/services";
 import type { AuthUser } from "@/interfaces";
+import { POLICE_RANKS, canCreateByRank } from "@/utils/caseAccess";
+import { getSupervisorMap, setSupervisor } from "@/utils/hierarchyStore";
 
 const ROLES = ["admin", "investigator", "officer", "viewer"];
-
-// ยศตำรวจไทย เรียงจากสูงไปต่ำ
-const POLICE_RANKS = [
-  // ชั้นสัญญาบัตร
-  "พลตำรวจเอก",
-  "พลตำรวจโท",
-  "พลตำรวจตรี",
-  "พันตำรวจเอก",
-  "พันตำรวจโท",
-  "พันตำรวจตรี",
-  "ร้อยตำรวจเอก",
-  "ร้อยตำรวจโท",
-  "ร้อยตำรวจตรี",
-  // ชั้นประทวน
-  "ดาบตำรวจ",
-  "จ่าสิบตำรวจ",
-  "สิบตำรวจเอก",
-  "สิบตำรวจโท",
-  "สิบตำรวจตรี",
-  "พลตำรวจ",
-];
 
 const emptyForm = {
   username: "",
@@ -38,16 +18,20 @@ const emptyForm = {
   department: "",
   badge_number: "",
   role: "officer",
+  supervisor: "",
 };
 
 export default function UsersPage() {
-  const { user } = useAuth();
-  const isAdmin = user ? user.role === "admin" : null;
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  // สายบังคับบัญชา (username → หัวหน้า) จาก hierarchyStore — admin เป็นผู้ควบคุม
+  const [supMap, setSupMap] = useState<Record<string, string | null>>({});
+
+  // หัวหน้าที่เลือกได้ = ผู้มียศชั้นสัญญาบัตร (คนที่สร้างคดีได้)
+  const supervisorOptions = useMemo(() => users.filter((u) => canCreateByRank(u.rank)), [users]);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -61,8 +45,21 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) loadUsers();
-  }, [isAdmin, loadUsers]);
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    // อ่านสายบังคับบัญชาจาก store (client) หลัง mount
+    (async () => {
+      setSupMap(getSupervisorMap());
+    })();
+  }, []);
+
+  // ตั้ง/แก้หัวหน้าของผู้ใช้ + อัปเดต state ให้ตารางรีเฟรชทันที
+  const changeSupervisor = (username: string, supervisor: string) => {
+    setSupervisor(username, supervisor);
+    setSupMap((m) => ({ ...m, [username]: supervisor || null }));
+  };
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -78,7 +75,10 @@ export default function UsersPage() {
 
     setSubmitting(true);
     try {
-      await userService.create(form);
+      // supervisor เก็บฝั่ง client เท่านั้น (backend ยังไม่มี field นี้) — แยกออกจาก payload
+      const { supervisor, ...payload } = form;
+      await userService.create(payload);
+      changeSupervisor(form.username, supervisor);
       setMsg({ type: "ok", text: `เพิ่มผู้ใช้ "${form.username}" สำเร็จ` });
       setForm(emptyForm);
       loadUsers();
@@ -89,24 +89,6 @@ export default function UsersPage() {
       setSubmitting(false);
     }
   };
-
-  if (isAdmin === null) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-        <ShieldAlert className="h-10 w-10 text-danger" />
-        <p className="text-lg font-semibold">ไม่มีสิทธิ์เข้าถึง</p>
-        <p className="text-sm text-muted">หน้านี้สำหรับผู้ดูแลระบบเท่านั้น</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -147,7 +129,16 @@ export default function UsersPage() {
           </Field>
           <Field label="หน่วยงาน"><input value={form.department} onChange={set("department")} className={inputCls} /></Field>
           <Field label="เลขบัตร"><input value={form.badge_number} onChange={set("badge_number")} className={inputCls} /></Field>
+          <Field label="หัวหน้า (สายบังคับบัญชา)">
+            <select value={form.supervisor} onChange={set("supervisor")} className={inputCls}>
+              <option value="">— ไม่มี (เป็นหัวหน้าสูงสุด) —</option>
+              {supervisorOptions.map((u) => (
+                <option key={u.user_id} value={u.username}>{u.full_name || u.username} ({u.rank})</option>
+              ))}
+            </select>
+          </Field>
         </div>
+        <p className="mt-2 text-xs text-muted">* หัวหน้าเลือกได้เฉพาะผู้มียศชั้นสัญญาบัตร (ระดับที่สร้างคดีได้)</p>
 
         <button type="submit" disabled={submitting} className="mt-5 flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-60">
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -169,6 +160,7 @@ export default function UsersPage() {
                 <th className="px-5 py-3 font-medium">ผู้ใช้</th>
                 <th className="px-5 py-3 font-medium">อีเมล</th>
                 <th className="px-5 py-3 font-medium">หน่วยงาน</th>
+                <th className="px-5 py-3 font-medium">หัวหน้า</th>
                 <th className="px-5 py-3 font-medium">สิทธิ์</th>
                 <th className="px-5 py-3 font-medium">สถานะ</th>
               </tr>
@@ -182,6 +174,20 @@ export default function UsersPage() {
                   </td>
                   <td className="px-5 py-3 text-muted">{u.email}</td>
                   <td className="px-5 py-3 text-muted">{u.department || "-"}</td>
+                  <td className="px-5 py-3">
+                    <select
+                      value={supMap[u.username] ?? ""}
+                      onChange={(e) => changeSupervisor(u.username, e.target.value)}
+                      className="h-8 rounded-lg border border-border bg-surface px-2 text-xs text-muted outline-none focus:border-primary"
+                    >
+                      <option value="">— ไม่มี —</option>
+                      {supervisorOptions
+                        .filter((s) => s.username !== u.username)
+                        .map((s) => (
+                          <option key={s.user_id} value={s.username}>{s.full_name || s.username}</option>
+                        ))}
+                    </select>
+                  </td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${u.role === "admin" ? "bg-primary-light text-primary" : "bg-slate-100 text-text-secondary"}`}>{u.role}</span>
                   </td>

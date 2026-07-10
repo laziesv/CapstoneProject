@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   FolderOpen,
   Images,
-  UploadCloud,
   ShieldCheck,
   ClipboardList,
   Users,
@@ -19,12 +18,11 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "Cases", icon: FolderOpen },
   { href: "/evidence", label: "Evidence Vault", icon: Images },
-  { href: "/evidence/upload", label: "Upload Evidence", icon: UploadCloud },
-  { href: "/verify", label: "Watermark Verify", icon: ShieldCheck },
-  { href: "/logs", label: "Access Logs", icon: ClipboardList },
 ];
 
 const adminItems = [
+  { href: "/verify", label: "Watermark Verify", icon: ShieldCheck },
+  { href: "/logs", label: "Access Logs", icon: ClipboardList },
   { href: "/users", label: "Manage Users", icon: Users },
 ];
 
