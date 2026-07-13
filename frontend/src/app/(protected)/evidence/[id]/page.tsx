@@ -44,7 +44,7 @@ export default function EvidenceDetailPage() {
         <ShieldAlert className="h-10 w-10 text-danger" />
         <p className="text-lg font-semibold">ไม่มีสิทธิ์เข้าถึงหลักฐานนี้</p>
         <p className="text-sm text-muted">หลักฐานนี้อยู่ในคดีนอกความรับผิดชอบของคุณ</p>
-        <Link href="/evidence" className="mt-2 text-sm text-primary hover:underline">← กลับไปคลังหลักฐาน</Link>
+        <Link href="/cases" className="mt-2 text-sm text-primary hover:underline">← กลับไปหน้าคดี</Link>
       </div>
     );
   }
@@ -54,8 +54,8 @@ export default function EvidenceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link href="/evidence" className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
-        <ArrowLeft className="h-4 w-4" /> Back to Vault
+      <Link href={`/cases/${evidence.case_id}`} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
+        <ArrowLeft className="h-4 w-4" /> กลับไปหน้าคดี {evidence.case_number ?? ""}
       </Link>
 
       {/* Phase 2 Banner */}

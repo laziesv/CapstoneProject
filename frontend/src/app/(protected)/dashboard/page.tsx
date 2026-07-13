@@ -111,7 +111,7 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-border bg-surface shadow-sm">
           <div className="flex items-center justify-between border-b border-border px-5 py-4">
             <h2 className="font-semibold">Recent Uploads</h2>
-            <Link href="/evidence" className="text-xs text-primary hover:underline">View all</Link>
+            <Link href="/cases" className="text-xs text-primary hover:underline">View all</Link>
           </div>
           <div className="divide-y divide-border">
             {data.recent_evidence.length === 0 && (

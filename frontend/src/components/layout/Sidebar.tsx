@@ -5,7 +5,6 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   LayoutDashboard,
   FolderOpen,
-  Images,
   ShieldCheck,
   ClipboardList,
   Users,
@@ -17,7 +16,6 @@ import {
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/cases", label: "Cases", icon: FolderOpen },
-  { href: "/evidence", label: "Evidence Vault", icon: Images },
 ];
 
 const adminItems = [
@@ -44,10 +42,7 @@ export default function Sidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {items.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== "/evidence" && pathname.startsWith(item.href)) ||
-            (item.href === "/evidence" && pathname === "/evidence");
+          const isActive = pathname === item.href || pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}

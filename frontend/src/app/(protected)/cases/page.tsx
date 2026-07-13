@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, Images, MapPin, CalendarDays, FolderOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { getCases } from "@/utils/caseStore";
 import { visibleCases, canCreateCase } from "@/utils/caseAccess";
+import { mockEvidence } from "@/utils/mockData";
 import type { Case } from "@/interfaces";
 
 const statusStyle: Record<string, string> = {
@@ -14,6 +15,16 @@ const statusStyle: Record<string, string> = {
   closed: "bg-slate-100 text-slate-500",
   archived: "bg-slate-50 text-slate-400",
 };
+
+/** รูปหลักฐานชิ้นแรกที่อัพโหลดของคดี (ใช้เป็นภาพปกการ์ด) */
+const coverOf = (caseId: string) =>
+  mockEvidence
+    .filter((e) => e.case_id === caseId && e.thumbnail_url)
+    .sort((a, b) => a.uploaded_at.localeCompare(b.uploaded_at))[0]?.thumbnail_url;
+
+/** จำนวนหลักฐานจริงของคดี (คดีสร้างใหม่จาก caseStore ยังไม่มีหลักฐาน) */
+const evidenceCountOf = (caseId: string) =>
+  mockEvidence.filter((e) => e.case_id === caseId).length;
 
 export default function CasesPage() {
   const { user } = useAuth();
@@ -84,44 +95,62 @@ export default function CasesPage() {
         />
       </div>
 
-      {/* Cases Table */}
-      <div className="rounded-xl border border-border bg-surface overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-slate-50/50 text-left text-xs font-medium text-muted uppercase tracking-wide">
-              <th className="px-5 py-3">Case Number</th>
-              <th className="px-5 py-3">Title</th>
-              <th className="px-5 py-3">Status</th>
-              <th className="px-5 py-3">Evidence</th>
-              <th className="px-5 py-3">Location</th>
-              <th className="px-5 py-3">Date</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-sm text-muted">
-                  ไม่มีคดีที่คุณเข้าถึงได้
-                </td>
-              </tr>
-            ) : (
-              filtered.map((c) => (
-                <tr key={c.case_id} className="hover:bg-surface-hover transition-colors">
-                  <td className="px-5 py-3">
-                    <Link href={`/cases/${c.case_id}`} className="font-mono text-primary hover:underline">{c.case_number}</Link>
-                  </td>
-                  <td className="px-5 py-3 font-medium">{c.title}</td>
-                  <td className="px-5 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyle[c.status]}`}>{c.status}</span>
-                  </td>
-                  <td className="px-5 py-3 text-muted">{c.evidence_count ?? 0} items</td>
-                  <td className="px-5 py-3 text-muted text-xs">{c.location}</td>
-                  <td className="px-5 py-3 text-muted text-xs">{c.incident_date}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      {/* Cases Card Grid — ภาพปก = รูปหลักฐานแรกของคดี */}
+      <div className="grid grid-cols-3 gap-5">
+        {filtered.length === 0 ? (
+          <div className="col-span-3 rounded-xl border border-border bg-surface px-5 py-12 text-center text-sm text-muted">
+            ไม่มีคดีที่คุณเข้าถึงได้
+          </div>
+        ) : (
+          filtered.map((c) => {
+            const cover = coverOf(c.case_id);
+            const count = evidenceCountOf(c.case_id);
+            return (
+              <Link
+                key={c.case_id}
+                href={`/cases/${c.case_id}`}
+                className="group overflow-hidden rounded-xl border border-border bg-surface shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+              >
+                {/* Cover */}
+                <div className="relative aspect-video overflow-hidden bg-slate-100">
+                  {cover ? (
+                    <img
+                      src={cover}
+                      alt={c.title}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-primary-light/40">
+                      <FolderOpen className="h-8 w-8 text-slate-400" />
+                      <span className="text-xs text-muted">ยังไม่มีหลักฐาน</span>
+                    </div>
+                  )}
+                  <span className={`absolute right-2.5 top-2.5 rounded-full px-2.5 py-1 text-xs font-medium shadow-sm ${statusStyle[c.status]}`}>
+                    {c.status}
+                  </span>
+                </div>
+
+                {/* Body */}
+                <div className="space-y-1.5 p-4">
+                  <p className="font-mono text-xs text-primary">{c.case_number}</p>
+                  <p className="font-medium line-clamp-1">{c.title}</p>
+                  <div className="flex items-center gap-3 pt-1 text-xs text-muted">
+                    <span className="flex items-center gap-1 whitespace-nowrap flex-shrink-0">
+                      <Images className="h-3.5 w-3.5" /> {count} หลักฐาน
+                    </span>
+                    <span className="flex min-w-0 items-center gap-1">
+                      <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                      <span className="truncate">{c.location}</span>
+                    </span>
+                    <span className="flex items-center gap-1 flex-shrink-0">
+                      <CalendarDays className="h-3.5 w-3.5" /> {c.incident_date}
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })
+        )}
       </div>
     </div>
   );

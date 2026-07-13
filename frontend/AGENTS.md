@@ -26,14 +26,15 @@ Backend ต้องรันแยกที่ `http://localhost:8000` — ด�
 ```
 src/
 ├── app/
-│   ├── (dashboard)/          # Protected routes — ต้อง auth แล้วเท่านั้น
-│   │   ├── layout.tsx        # Dashboard layout (Sidebar + TopBar) ครอบด้วย AuthGuard
+│   ├── (protected)/          # Protected routes — ต้อง auth แล้วเท่านั้น
+│   │   ├── layout.tsx        # Layout (Sidebar + TopBar) ครอบด้วย AuthGuard
 │   │   ├── dashboard/        # หน้าหลัก — stats, recent evidence, activity (ดึง /api/dashboard)
-│   │   ├── cases/            # รายการคดี + [id] detail
-│   │   ├── evidence/         # Evidence vault + upload + [id] detail
-│   │   ├── verify/           # ตรวจสอบ watermark
-│   │   ├── logs/             # Access logs
-│   │   ├── users/            # จัดการผู้ใช้ (admin เท่านั้น)
+│   │   ├── cases/            # รายการคดี + [id] detail (แสดง grid รูปหลักฐานของคดี — ทางเข้าเดียวสู่หลักฐาน)
+│   │   ├── evidence/         # [id] detail + upload เท่านั้น (ไม่มีหน้า list — Vault ถูกรวมเข้าหน้าคดีแล้ว)
+│   │   ├── (admin)/          # หน้าเฉพาะ admin
+│   │   │   ├── verify/       # ตรวจสอบ watermark
+│   │   │   ├── logs/         # Access logs
+│   │   │   └── users/        # จัดการผู้ใช้
 │   │   └── profile/          # โปรไฟล์ผู้ใช้ + เปลี่ยนรหัสผ่าน
 │   ├── login/                # หน้า login (ไม่ต้อง auth)
 │   ├── layout.tsx            # Root layout

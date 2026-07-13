@@ -110,7 +110,7 @@ export default function UploadEvidencePage() {
         <ShieldAlert className="h-10 w-10 text-danger" />
         <p className="text-lg font-semibold">ผู้ดูแลระบบไม่ต้องใช้หน้านี้</p>
         <p className="text-sm text-muted">การอัพโหลดหลักฐานเป็นหน้าที่ของผู้รับผิดชอบคดี</p>
-        <Link href="/evidence" className="mt-2 text-sm text-primary hover:underline">← กลับไปคลังหลักฐาน</Link>
+        <Link href="/cases" className="mt-2 text-sm text-primary hover:underline">← กลับไปหน้าคดี</Link>
       </div>
     );
   }
