@@ -1,22 +1,23 @@
 "use client";
 import { useState } from "react";
 import { UploadCloud, ShieldCheck, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { watermarkService } from "@/services";
+import type { VerifyResult } from "@/interfaces";
 
 export default function VerifyPage() {
-  const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [result, setResult] = useState<{ matchPercent: number; officerId: string; officerName: string; timestamp: string; gps: string; staticWm: boolean; dynamicWm: boolean; tampered: boolean } | null>(null);
+  const [result, setResult] = useState<VerifyResult | null>(null);
 
-  const handleFile = (f: File) => {
-    setFile(f);
+  const handleFile = async (f: File) => {
     setPreview(URL.createObjectURL(f));
     setIsVerifying(true);
     setResult(null);
-    setTimeout(() => {
+    try {
+      setResult(await watermarkService.verify(f));
+    } finally {
       setIsVerifying(false);
-      setResult({ matchPercent: 98.7, officerId: "OFF-2847", officerName: "ร.ต.อ.สมชาย แก้วมณี", timestamp: "2026-04-15 14:32:07", gps: "13.7563°N, 100.5018°E", staticWm: true, dynamicWm: true, tampered: false });
-    }, 2500);
+    }
   };
 
   return (

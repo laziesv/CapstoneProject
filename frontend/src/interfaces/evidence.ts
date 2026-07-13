@@ -24,6 +24,17 @@ export interface Case {
   evidence_count?: number;
 }
 
+/** payload สร้างคดีใหม่ — สเปคสำหรับ POST /api/cases */
+export interface NewCaseInput {
+  title: string;
+  description: string;
+  status: CaseStatus;
+  location: string;
+  incident_date: string;
+  created_by: string;
+  assigned_officer: string;
+}
+
 export interface EvidenceItem {
   evidence_id: string;
   evidence_number: string;
@@ -42,6 +53,18 @@ export interface EvidenceItem {
   thumbnail_url?: string;
   captured_at: string;
   uploaded_at: string;
+}
+
+/** payload สร้างหลักฐานใหม่ — สเปคสำหรับ POST /api/evidence (multipart) */
+export interface UploadEvidenceInput {
+  case_id: string;
+  files: File[];
+  category: string; // crime_scene | forensic | surveillance | document
+  description: string;
+  location: string; // ชื่อสถานที่เกิดเหตุ
+  latitude?: string; // พิกัดที่เกิดเหตุ (จาก EXIF หรือกรอกเอง)
+  longitude?: string;
+  captured_at?: string; // วันเวลาที่ถ่าย (datetime-local)
 }
 
 export interface WatermarkRecord {
@@ -72,6 +95,18 @@ export interface BlockchainTx {
   block_timestamp: string;
 }
 
+/** ผลการตรวจสอบลายน้ำ — สเปค response ของ POST /api/watermark/verify */
+export interface VerifyResult {
+  matchPercent: number;
+  officerId: string;
+  officerName: string;
+  timestamp: string;
+  gps: string;
+  staticWm: boolean;
+  dynamicWm: boolean;
+  tampered: boolean;
+}
+
 export interface AccessLog {
   log_id: string;
   user_id: string;
@@ -84,4 +119,12 @@ export interface AccessLog {
   tx_hash?: string;
   result: AccessResult;
   accessed_at: string;
+}
+
+/** ตัวกรอง query ของ GET /api/access-logs */
+export interface AccessLogFilters {
+  evidence_id?: string;
+  user_id?: string;
+  action?: string;
+  result?: string;
 }

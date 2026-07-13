@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FolderPlus, Loader2, ShieldAlert, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { addCase } from "@/utils/caseStore";
+import { caseService } from "@/services";
 import { canCreateCase, subordinatesOf } from "@/utils/caseAccess";
+// TODO(backend): ตัวเลือกผู้รับผิดชอบยังใช้ mockUsers — เปลี่ยนเป็น userService.list()
+// เมื่อ backend มีข้อมูล supervisor/ยศ ครบชุดเดียวกับ mock
 import { mockUsers } from "@/utils/mockData";
 import type { CaseStatus } from "@/interfaces";
 
@@ -51,8 +53,7 @@ export default function NewCasePage() {
 
     setSubmitting(true);
     try {
-      // TODO(backend): เปลี่ยนเป็น await caseService.create(...) เมื่อมี POST /api/cases
-      const created = addCase({
+      const created = await caseService.create({
         title: form.title.trim(),
         description: form.description.trim(),
         status: form.status,
