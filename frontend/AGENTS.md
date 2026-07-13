@@ -62,10 +62,21 @@ component → hooks/contexts → services → services/http → utils/session + 
 ```
 
 - **config/** — ค่าคงที่ (API_BASE, TOKEN_KEY)
-- **interfaces/** — type/DTO ทั้งหมด import ผ่าน `@/interfaces`
+- **interfaces/** — type/DTO ทั้งหมด import ผ่าน `@/interfaces` (รวม payload/response ของทุก endpoint)
 - **utils/session.ts** — เก็บ/อ่าน token+user ใน localStorage (ไม่ยุ่ง network)
 - **services/** — เรียก API ผ่าน `service.method()` (typed, โยน `ApiError`) — component ไม่เรียก fetch ตรง
 - **contexts/AuthContext + hooks/useAuth** — เข้าถึง user ปัจจุบันใน component (`const { user, signOut } = useAuth()`)
+
+### กฎ data access (สำคัญ)
+
+- **component/page ห้าม import `@/utils/mockData`, `@/utils/caseStore`, `@/utils/hierarchyStore` ตรง**
+  — เส้นทางข้อมูลทุกเส้นต้องผ่าน `@/services` เท่านั้น (mock เป็น internal ของ service)
+- **ไฟล์ใน `services/http/` คือสเปค endpoint สำหรับทีม backend** — header comment ของแต่ละไฟล์
+  ระบุ METHOD/path/payload/response/สิทธิ์ ที่ต้อง implement พร้อม `TODO(backend)` จุดสลับ
+  จาก mock → `request()` (ตอนนี้ auth/dashboard/user เรียก API จริงแล้ว ส่วน case/evidence/
+  accessLog/watermark ยังเป็น mock-backed contract)
+- ข้อยกเว้นเดียว: `utils/caseAccess.ts` (ตรรกะสิทธิ์ฝั่ง client สำหรับ demo) และ dropdown
+  ผู้รับผิดชอบใน `cases/new` ยังอ่าน mockUsers — มี `TODO(backend)` กำกับแล้ว
 
 ## Code style
 

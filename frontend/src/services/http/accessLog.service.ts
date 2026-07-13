@@ -1,29 +1,33 @@
 // ── Access log service ──────────────────────────────────
-// interface สำหรับ endpoint กลุ่ม /api/access-logs (admin เท่านั้น)
+// สัญญา (contract) สำหรับ endpoint กลุ่ม /api/access-logs (admin เท่านั้น)
 // ดูว่าใครเข้าถึงหลักฐานชิ้นไหน เวลาใด
 //
-// หมายเหตุ: ฝั่ง backend ยังไม่ได้ทำ endpoint นี้ — ไฟล์นี้เป็น "สัญญา" (contract)
-// ที่กำหนดรูปแบบ request/response ไว้ล่วงหน้า เมื่อ backend พร้อม หน้า /logs
-// สลับจาก mock มาเรียก accessLogService.list() ได้ทันที (ดู logs/page.tsx)
+// ┌──────────────────────────────────────────────────────────────────────┐
+// │ endpoint ที่ backend ต้องทำ                                           │
+// ├──────────────────────────────────────────────────────────────────────┤
+// │ GET /api/access-logs?evidence_id=&user_id=&action=&result=           │
+// │     → AccessLog[] (admin only, กรองตาม query ได้ทุกตัว)               │
+// └──────────────────────────────────────────────────────────────────────┘
+//
+// สถานะปัจจุบัน: mock — กรอง mockLogs ฝั่ง client ระหว่างที่ backend ยังไม่มี
+// TODO(backend): เมื่อ endpoint พร้อม เปลี่ยน implementation เป็น:
+//   const params = new URLSearchParams();
+//   for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+//   const qs = params.toString();
+//   return request<AccessLog[]>(`/api/access-logs${qs ? `?${qs}` : ""}`);
 
-import { request } from "./client";
-import type { AccessLog } from "@/interfaces";
-
-export interface AccessLogFilters {
-  evidence_id?: string;
-  user_id?: string;
-  action?: string;
-  result?: string;
-}
+import type { AccessLog, AccessLogFilters } from "@/interfaces";
+import { mockLogs } from "@/utils/mockData";
 
 export const accessLogService = {
   /** รายการบันทึกการเข้าถึง (กรองตามหลักฐาน/ผู้ใช้/action/ผลได้) */
-  list(filters: AccessLogFilters = {}): Promise<AccessLog[]> {
-    const params = new URLSearchParams();
-    for (const [key, value] of Object.entries(filters)) {
-      if (value) params.set(key, value);
-    }
-    const qs = params.toString();
-    return request<AccessLog[]>(`/api/access-logs${qs ? `?${qs}` : ""}`);
+  async list(filters: AccessLogFilters = {}): Promise<AccessLog[]> {
+    return mockLogs.filter((l) => {
+      if (filters.evidence_id && l.evidence_id !== filters.evidence_id) return false;
+      if (filters.user_id && l.user_id !== filters.user_id) return false;
+      if (filters.action && l.action !== filters.action) return false;
+      if (filters.result && l.result !== filters.result) return false;
+      return true;
+    });
   },
 };

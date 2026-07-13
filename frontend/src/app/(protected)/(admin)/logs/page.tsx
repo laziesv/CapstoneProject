@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, Loader2, ArrowLeft, FileClock, Users, Files, ShieldX } from "lucide-react";
 import type { AccessLog } from "@/interfaces";
-import { mockLogs } from "@/utils/mockData";
-// เมื่อ backend endpoint /api/access-logs พร้อม ให้เปลี่ยนมาใช้:
-// import { accessLogService } from "@/services";
+import { accessLogService } from "@/services";
 
 const actionStyle: Record<string, string> = {
   view: "bg-blue-50 text-blue-700",
@@ -22,14 +20,21 @@ const resultStyle: Record<string, string> = {
 };
 
 export default function LogsPage() {
-  // ตอนนี้ดึงจาก mock (ข้อมูลพร้อมทันที ไม่ต้องรอ network)
-  // TODO(backend): เมื่อ /api/access-logs พร้อม เปลี่ยนเป็นโหลดใน useEffect:
-  //   const [logs, setLogs] = useState<AccessLog[]>([]);
-  //   useEffect(() => { accessLogService.list().then(setLogs)... }, []);
-  // โครงสร้าง AccessLog เหมือนกัน — ตัวกรอง/drill-down ด้านล่างทำงานต่อได้เลย
-  const [logs] = useState<AccessLog[]>(mockLogs);
-  const loading = false;
-  const error: string | null = null;
+  const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLogs(await accessLogService.list());
+      } catch {
+        setError("โหลดบันทึกการเข้าถึงไม่สำเร็จ");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   // ── ตัวกรอง ──────────────────────────────────────────
   const [query, setQuery] = useState("");

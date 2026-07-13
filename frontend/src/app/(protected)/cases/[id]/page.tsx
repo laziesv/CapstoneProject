@@ -5,10 +5,9 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, MapPin, Calendar, Loader2, ShieldAlert, UploadCloud } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getCases } from "@/utils/caseStore";
+import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
-import { mockEvidence } from "@/utils/mockData";
-import type { Case } from "@/interfaces";
+import type { Case, EvidenceItem } from "@/interfaces";
 
 const statusStyle: Record<string, string> = {
   open: "bg-blue-50 text-blue-700",
@@ -20,15 +19,21 @@ const statusStyle: Record<string, string> = {
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const [cases, setCases] = useState<Case[] | null>(null);
+  const [caseData, setCaseData] = useState<Case | null | undefined>(undefined);
+  const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
 
   useEffect(() => {
     (async () => {
-      setCases(getCases());
+      const [c, ev] = await Promise.all([
+        caseService.get(id),
+        evidenceService.list({ case_id: id }),
+      ]);
+      setCaseData(c ?? null);
+      setEvidenceList(ev);
     })();
-  }, []);
+  }, [id]);
 
-  if (!user || cases === null) {
+  if (!user || caseData === undefined) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -36,8 +41,7 @@ export default function CaseDetailPage() {
     );
   }
 
-  const caseData = cases.find((c) => c.case_id === id);
-  if (!caseData) return <p className="p-6">Case not found</p>;
+  if (caseData === null) return <p className="p-6">Case not found</p>;
 
   if (!canSeeCase(user, caseData)) {
     return (
@@ -49,8 +53,6 @@ export default function CaseDetailPage() {
       </div>
     );
   }
-
-  const evidenceList = mockEvidence.filter((e) => e.case_id === id);
 
   return (
     <div className="space-y-6">

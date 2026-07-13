@@ -5,7 +5,6 @@ import { UserPlus, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { userService, ApiError } from "@/services";
 import type { AuthUser } from "@/interfaces";
 import { POLICE_RANKS, canCreateByRank } from "@/utils/caseAccess";
-import { getSupervisorMap, setSupervisor } from "@/utils/hierarchyStore";
 
 const ROLES = ["admin", "investigator", "officer", "viewer"];
 
@@ -49,15 +48,15 @@ export default function UsersPage() {
   }, [loadUsers]);
 
   useEffect(() => {
-    // อ่านสายบังคับบัญชาจาก store (client) หลัง mount
+    // อ่านสายบังคับบัญชาผ่าน service หลัง mount
     (async () => {
-      setSupMap(getSupervisorMap());
+      setSupMap(await userService.getSupervisorMap());
     })();
   }, []);
 
   // ตั้ง/แก้หัวหน้าของผู้ใช้ + อัปเดต state ให้ตารางรีเฟรชทันที
   const changeSupervisor = (username: string, supervisor: string) => {
-    setSupervisor(username, supervisor);
+    userService.setSupervisor(username, supervisor || null);
     setSupMap((m) => ({ ...m, [username]: supervisor || null }));
   };
 

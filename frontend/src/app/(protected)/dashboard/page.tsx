@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Clock, Loader2, FileClock, Users, Files, TrendingUp } from "lucide-react";
 import Link from "next/link";
-import { dashboardService } from "@/services";
+import { dashboardService, accessLogService } from "@/services";
 import { useAuth } from "@/hooks/useAuth";
-import { mockLogs } from "@/utils/mockData";
-import type { DashboardData } from "@/interfaces";
+import type { DashboardData, AccessLog } from "@/interfaces";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -29,15 +28,21 @@ export default function DashboardPage() {
   }, []);
 
   // ── ภาพรวมการเข้าถึงหลักฐาน (เฉพาะ admin) ─────────────
-  // TODO(backend): เปลี่ยน mockLogs → accessLogService.list() เมื่อ /api/access-logs พร้อม
+  const [logs, setLogs] = useState<AccessLog[]>([]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    accessLogService.list().then(setLogs).catch(() => {});
+  }, [isAdmin]);
+
   const access = useMemo(() => {
-    const total = mockLogs.length;
-    const users = new Set(mockLogs.map((l) => l.user_id)).size;
-    const evidence = new Set(mockLogs.map((l) => l.evidence_id)).size;
+    const total = logs.length;
+    const users = new Set(logs.map((l) => l.user_id)).size;
+    const evidence = new Set(logs.map((l) => l.evidence_id)).size;
 
     // นับจำนวนครั้งต่อหลักฐาน (เก็บ label เป็น evidence_number)
     const byEvidence = new Map<string, { label: string; count: number }>();
-    for (const l of mockLogs) {
+    for (const l of logs) {
       const cur = byEvidence.get(l.evidence_id) ?? { label: l.evidence_number ?? l.evidence_id, count: 0 };
       cur.count += 1;
       byEvidence.set(l.evidence_id, cur);
@@ -46,7 +51,7 @@ export default function DashboardPage() {
 
     // นับจำนวนครั้งต่อผู้ใช้ (เก็บ label เป็น user_name)
     const byUser = new Map<string, { label: string; count: number }>();
-    for (const l of mockLogs) {
+    for (const l of logs) {
       const cur = byUser.get(l.user_id) ?? { label: l.user_name ?? l.user_id, count: 0 };
       cur.count += 1;
       byUser.set(l.user_id, cur);
@@ -54,7 +59,7 @@ export default function DashboardPage() {
     const topUsers = [...byUser.values()].sort((a, b) => b.count - a.count).slice(0, 5);
 
     return { total, users, evidence, topEvidence, topUsers };
-  }, []);
+  }, [logs]);
 
   if (loading) {
     return (

@@ -3,7 +3,7 @@
 // seed จาก mockCases ครั้งแรก
 // TODO(backend): เมื่อมี GET/POST /api/cases ให้เปลี่ยนไปเรียก caseService แทน store นี้
 
-import type { Case, CaseStatus } from "@/interfaces";
+import type { Case, NewCaseInput } from "@/interfaces";
 import { mockCases } from "@/utils/mockData";
 
 const STORAGE_KEY = "deva_cases";
@@ -34,16 +34,6 @@ function write(cases: Case[]) {
 /** คดีทั้งหมด (ใหม่สุดอยู่บน) */
 export function getCases(): Case[] {
   return [...read()].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
-}
-
-export interface NewCaseInput {
-  title: string;
-  description: string;
-  status: CaseStatus;
-  location: string;
-  incident_date: string;
-  created_by: string;
-  assigned_officer: string;
 }
 
 /** สร้างคดีใหม่ต่อท้าย store แล้วคืนคดีที่สร้าง */

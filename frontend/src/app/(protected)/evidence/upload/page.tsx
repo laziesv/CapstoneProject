@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRight, ShieldAlert, MapPin, ExternalLink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getCases } from "@/utils/caseStore";
+import { caseService, evidenceService } from "@/services";
 import { visibleCases } from "@/utils/caseAccess";
 import { readGpsFromImage } from "@/utils/exifGps";
 import type { Case } from "@/interfaces";
@@ -27,8 +27,8 @@ export default function UploadEvidencePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState(0);
+  // พิกัดมาจาก EXIF ของรูปเท่านั้น — ไม่มีช่องกรอกเอง (พิกัดที่พิมพ์เองพิสูจน์ย้อนไม่ได้)
   const [form, setForm] = useState({ category: "crime_scene", dateTime: "", description: "", location: "", latitude: "", longitude: "" });
-  const [coordSource, setCoordSource] = useState<"" | "exif" | "manual">("");
   const [exifMissing, setExifMissing] = useState(false);
 
   const myCases = useMemo(
@@ -39,7 +39,7 @@ export default function UploadEvidencePage() {
 
   useEffect(() => {
     (async () => {
-      const loaded = getCases();
+      const loaded = await caseService.list();
       setCases(loaded);
       const preId = new URLSearchParams(window.location.search).get("case") ?? "";
       setCaseId(preId);
@@ -55,8 +55,8 @@ export default function UploadEvidencePage() {
     setFiles((p) => [...p, ...imgs]);
     setPreviews((p) => [...p, ...imgs.map((f) => URL.createObjectURL(f))]);
 
-    // ลองอ่านพิกัดจาก EXIF ของรูปแรก (ถ้ายังไม่มีพิกัด และผู้ใช้ยังไม่ได้กรอกเอง)
-    if (coordSource !== "manual" && !form.latitude && !form.longitude) {
+    // ลองอ่านพิกัดจาก EXIF ของรูปแรก (ถ้ายังไม่มีพิกัด)
+    if (!form.latitude && !form.longitude) {
       const gps = await readGpsFromImage(imgs[0]);
       if (gps) {
         setForm((f) => ({
@@ -65,7 +65,6 @@ export default function UploadEvidencePage() {
           longitude: gps.longitude.toFixed(6),
           dateTime: f.dateTime || exifToLocal(gps.takenAt),
         }));
-        setCoordSource("exif");
         setExifMissing(false);
       } else {
         setExifMissing(true);
@@ -78,17 +77,24 @@ export default function UploadEvidencePage() {
     setPreviews((p) => p.filter((_, idx) => idx !== i));
   };
 
-  const setCoord = (key: "latitude" | "longitude") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm((f) => ({ ...f, [key]: e.target.value }));
-    setCoordSource("manual");
-  };
-
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     setIsSubmitting(true);
     setSubmitStep(1);
-    const steps = [1, 2, 3, 4, 5];
+    // step indicator เดินคู่ไปกับการส่งจริง (service จำลอง delay ให้สอดคล้องกัน)
+    const steps = [2, 3, 4, 5];
     steps.forEach((s, i) => setTimeout(() => setSubmitStep(s), (i + 1) * 800));
-    setTimeout(() => setIsSubmitting(false), 4500);
+    await evidenceService.upload({
+      case_id: caseId,
+      files,
+      category: form.category,
+      description: form.description,
+      location: form.location,
+      latitude: form.latitude || undefined,
+      longitude: form.longitude || undefined,
+      captured_at: form.dateTime || undefined,
+    });
+    setSubmitStep(5);
+    setIsSubmitting(false);
   };
 
   const stepLabels = ["Upload Images", "Metadata", "Review"];
@@ -217,26 +223,22 @@ export default function UploadEvidencePage() {
                 <label className="text-xs font-medium text-muted">ชื่อสถานที่</label>
                 <input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="เช่น ซ.สุขุมวิท 23 กรุงเทพฯ" className="mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-medium text-muted">Latitude</label>
-                  <input type="number" step="any" value={form.latitude} onChange={setCoord("latitude")} placeholder="13.756300" className="mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary" />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted">Longitude</label>
-                  <input type="number" step="any" value={form.longitude} onChange={setCoord("longitude")} placeholder="100.501800" className="mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary" />
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                {coordSource === "exif" && <span className="rounded-full bg-success-light px-2 py-0.5 font-medium text-success">พิกัดจากรูป (EXIF)</span>}
-                {coordSource === "manual" && hasCoords && <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-text-secondary">กรอกเอง</span>}
-                {hasCoords && (
+              {/* พิกัด: อ่านจาก EXIF เท่านั้น — ไม่มีช่องกรอกเอง */}
+              {hasCoords ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                  <span className="rounded-full bg-success-light px-2 py-0.5 font-medium text-success">พิกัดจากรูป (EXIF)</span>
+                  <span className="font-mono text-text-secondary">{form.latitude}, {form.longitude}</span>
                   <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
                     <ExternalLink className="h-3 w-3" /> ดูบนแผนที่
                   </a>
-                )}
-                {!hasCoords && exifMissing && <span className="text-muted">รูปนี้ไม่มีพิกัดฝังไว้ — กรอกพิกัดที่เกิดเหตุเอง (เช่นได้ภาพมาจากบุคคลอื่น)</span>}
-              </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted">
+                  {exifMissing
+                    ? "รูปนี้ไม่มีพิกัดฝังไว้ — ระบบจะบันทึกเฉพาะชื่อสถานที่"
+                    : "ระบบจะอ่านพิกัดจากข้อมูล GPS ที่ฝังในรูป (EXIF) อัตโนมัติ"}
+                </p>
+              )}
             </div>
 
             <div className="max-w-2xl">

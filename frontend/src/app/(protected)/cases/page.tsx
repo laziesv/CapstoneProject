@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, Loader2, Images, MapPin, CalendarDays, FolderOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getCases } from "@/utils/caseStore";
+import { caseService, evidenceService } from "@/services";
 import { visibleCases, canCreateCase } from "@/utils/caseAccess";
-import { mockEvidence } from "@/utils/mockData";
-import type { Case } from "@/interfaces";
+import type { Case, EvidenceItem } from "@/interfaces";
 
 const statusStyle: Record<string, string> = {
   open: "bg-blue-50 text-blue-700",
@@ -17,24 +16,27 @@ const statusStyle: Record<string, string> = {
 };
 
 /** รูปหลักฐานชิ้นแรกที่อัพโหลดของคดี (ใช้เป็นภาพปกการ์ด) */
-const coverOf = (caseId: string) =>
-  mockEvidence
+const coverOf = (evidence: EvidenceItem[], caseId: string) =>
+  evidence
     .filter((e) => e.case_id === caseId && e.thumbnail_url)
     .sort((a, b) => a.uploaded_at.localeCompare(b.uploaded_at))[0]?.thumbnail_url;
 
-/** จำนวนหลักฐานจริงของคดี (คดีสร้างใหม่จาก caseStore ยังไม่มีหลักฐาน) */
-const evidenceCountOf = (caseId: string) =>
-  mockEvidence.filter((e) => e.case_id === caseId).length;
+/** จำนวนหลักฐานจริงของคดี (คดีสร้างใหม่ยังไม่มีหลักฐาน) */
+const evidenceCountOf = (evidence: EvidenceItem[], caseId: string) =>
+  evidence.filter((e) => e.case_id === caseId).length;
 
 export default function CasesPage() {
   const { user } = useAuth();
   const [cases, setCases] = useState<Case[]>([]);
+  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [query, setQuery] = useState("");
 
   useEffect(() => {
-    // โหลดจาก store ฝั่ง client (localStorage) หลัง mount เพื่อเลี่ยง hydration mismatch
+    // โหลดผ่าน service หลัง mount เพื่อเลี่ยง hydration mismatch
     (async () => {
-      setCases(getCases());
+      const [cs, ev] = await Promise.all([caseService.list(), evidenceService.list()]);
+      setCases(cs);
+      setEvidence(ev);
     })();
   }, []);
 
@@ -103,8 +105,8 @@ export default function CasesPage() {
           </div>
         ) : (
           filtered.map((c) => {
-            const cover = coverOf(c.case_id);
-            const count = evidenceCountOf(c.case_id);
+            const cover = coverOf(evidence, c.case_id);
+            const count = evidenceCountOf(evidence, c.case_id);
             return (
               <Link
                 key={c.case_id}

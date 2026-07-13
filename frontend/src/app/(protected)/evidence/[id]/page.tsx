@@ -3,12 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { mockEvidence, mockTx, mockLogs } from "@/utils/mockData";
 import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { getCases } from "@/utils/caseStore";
+import { caseService, evidenceService, accessLogService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
-import type { Case } from "@/interfaces";
+import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
 
 const categoryLabel: Record<string, string> = { crime_scene: "Crime Scene", forensic: "Forensic", surveillance: "Surveillance", document: "Document" };
 const statusStyle: Record<string, string> = { pending: "bg-amber-50 text-amber-700", verified: "bg-green-50 text-green-700", flagged: "bg-red-50 text-red-700" };
@@ -16,15 +15,31 @@ const statusStyle: Record<string, string> = { pending: "bg-amber-50 text-amber-7
 export default function EvidenceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const [cases, setCases] = useState<Case[] | null>(null);
+  const [evidence, setEvidence] = useState<EvidenceItem | null | undefined>(undefined);
+  const [caseData, setCaseData] = useState<Case | undefined>(undefined);
+  const [relatedTx, setRelatedTx] = useState<BlockchainTx[]>([]);
+  const [relatedLogs, setRelatedLogs] = useState<AccessLog[]>([]);
 
   useEffect(() => {
     (async () => {
-      setCases(getCases());
+      const ev = await evidenceService.get(id);
+      if (!ev) {
+        setEvidence(null);
+        return;
+      }
+      const [c, tx, logs] = await Promise.all([
+        caseService.get(ev.case_id),
+        evidenceService.transactionsOf(id),
+        accessLogService.list({ evidence_id: id }),
+      ]);
+      setCaseData(c);
+      setRelatedTx(tx);
+      setRelatedLogs(logs);
+      setEvidence(ev);
     })();
-  }, []);
+  }, [id]);
 
-  if (!user || cases === null) {
+  if (!user || evidence === undefined) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -32,10 +47,8 @@ export default function EvidenceDetailPage() {
     );
   }
 
-  const evidence = mockEvidence.find((e) => e.evidence_id === id);
-  if (!evidence) return <p className="p-6">Evidence not found</p>;
+  if (evidence === null) return <p className="p-6">Evidence not found</p>;
 
-  const caseData = cases.find((c) => c.case_id === evidence.case_id);
   const allowed = user.role === "admin" ? true : caseData ? canSeeCase(user, caseData) : false;
 
   if (!allowed) {
@@ -48,9 +61,6 @@ export default function EvidenceDetailPage() {
       </div>
     );
   }
-
-  const relatedTx = mockTx.filter((t) => t.evidence_id === id);
-  const relatedLogs = mockLogs.filter((l) => l.evidence_id === id);
 
   return (
     <div className="space-y-6">
