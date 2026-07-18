@@ -7,13 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { caseService, evidenceService } from "@/services";
 import { visibleCases, canCreateCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
-
-const statusStyle: Record<string, string> = {
-  open: "bg-blue-50 text-blue-700",
-  investigating: "bg-amber-50 text-amber-700",
-  closed: "bg-slate-100 text-slate-500",
-  archived: "bg-slate-50 text-slate-400",
-};
+import { formatIncident } from "@/utils/format";
 
 /** รูปหลักฐานชิ้นแรกที่อัพโหลดของคดี (ใช้เป็นภาพปกการ์ด) */
 const coverOf = (evidence: EvidenceItem[], caseId: string) =>
@@ -127,9 +121,6 @@ export default function CasesPage() {
                       <span className="text-xs text-muted">ยังไม่มีหลักฐาน</span>
                     </div>
                   )}
-                  <span className={`absolute right-2.5 top-2.5 rounded-full px-2.5 py-1 text-xs font-medium shadow-sm ${statusStyle[c.status]}`}>
-                    {c.status}
-                  </span>
                 </div>
 
                 {/* Body */}
@@ -145,7 +136,7 @@ export default function CasesPage() {
                       <span className="truncate">{c.location}</span>
                     </span>
                     <span className="flex items-center gap-1 flex-shrink-0">
-                      <CalendarDays className="h-3.5 w-3.5" /> {c.incident_date}
+                      <CalendarDays className="h-3.5 w-3.5" /> {formatIncident(c.incident_date)}
                     </span>
                   </div>
                 </div>

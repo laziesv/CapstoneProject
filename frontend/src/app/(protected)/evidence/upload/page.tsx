@@ -27,12 +27,11 @@ export default function UploadEvidencePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState(0);
-  // พิกัดมาจาก EXIF ของรูปเท่านั้น — ไม่มีช่องกรอกเอง (พิกัดที่พิมพ์เองพิสูจน์ย้อนไม่ได้)
   const [form, setForm] = useState({ category: "crime_scene", dateTime: "", description: "", location: "", latitude: "", longitude: "" });
   const [exifMissing, setExifMissing] = useState(false);
 
   const myCases = useMemo(
-    () => (cases ? visibleCases(user, cases).filter((c) => c.status !== "closed") : []),
+    () => (cases ? visibleCases(user, cases) : []),
     [user, cases]
   );
   const activeCase = useMemo(() => myCases.find((c) => c.case_id === caseId), [myCases, caseId]);
@@ -54,25 +53,28 @@ export default function UploadEvidencePage() {
     if (imgs.length === 0) return;
     setFiles((p) => [...p, ...imgs]);
     setPreviews((p) => [...p, ...imgs.map((f) => URL.createObjectURL(f))]);
-
-    // ลองอ่านพิกัดจาก EXIF ของรูปแรก (ถ้ายังไม่มีพิกัด)
-    if (!form.latitude && !form.longitude) {
-      const gps = await readGpsFromImage(imgs[0]);
-      if (gps) {
-        setForm((f) => ({
-          ...f,
-          latitude: gps.latitude.toFixed(6),
-          longitude: gps.longitude.toFixed(6),
-          dateTime: f.dateTime || exifToLocal(gps.takenAt),
-        }));
-        setExifMissing(false);
-      } else {
-        setExifMissing(true);
-      }
-    }
   };
 
+  const firstFile = files[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const gps = firstFile ? await readGpsFromImage(firstFile) : undefined;
+      if (cancelled) return;
+      setForm((f) => ({
+        ...f,
+        latitude: gps?.latitude?.toFixed(6) || "",
+        longitude: gps?.longitude?.toFixed(6) || "",
+        dateTime: gps?.takenAt ? exifToLocal(gps.takenAt) : "",
+      }))
+      setExifMissing(Boolean(firstFile) && !gps);
+    })();
+    return () => { cancelled = true; };
+  }, [firstFile]);
+
   const removeFile = (i: number) => {
+    URL.revokeObjectURL(previews[i]);
     setFiles((p) => p.filter((_, idx) => idx !== i));
     setPreviews((p) => p.filter((_, idx) => idx !== i));
   };
@@ -208,7 +210,7 @@ export default function UploadEvidencePage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium text-muted">วันเวลาที่เกิดเหตุ/ถ่าย</label>
+                <label className="text-xs font-medium text-muted">วันเวลาที่ถ่าย</label>
                 <input type="datetime-local" value={form.dateTime} onChange={(e) => setForm({ ...form, dateTime: e.target.value })} className="mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary" />
               </div>
             </div>

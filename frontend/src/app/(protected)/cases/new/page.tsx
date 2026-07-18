@@ -10,17 +10,14 @@ import { canCreateCase, subordinatesOf } from "@/utils/caseAccess";
 // TODO(backend): ตัวเลือกผู้รับผิดชอบยังใช้ mockUsers — เปลี่ยนเป็น userService.list()
 // เมื่อ backend มีข้อมูล supervisor/ยศ ครบชุดเดียวกับ mock
 import { mockUsers } from "@/utils/mockData";
-import type { CaseStatus } from "@/interfaces";
 
-const STATUSES: CaseStatus[] = ["open", "investigating", "closed", "archived"];
 
 const emptyForm = {
   title: "",
   description: "",
-  status: "open" as CaseStatus,
   location: "",
   incident_date: "",
-  assigned_officer: "",
+  assigned_officers: [] as string[],
 };
 
 export default function NewCasePage() {
@@ -35,12 +32,21 @@ export default function NewCasePage() {
   // ตัวเลือกผู้รับผิดชอบ = ตัวเอง + ลูกน้อง
   const officerOptions = useMemo(() => {
     if (!user?.username) return [];
-    const scope = [user.username, ...subordinatesOf(user.username)];
-    return mockUsers.filter((u) => scope.includes(u.username));
+    const subs = subordinatesOf(user.username);
+    return mockUsers.filter((u) => subs.includes(u.username));
   }, [user]);
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const toggleOfficer = (username: string) => {
+    setForm((f) => ({
+      ...f,
+      assigned_officers: f.assigned_officers.includes(username)
+        ? f.assigned_officers.filter((u) => u !== username)
+        : [...f.assigned_officers, username],
+    }));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,11 +62,10 @@ export default function NewCasePage() {
       const created = await caseService.create({
         title: form.title.trim(),
         description: form.description.trim(),
-        status: form.status,
         location: form.location.trim(),
         incident_date: form.incident_date,
         created_by: user!.username!,
-        assigned_officer: form.assigned_officer || user!.username!,
+        assigned_officers: form.assigned_officers
       });
       router.push(`/cases/${created.case_id}`);
     } catch {
@@ -123,21 +128,24 @@ export default function NewCasePage() {
           <div className="col-span-2">
             <Field label="รายละเอียด"><textarea value={form.description} onChange={set("description")} rows={3} className={`${inputCls} h-auto py-2`} /></Field>
           </div>
-          <Field label="สถานะ">
-            <select value={form.status} onChange={set("status")} className={inputCls}>
-              {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
-          <Field label="ผู้รับผิดชอบ">
-            <select value={form.assigned_officer} onChange={set("assigned_officer")} className={inputCls}>
-              <option value="">— ตัวเอง —</option>
+          <Field label="ผู้รับผิดชอบ (เลือกได้หลายคน)">
+            <div className="mt-1 space-y-2"> 
+              {officerOptions.length === 0 && (<p className="text-sm text-muted">ไม่มีผู้ใต้บังคับบัญชา</p>
+            )}
               {officerOptions.map((u) => (
-                <option key={u.username} value={u.username}>{u.full_name} ({u.rank})</option>
+                <label key={u.username} className="flex items-center gap-2 text-sm">
+                  <input 
+                  type="checkbox" 
+                  checked={form.assigned_officers.includes(u.username)} 
+                  onChange={() => toggleOfficer(u.username)} 
+                />
+                  {u.full_name} ({u.rank})
+                </label>
               ))}
-            </select>
+            </div>
           </Field>
           <Field label="สถานที่เกิดเหตุ"><input value={form.location} onChange={set("location")} className={inputCls} /></Field>
-          <Field label="วันที่เกิดเหตุ"><input type="date" value={form.incident_date} onChange={set("incident_date")} className={inputCls} /></Field>
+          <Field label="วันที่เกิดเหตุ"><input type="datetime-local" value={form.incident_date} onChange={set("incident_date")} className={inputCls} /></Field>
         </div>
 
         <button type="submit" disabled={submitting} className="mt-5 flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-60">

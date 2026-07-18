@@ -8,13 +8,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
+import { formatIncident } from "@/utils/format";
 
-const statusStyle: Record<string, string> = {
-  open: "bg-blue-50 text-blue-700",
-  investigating: "bg-amber-50 text-amber-700",
-  closed: "bg-slate-100 text-slate-500",
-  archived: "bg-slate-50 text-slate-400",
-};
 
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,11 +63,10 @@ export default function CaseDetailPage() {
             <h1 className="mt-1 text-xl font-bold">{caseData.title}</h1>
             <p className="mt-2 text-sm text-text-secondary">{caseData.description}</p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusStyle[caseData.status]}`}>{caseData.status}</span>
         </div>
         <div className="mt-4 flex gap-6 text-sm text-muted">
           <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{caseData.location}</span>
-          <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />{caseData.incident_date}</span>
+          <span className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" />{formatIncident(caseData.incident_date)}</span>
         </div>
       </div>
 

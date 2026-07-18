@@ -10,7 +10,6 @@ import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
 
 const categoryLabel: Record<string, string> = { crime_scene: "Crime Scene", forensic: "Forensic", surveillance: "Surveillance", document: "Document" };
-const statusStyle: Record<string, string> = { pending: "bg-amber-50 text-amber-700", verified: "bg-green-50 text-green-700", flagged: "bg-red-50 text-red-700" };
 
 export default function EvidenceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -133,7 +132,6 @@ export default function EvidenceDetailPage() {
           <div className="rounded-xl border border-border bg-surface p-5 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold text-sm">Evidence Info</h3>
-              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusStyle[evidence.status]}`}>{evidence.status}</span>
             </div>
             <div className="space-y-2.5 text-sm">
               <Row label="Number" value={evidence.evidence_number} mono />

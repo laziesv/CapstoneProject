@@ -76,7 +76,7 @@ export function canSeeCase(user: AccessUser | null | undefined, c: Case): boolea
   if (!user) return false;
   if (user.role === "admin") return true;
   const scope = [user.username, ...subordinatesOf(user.username)].filter(Boolean);
-  return scope.includes(c.created_by) || scope.includes(c.assigned_officer);
+  return scope.includes(c.created_by)  || (c.assigned_officers ?? []).some((o) => scope.includes(o));
 }
 
 /** กรองเฉพาะคดีที่ผู้ใช้เห็นได้ */

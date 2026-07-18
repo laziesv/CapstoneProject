@@ -1,8 +1,6 @@
 // ── Evidence / case / blockchain domain interfaces ──────
 
-export type CaseStatus = "open" | "investigating" | "closed" | "archived";
 export type EvidenceCategory = "crime_scene" | "forensic" | "surveillance" | "document";
-export type EvidenceStatus = "pending" | "verified" | "flagged" | "rejected";
 export type WatermarkType = "static" | "dynamic";
 export type WmAlgorithm = "dct" | "dwt" | "lsb" | "hybrid";
 export type TxAction = "upload" | "access" | "verify" | "transfer" | "flag";
@@ -15,9 +13,8 @@ export interface Case {
   case_number: string;
   title: string;
   description: string;
-  status: CaseStatus;
   created_by: string;
-  assigned_officer: string;
+  assigned_officers: string[];
   incident_date: string;
   location: string;
   created_at: string;
@@ -28,11 +25,10 @@ export interface Case {
 export interface NewCaseInput {
   title: string;
   description: string;
-  status: CaseStatus;
   location: string;
   incident_date: string;
   created_by: string;
-  assigned_officer: string;
+  assigned_officers: string[];
 }
 
 export interface EvidenceItem {
@@ -47,7 +43,6 @@ export interface EvidenceItem {
   original_filename: string;
   file_hash_sha256: string;
   file_size_bytes: number;
-  status: EvidenceStatus;
   is_watermarked: boolean;
   is_blockchain_verified: boolean;
   thumbnail_url?: string;
