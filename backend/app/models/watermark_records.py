@@ -14,8 +14,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database import Base
-from app.models.enums import WatermarkAlgorithm
-
 
 class WatermarkRecord(Base):
     __tablename__ = "watermark_records"

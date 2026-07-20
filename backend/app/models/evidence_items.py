@@ -14,7 +14,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database import Base
-from app.models.enums import EvidenceStatus
 
 
 class EvidenceItem(Base):
@@ -28,13 +27,9 @@ class EvidenceItem(Base):
 
     uploaded_by = Column(UUID(as_uuid=True),ForeignKey("users.user_id", ondelete="RESTRICT"),nullable=False,index=True,)
 
-    category = Column(String(50), nullable=False)
-
     description = Column(Text)
 
     original_filename = Column(String(255))
-
-    status = Column(Enum(EvidenceStatus),nullable=False,server_default=EvidenceStatus.PENDING.value,index=True,)
 
     is_watermarked = Column(Boolean, nullable=False, server_default="false")
 

@@ -1,32 +1,8 @@
 import enum
 
-
-class CaseStatus(str, enum.Enum):
-    OPEN = "OPEN"
-    INVESTIGATING = "INVESTIGATING"
-    CLOSED = "CLOSED"
-    ARCHIVED = "ARCHIVED"
-
-
-class EvidenceStatus(str, enum.Enum):
-    PENDING = "PENDING"
-    VERIFIED = "VERIFIED"
-    FLAGGED = "FLAGGED"
-    REJECTED = "REJECTED"
-    ARCHIVED = "ARCHIVED"
-
-
 class FileType(str, enum.Enum):
-    IMAGE = "IMAGE"
-    VIDEO = "VIDEO"
-    AUDIO = "AUDIO"
-    DOCUMENT = "DOCUMENT"
-
-
-class WatermarkAlgorithm(str, enum.Enum):
-    DWT = "DWT"
-    DCT = "DCT"
-    LSB = "LSB"
+    ORIGINAL = "ORIGINAL"
+    WATERMARKED = "WATERMARKED"
 
 
 class BlockchainAction(str, enum.Enum):

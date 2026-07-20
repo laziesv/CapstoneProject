@@ -14,7 +14,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database import Base
-from app.models.enums import CaseStatus
 
 
 class Case(Base):
@@ -27,8 +26,6 @@ class Case(Base):
     title = Column(String(255), nullable=False)
 
     description = Column(Text)
-
-    status = Column(Enum(CaseStatus),nullable=False,server_default=CaseStatus.OPEN.value,index=True,)
 
     created_by = Column(UUID(as_uuid=True),ForeignKey("users.user_id", ondelete="RESTRICT"),nullable=False,index=True,)
 

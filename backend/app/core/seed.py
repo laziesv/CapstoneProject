@@ -13,8 +13,6 @@ from app.models.blockchain_transactions import BlockchainTransaction
 from app.models.access_logs import AccessLog
 from app.models.evidence_files import EvidenceFile
 from app.models.enums import (
-    CaseStatus,
-    EvidenceStatus,
     FileType,
     BlockchainAction,
     AuditAction,
@@ -66,22 +64,22 @@ def seed_sample_data():
 
     # ── คดี ─────────────────────────────────────────────
     c1 = Case(case_number="CASE-2026-0042", title="คดีลักทรัพย์ ซ.สุขุมวิท 23",
-              description="เหตุลักทรัพย์ภายในอาคารพาณิชย์", status=CaseStatus.INVESTIGATING,
+              description="เหตุลักทรัพย์ภายในอาคารพาณิชย์",
               created_by=officer_id, assigned_officer=officer_id,
               incident_date=_dt("2026-04-10T00:00:00"), location="ซ.สุขุมวิท 23 กรุงเทพฯ",
               created_at=_dt("2026-04-11T08:00:00"))
     c2 = Case(case_number="CASE-2026-0058", title="คดีทำร้ายร่างกาย ตลาดนัด",
-              description="เหตุทำร้ายร่างกายบริเวณตลาดนัด", status=CaseStatus.OPEN,
+              description="เหตุทำร้ายร่างกายบริเวณตลาดนัด",
               created_by=officer_id, assigned_officer=officer_id,
               incident_date=_dt("2026-04-22T00:00:00"), location="ตลาดนัดจตุจักร กรุงเทพฯ",
               created_at=_dt("2026-04-22T14:30:00"))
     c3 = Case(case_number="CASE-2026-0061", title="คดีวิ่งราวทรัพย์ สยามสแควร์",
-              description="เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์", status=CaseStatus.OPEN,
+              description="เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์",
               created_by=somsak.user_id, assigned_officer=officer_id,
               incident_date=_dt("2026-04-28T00:00:00"), location="สยามสแควร์ กรุงเทพฯ",
               created_at=_dt("2026-04-28T10:15:00"))
     c4 = Case(case_number="CASE-2025-0189", title="คดียาเสพติด ลาดพร้าว",
-              description="จับกุมยาเสพติดย่านลาดพร้าว", status=CaseStatus.CLOSED,
+              description="จับกุมยาเสพติดย่านลาดพร้าว",
               created_by=officer_id, assigned_officer=officer_id,
               incident_date=_dt("2025-12-05T00:00:00"), location="ลาดพร้าว กรุงเทพฯ",
               created_at=_dt("2025-12-05T16:00:00"), closed_at=_dt("2026-02-01T10:00:00"))
@@ -90,34 +88,34 @@ def seed_sample_data():
 
     # ── หลักฐาน ─────────────────────────────────────────
     e1 = EvidenceItem(evidence_number="EV-2026-00101", case_id=c1.case_id, uploaded_by=officer_id,
-                      category="crime_scene", description="ภาพถ่ายจุดเกิดเหตุ ประตูหน้าร้าน",
-                      original_filename="scene_001.jpg", status=EvidenceStatus.VERIFIED,
+                      description="ภาพถ่ายจุดเกิดเหตุ ประตูหน้าร้าน",
+                      original_filename="scene_001.jpg",
                       is_watermarked=True, is_blockchain_verified=True,
                       captured_at=_dt("2026-04-10T14:23:00"), uploaded_at=_dt("2026-04-11T08:15:00"),
                       verified_at=_dt("2026-04-15T09:00:00"))
     e2 = EvidenceItem(evidence_number="EV-2026-00102", case_id=c1.case_id, uploaded_by=officer_id,
-                      category="forensic", description="ลายนิ้วมือบริเวณลูกบิดประตู",
-                      original_filename="fingerprint_door.jpg", status=EvidenceStatus.VERIFIED,
+                      description="ลายนิ้วมือบริเวณลูกบิดประตู",
+                      original_filename="fingerprint_door.jpg",
                       is_watermarked=True, is_blockchain_verified=True,
                       captured_at=_dt("2026-04-10T14:45:00"), uploaded_at=_dt("2026-04-11T08:20:00"))
     e3 = EvidenceItem(evidence_number="EV-2026-00103", case_id=c1.case_id, uploaded_by=officer_id,
-                      category="surveillance", description="ภาพจากกล้องวงจรปิดด้านหน้าร้าน",
-                      original_filename="cctv_front.jpg", status=EvidenceStatus.PENDING,
+                      description="ภาพจากกล้องวงจรปิดด้านหน้าร้าน",
+                      original_filename="cctv_front.jpg",
                       is_watermarked=True, is_blockchain_verified=False,
                       captured_at=_dt("2026-04-10T13:00:00"), uploaded_at=_dt("2026-04-12T09:00:00"))
     e4 = EvidenceItem(evidence_number="EV-2026-00201", case_id=c2.case_id, uploaded_by=officer_id,
-                      category="crime_scene", description="ภาพถ่ายจุดเกิดเหตุภายในตลาด",
-                      original_filename="market_scene.jpg", status=EvidenceStatus.VERIFIED,
+                      description="ภาพถ่ายจุดเกิดเหตุภายในตลาด",
+                      original_filename="market_scene.jpg",
                       is_watermarked=True, is_blockchain_verified=True,
                       captured_at=_dt("2026-04-22T15:10:00"), uploaded_at=_dt("2026-04-22T16:00:00"))
     e5 = EvidenceItem(evidence_number="EV-2026-00301", case_id=c3.case_id, uploaded_by=officer_id,
-                      category="surveillance", description="กล้องวงจรปิด ทางเดินสยามสแควร์",
-                      original_filename="siam_cctv_01.jpg", status=EvidenceStatus.FLAGGED,
+                      description="กล้องวงจรปิด ทางเดินสยามสแควร์",
+                      original_filename="siam_cctv_01.jpg",
                       is_watermarked=False, is_blockchain_verified=False,
                       captured_at=_dt("2026-04-28T09:30:00"), uploaded_at=_dt("2026-04-29T10:00:00"))
     e6 = EvidenceItem(evidence_number="EV-2026-00302", case_id=c3.case_id, uploaded_by=officer_id,
-                      category="document", description="ใบแจ้งความ เหตุวิ่งราวทรัพย์",
-                      original_filename="report_doc.jpg", status=EvidenceStatus.PENDING,
+                      description="ใบแจ้งความ เหตุวิ่งราวทรัพย์",
+                      original_filename="report_doc.jpg",
                       is_watermarked=False, is_blockchain_verified=False,
                       captured_at=_dt("2026-04-28T11:00:00"), uploaded_at=_dt("2026-04-29T10:05:00"))
     db.add_all([e1, e2, e3, e4, e5, e6])
@@ -176,7 +174,7 @@ def seed_sample_data():
 
     # ── ไฟล์หลักฐาน (ตัวอย่างสำหรับ e1) ─────────────────
     f1 = EvidenceFile(
-        evidence_id=e1.evidence_id, file_type=FileType.IMAGE,
+        evidence_id=e1.evidence_id, file_type=FileType.ORIGINAL,
         file_path="/storage/2026/04/scene_001.jpg",
         file_url="https://picsum.photos/seed/EV-2026-00101/800/600",
         file_size_bytes=4200000,

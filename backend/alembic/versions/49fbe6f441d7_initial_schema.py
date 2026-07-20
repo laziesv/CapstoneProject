@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 5ffef7ebb547
+Revision ID: 49fbe6f441d7
 Revises: 
-Create Date: 2026-07-02 02:17:51.673711
+Create Date: 2026-07-21 00:01:30.020618
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '5ffef7ebb547'
+revision: str = '49fbe6f441d7'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -67,7 +67,6 @@ def upgrade() -> None:
     sa.Column('case_number', sa.String(length=30), nullable=False),
     sa.Column('title', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('status', sa.Enum('OPEN', 'INVESTIGATING', 'CLOSED', 'ARCHIVED', name='casestatus'), server_default='OPEN', nullable=False),
     sa.Column('created_by', sa.UUID(), nullable=False),
     sa.Column('assigned_officer', sa.UUID(), nullable=True),
     sa.Column('incident_date', sa.TIMESTAMP(timezone=True), nullable=True),
@@ -83,16 +82,13 @@ def upgrade() -> None:
     op.create_index(op.f('ix_cases_assigned_officer'), 'cases', ['assigned_officer'], unique=False)
     op.create_index(op.f('ix_cases_case_number'), 'cases', ['case_number'], unique=True)
     op.create_index(op.f('ix_cases_created_by'), 'cases', ['created_by'], unique=False)
-    op.create_index(op.f('ix_cases_status'), 'cases', ['status'], unique=False)
     op.create_table('evidence_items',
     sa.Column('evidence_id', sa.UUID(), nullable=False),
     sa.Column('evidence_number', sa.String(length=30), nullable=False),
     sa.Column('case_id', sa.UUID(), nullable=False),
     sa.Column('uploaded_by', sa.UUID(), nullable=False),
-    sa.Column('category', sa.String(length=50), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('original_filename', sa.String(length=255), nullable=True),
-    sa.Column('status', sa.Enum('PENDING', 'VERIFIED', 'FLAGGED', 'REJECTED', 'ARCHIVED', name='evidencestatus'), server_default='PENDING', nullable=False),
     sa.Column('is_watermarked', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('is_blockchain_verified', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('captured_at', sa.TIMESTAMP(timezone=True), nullable=True),
@@ -104,7 +100,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_evidence_items_case_id'), 'evidence_items', ['case_id'], unique=False)
     op.create_index(op.f('ix_evidence_items_evidence_number'), 'evidence_items', ['evidence_number'], unique=True)
-    op.create_index(op.f('ix_evidence_items_status'), 'evidence_items', ['status'], unique=False)
     op.create_index(op.f('ix_evidence_items_uploaded_by'), 'evidence_items', ['uploaded_by'], unique=False)
     op.create_table('blockchain_transactions',
     sa.Column('tx_internal_id', sa.UUID(), nullable=False),
@@ -130,7 +125,7 @@ def upgrade() -> None:
     op.create_table('evidence_files',
     sa.Column('file_id', sa.UUID(), nullable=False),
     sa.Column('evidence_id', sa.UUID(), nullable=False),
-    sa.Column('file_type', sa.Enum('IMAGE', 'VIDEO', 'AUDIO', 'DOCUMENT', name='filetype'), nullable=True),
+    sa.Column('file_type', sa.Enum('ORIGINAL', 'WATERMARKED', name='filetype'), nullable=True),
     sa.Column('file_path', sa.String(), nullable=True),
     sa.Column('file_url', sa.String(), nullable=True),
     sa.Column('file_size_bytes', sa.BigInteger(), nullable=True),
@@ -197,11 +192,9 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_blockchain_transactions_evidence_id'), table_name='blockchain_transactions')
     op.drop_table('blockchain_transactions')
     op.drop_index(op.f('ix_evidence_items_uploaded_by'), table_name='evidence_items')
-    op.drop_index(op.f('ix_evidence_items_status'), table_name='evidence_items')
     op.drop_index(op.f('ix_evidence_items_evidence_number'), table_name='evidence_items')
     op.drop_index(op.f('ix_evidence_items_case_id'), table_name='evidence_items')
     op.drop_table('evidence_items')
-    op.drop_index(op.f('ix_cases_status'), table_name='cases')
     op.drop_index(op.f('ix_cases_created_by'), table_name='cases')
     op.drop_index(op.f('ix_cases_case_number'), table_name='cases')
     op.drop_index(op.f('ix_cases_assigned_officer'), table_name='cases')
