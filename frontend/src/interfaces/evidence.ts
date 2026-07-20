@@ -56,13 +56,35 @@ export interface EvidenceItem {
   officer_name?: string;
   description: string;
   original_filename: string;
-  file_hash_sha256: string;
-  file_size_bytes: number;
   is_watermarked: boolean;
   is_blockchain_verified: boolean;
-  thumbnail_url?: string;
-  captured_at: string;
   uploaded_at: string;
+  // ว่างได้เมื่อหลักฐานยังไม่มีไฟล์แนบ (เช่นข้อมูล seed เก่า)
+  file_hash_sha256?: string;
+  file_size_bytes?: number;
+  thumbnail_url?: string;
+  captured_at?: string;
+}
+
+/** รูปแบบที่ backend คืนมาจริงจาก /api/evidences (EvidenceResponse ฝั่ง FastAPI) */
+export interface EvidenceApiResponse {
+  evidence_id: string;
+  evidence_number: string;
+  case_id: string;
+  uploaded_by: string;
+  description: string | null;
+  original_filename: string | null;
+  is_watermarked: boolean;
+  is_blockchain_verified: boolean;
+  captured_at: string | null;
+  uploaded_at: string;
+  // ชื่อที่อ่านออก มาจากตาราง cases / users
+  case_number: string | null;
+  officer_name: string | null;
+  // มาจากไฟล์ต้นฉบับในตาราง evidence_files
+  file_id: string | null;
+  file_hash: string | null;
+  file_size_bytes: number | null;
 }
 
 /** ไฟล์หนึ่งไฟล์ + metadata ของตัวเอง — 1 รายการนี้ = 1 EvidenceItem ที่ถูกสร้าง */

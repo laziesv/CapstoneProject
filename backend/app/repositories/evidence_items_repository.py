@@ -36,5 +36,21 @@ class EvidenceRepository:
     ):
         return (
             db.query(EvidenceItem)
+            .order_by(EvidenceItem.uploaded_at.desc())
+            .all()
+        )
+
+
+    @staticmethod
+    def get_by_case(
+        db: Session,
+        case_id
+    ):
+        return (
+            db.query(EvidenceItem)
+            .filter(
+                EvidenceItem.case_id == case_id
+            )
+            .order_by(EvidenceItem.uploaded_at.desc())
             .all()
         )

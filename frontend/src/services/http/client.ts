@@ -19,10 +19,14 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
   const token = getToken();
   const url = path.startsWith("http") ? path : `${API_BASE}${path}`;
 
+  // multipart (FormData) ต้องปล่อยให้เบราว์เซอร์ตั้ง Content-Type เอง
+  // เพราะต้องแนบ boundary ที่สุ่มมาด้วย — ถ้าเราตั้งเองไฟล์จะแตกฝั่ง server
+  const isFormData = options.body instanceof FormData;
+
   const res = await fetch(url, {
     ...options,
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },

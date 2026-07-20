@@ -40,7 +40,16 @@ class EvidenceService:
 
 
     @staticmethod
-    def upload(db: Session, data, upload_file: UploadFile):
+    def get_all(db: Session, case_id=None):
+        """หลักฐานทั้งหมด กรองตามคดีได้"""
+        if case_id:
+            return EvidenceRepository.get_by_case(db, case_id)
+
+        return EvidenceRepository.get_all(db)
+
+
+    @staticmethod
+    def upload(db: Session, data, upload_file: UploadFile, uploaded_by):
 
         try:
             os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -58,7 +67,7 @@ class EvidenceService:
                 evidence_id=uuid.uuid4(),
                 evidence_number=EvidenceService.generate_evidence_number(),
                 case_id=data.case_id,
-                uploaded_by=data.uploaded_by,
+                uploaded_by=uploaded_by,
                 description=data.description,
                 captured_at=data.captured_at,
                 original_filename=upload_file.filename
