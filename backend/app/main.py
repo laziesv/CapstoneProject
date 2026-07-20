@@ -5,6 +5,8 @@ from app.routes.auth import router as auth_router
 #from app.routes.dashboard import router as dashboard_router
 from app.routes.users import router as users_router
 from app.routes.case import router as cases_router
+from app.routes.evidence_items import router as evidence_items_router
+from app.routes.evidence_files import router as evidence_files_router
 from app.core.startup import startup
 
 
@@ -30,6 +32,8 @@ app.include_router(auth_router, prefix="/api")
 #app.include_router(dashboard_router, prefix="/api")
 app.include_router(users_router, prefix="/api")
 app.include_router(cases_router, prefix="/api")
+app.include_router(evidence_items_router, prefix="/api")
+app.include_router(evidence_files_router, prefix="/api")
 
 
 
