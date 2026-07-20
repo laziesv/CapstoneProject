@@ -9,7 +9,6 @@ import { caseService, evidenceService, accessLogService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
 
-const categoryLabel: Record<string, string> = { crime_scene: "Crime Scene", forensic: "Forensic", surveillance: "Surveillance", document: "Document" };
 
 export default function EvidenceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -136,7 +135,6 @@ export default function EvidenceDetailPage() {
             <div className="space-y-2.5 text-sm">
               <Row label="Number" value={evidence.evidence_number} mono />
               <Row label="Case" value={evidence.case_number || ""} mono />
-              <Row label="Category" value={categoryLabel[evidence.category]} />
               <Row label="Officer" value={evidence.officer_name || ""} />
               <Row label="Filename" value={evidence.original_filename} />
               <Row label="Size" value={`${(evidence.file_size_bytes / 1e6).toFixed(1)} MB`} />

@@ -8,12 +8,19 @@
 // │      scope ตามสิทธิ์คดี (เห็นเฉพาะหลักฐานของคดีที่ตัวเองเข้าถึงได้)     │
 // │ GET  /api/evidence/{id}              → EvidenceItem (403 นอก scope)  │
 // │ POST /api/evidence                   → EvidenceItem                  │
-// │      body = UploadEvidenceInput (multipart: files + metadata)        │
+// │      body = UploadEvidenceInput (multipart)                          │
+// │        case_id + files[] โดยแต่ละ item = { file, description,         │
+// │        captured_at?, captured_at_source? ("exif"|"manual") }         │
+// │        1 item = 1 EvidenceItem — metadata แยกรายไฟล์ เพราะแต่ละรูป    │
+// │        มีวันเวลาถ่ายของตัวเอง (ห้ามใช้ค่าของรูปแรกแทนทุกรูป)            │
+// │        captured_at อ่านจาก EXIF ฝั่ง client — ถ้าไฟล์ไม่มีจึงให้กรอกเอง  │
+// │        server ต้องเก็บ source ไว้ด้วย เพื่อแยกค่าที่พิสูจน์ย้อนได้        │
+// │        ออกจากค่าที่คนพิมพ์ (ห้ามเชื่อ "exif" จาก client — ตรวจซ้ำเอง)    │
+// │        (สถานที่เกิดเหตุใช้ของคดี ไม่เก็บซ้ำระดับหลักฐาน)                │
 // │      เฉพาะผู้รับผิดชอบคดี (non-admin) — server ต้อง:                  │
 // │        1. คำนวณ SHA-256 ของไฟล์                                      │
 // │        2. ฝัง watermark เสมอ (ไม่เป็น option)                         │
 // │        3. บันทึกลง blockchain เสมอ                                   │
-// │        4. validate lat/long (พิกัดที่เกิดเหตุ อาจมาจาก EXIF ฝั่ง client)│
 // │ GET  /api/evidence/{id}/transactions → BlockchainTx[]                │
 // └──────────────────────────────────────────────────────────────────────┘
 //

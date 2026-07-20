@@ -1,6 +1,5 @@
 // ── Evidence / case / blockchain domain interfaces ──────
 
-export type EvidenceCategory = "crime_scene" | "forensic" | "surveillance" | "document";
 export type WatermarkType = "static" | "dynamic";
 export type WmAlgorithm = "dct" | "dwt" | "lsb" | "hybrid";
 export type TxAction = "upload" | "access" | "verify" | "transfer" | "flag";
@@ -38,7 +37,6 @@ export interface EvidenceItem {
   case_number?: string;
   uploaded_by: string;
   officer_name?: string;
-  category: EvidenceCategory;
   description: string;
   original_filename: string;
   file_hash_sha256: string;
@@ -50,16 +48,19 @@ export interface EvidenceItem {
   uploaded_at: string;
 }
 
-/** payload สร้างหลักฐานใหม่ — สเปคสำหรับ POST /api/evidence (multipart) */
+/** ไฟล์หนึ่งไฟล์ + metadata ของตัวเอง — 1 รายการนี้ = 1 EvidenceItem ที่ถูกสร้าง */
+export interface UploadEvidenceFile {
+  file: File;
+  description: string;
+  captured_at?: string; 
+  captured_at_source?: "exif" | "manual";
+}
+
+/** payload สร้างหลักฐานใหม่ — สเปคสำหรับ POST /api/evidence (multipart)
+ *  metadata แยกรายไฟล์ เพราะแต่ละรูปมีวันเวลาถ่ายของตัวเอง — ห้ามใช้ค่าของรูปแรกแทนทุกรูป */
 export interface UploadEvidenceInput {
   case_id: string;
-  files: File[];
-  category: string; // crime_scene | forensic | surveillance | document
-  description: string;
-  location: string; // ชื่อสถานที่เกิดเหตุ
-  latitude?: string; // พิกัดที่เกิดเหตุ (จาก EXIF หรือกรอกเอง)
-  longitude?: string;
-  captured_at?: string; // วันเวลาที่ถ่าย (datetime-local)
+  files: UploadEvidenceFile[];
 }
 
 export interface WatermarkRecord {

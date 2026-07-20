@@ -1,34 +1,42 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRight, ShieldAlert, MapPin, ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRight, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { caseService, evidenceService } from "@/services";
 import { visibleCases } from "@/utils/caseAccess";
-import { readGpsFromImage } from "@/utils/exifGps";
-import type { Case } from "@/interfaces";
+import { readCapturedAt } from "@/utils/exif";
+import { formatIncident } from "@/utils/format";
+import type { Case, UploadEvidenceFile } from "@/interfaces";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2;
 
-/** แปลง EXIF DateTimeOriginal "YYYY:MM:DD HH:MM:SS" → ค่า datetime-local "YYYY-MM-DDTHH:MM" */
-function exifToLocal(s?: string): string {
-  if (!s) return "";
-  const m = s.match(/^(\d{4}):(\d{2}):(\d{2})\s+(\d{2}):(\d{2})/);
-  return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}` : "";
+/** ไฟล์ที่รออัพโหลด + metadata ของตัวเอง (1 รายการ = 1 หลักฐาน)
+ *  exifCapturedAt อ่านครั้งเดียวตอนเพิ่มไฟล์ แล้วผูกติดกับไฟล์นั้นถาวร —
+ *  ไม่มีทางที่ข้อมูลของรูปหนึ่งจะไปโผล่กับอีกรูป */
+interface PendingFile {
+  file: File;
+  preview: string;
+  exifCapturedAt: string;   // จากไฟล์ ("" ถ้าไม่มี)
+  manualCapturedAt: string; // ผู้ใช้กรอกเอง (ใช้เมื่อไฟล์ไม่มี EXIF)
+  description: string;
 }
+
+const capturedAtOf = (p: PendingFile) => p.exifCapturedAt || p.manualCapturedAt;
+const sourceOf = (p: PendingFile): UploadEvidenceFile["captured_at_source"] =>
+  p.exifCapturedAt ? "exif" : p.manualCapturedAt ? "manual" : undefined;
 
 export default function UploadEvidencePage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [cases, setCases] = useState<Case[] | null>(null);
   const [caseId, setCaseId] = useState("");
   const [step, setStep] = useState<Step>(1);
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [items, setItems] = useState<PendingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStep, setSubmitStep] = useState(0);
-  const [form, setForm] = useState({ category: "crime_scene", dateTime: "", description: "", location: "", latitude: "", longitude: "" });
-  const [exifMissing, setExifMissing] = useState(false);
 
   const myCases = useMemo(
     () => (cases ? visibleCases(user, cases) : []),
@@ -40,44 +48,34 @@ export default function UploadEvidencePage() {
     (async () => {
       const loaded = await caseService.list();
       setCases(loaded);
-      const preId = new URLSearchParams(window.location.search).get("case") ?? "";
-      setCaseId(preId);
-      // prefill ชื่อสถานที่เกิดเหตุจากคดี
-      const c = visibleCases(user, loaded).find((x) => x.case_id === preId);
-      if (c?.location) setForm((f) => ({ ...f, location: c.location }));
+      setCaseId(new URLSearchParams(window.location.search).get("case") ?? "");
     })();
   }, [user]);
 
   const handleFiles = async (newFiles: File[]) => {
     const imgs = newFiles.filter((f) => f.type.startsWith("image/"));
     if (imgs.length === 0) return;
-    setFiles((p) => [...p, ...imgs]);
-    setPreviews((p) => [...p, ...imgs.map((f) => URL.createObjectURL(f))]);
-  };
-
-  const firstFile = files[0];
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const gps = firstFile ? await readGpsFromImage(firstFile) : undefined;
-      if (cancelled) return;
-      setForm((f) => ({
-        ...f,
-        latitude: gps?.latitude?.toFixed(6) || "",
-        longitude: gps?.longitude?.toFixed(6) || "",
-        dateTime: gps?.takenAt ? exifToLocal(gps.takenAt) : "",
+    // อ่าน EXIF ของแต่ละไฟล์ตอนเพิ่ม — ค่าที่ได้เป็นของไฟล์นั้นตลอดไป
+    const added = await Promise.all(
+      imgs.map(async (file) => ({
+        file,
+        preview: URL.createObjectURL(file),
+        exifCapturedAt: await readCapturedAt(file),
+        manualCapturedAt: "",
+        description: "",
       }))
-      setExifMissing(Boolean(firstFile) && !gps);
-    })();
-    return () => { cancelled = true; };
-  }, [firstFile]);
-
-  const removeFile = (i: number) => {
-    URL.revokeObjectURL(previews[i]);
-    setFiles((p) => p.filter((_, idx) => idx !== i));
-    setPreviews((p) => p.filter((_, idx) => idx !== i));
+    );
+    setItems((p) => [...p, ...added]);
   };
+
+  const updateItem = (i: number, patch: Partial<PendingFile>) =>
+    setItems((p) => p.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+
+  const removeFile = (i: number) =>
+    setItems((p) => {
+      URL.revokeObjectURL(p[i].preview);
+      return p.filter((_, idx) => idx !== i);
+    });
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -87,21 +85,22 @@ export default function UploadEvidencePage() {
     steps.forEach((s, i) => setTimeout(() => setSubmitStep(s), (i + 1) * 800));
     await evidenceService.upload({
       case_id: caseId,
-      files,
-      category: form.category,
-      description: form.description,
-      location: form.location,
-      latitude: form.latitude || undefined,
-      longitude: form.longitude || undefined,
-      captured_at: form.dateTime || undefined,
+      files: items.map((it) => ({
+        file: it.file,
+        description: it.description,
+        captured_at: capturedAtOf(it) || undefined,
+        captured_at_source: sourceOf(it),
+      })),
     });
     setSubmitStep(5);
     setIsSubmitting(false);
+    // คืน object URL ของ preview ก่อนออกจากหน้า แล้วพากลับไปหน้าคดี
+    items.forEach((it) => URL.revokeObjectURL(it.preview));
+    setTimeout(() => router.push(`/cases/${caseId}`), 1200);
   };
 
-  const stepLabels = ["Upload Images", "Metadata", "Review"];
-  const hasCoords = form.latitude !== "" && form.longitude !== "";
-  const mapsUrl = `https://www.google.com/maps?q=${form.latitude},${form.longitude}`;
+  const stepLabels = ["Upload Images", "Review"];
+  const missingDates = items.filter((it) => !capturedAtOf(it)).length;
 
   // ── Guards ──────────────────────────────────────────
   if (!user || cases === null) {
@@ -177,105 +176,84 @@ export default function UploadEvidencePage() {
               <input type="file" id="file-input" multiple accept="image/*" onChange={(e) => handleFiles(Array.from(e.target.files || []))} className="hidden" />
               <UploadCloud className="mx-auto h-10 w-10 text-muted" />
               <p className="mt-2 text-sm">ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก</p>
-              <p className="text-xs text-muted mt-1">รองรับ JPG, PNG, TIFF — ระบบจะอ่านพิกัด GPS จากรูปให้อัตโนมัติ (ถ้ามี)</p>
+              <p className="text-xs text-muted mt-1">รองรับ JPG, PNG, TIFF — แต่ละรูปจะอ่านวันเวลาที่ถ่ายของตัวเองจากไฟล์อัตโนมัติ</p>
             </div>
-            {previews.length > 0 && (
+            {items.length > 0 && (
               <div className="grid grid-cols-5 gap-3">
-                {previews.map((url, i) => (
-                  <div key={i} className="relative rounded-lg overflow-hidden aspect-square bg-slate-100">
-                    <img src={url} alt="" className="h-full w-full object-cover" />
+                {items.map((it, i) => (
+                  <div key={it.preview} className="relative rounded-lg overflow-hidden aspect-square bg-slate-100">
+                    <img src={it.preview} alt="" className="h-full w-full object-cover" />
                     <button onClick={() => removeFile(i)} className="absolute top-1 right-1 rounded-full bg-black/50 p-0.5 text-white hover:bg-black/70"><X className="h-3 w-3" /></button>
                   </div>
                 ))}
               </div>
             )}
             <div className="flex justify-end">
-              <button onClick={() => files.length > 0 && setStep(2)} disabled={files.length === 0} className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40 hover:bg-primary/90 transition-colors">Next</button>
+              <button onClick={() => items.length > 0 && setStep(2)} disabled={items.length === 0} className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40 hover:bg-primary/90 transition-colors">Next</button>
             </div>
           </div>
         )}
 
-        {/* Step 2: Metadata */}
+        {/* Step 2: Review — metadata แยกรายไฟล์ */}
         {step === 2 && (
           <div className="space-y-5">
-            <h2 className="font-semibold">ข้อมูลหลักฐาน</h2>
-            <div className="grid grid-cols-2 gap-4 max-w-2xl">
-              <div>
-                <label className="text-xs font-medium text-muted">Category</label>
-                <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary">
-                  <option value="crime_scene">Crime Scene</option>
-                  <option value="forensic">Forensic</option>
-                  <option value="surveillance">Surveillance</option>
-                  <option value="document">Document</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted">วันเวลาที่ถ่าย</label>
-                <input type="datetime-local" value={form.dateTime} onChange={(e) => setForm({ ...form, dateTime: e.target.value })} className="mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary" />
-              </div>
+            <div>
+              <h2 className="font-semibold">ตรวจสอบข้อมูลก่อนส่ง</h2>
+              <p className="mt-1 text-xs text-muted">แต่ละไฟล์จะถูกบันทึกเป็นหลักฐาน 1 ชิ้น พร้อมวันเวลาถ่ายของตัวเอง</p>
             </div>
 
-            {/* สถานที่เกิดเหตุ */}
-            <div className="max-w-2xl space-y-3 rounded-lg border border-border p-4">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-medium">สถานที่เกิดเหตุ</h3>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted">ชื่อสถานที่</label>
-                <input type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="เช่น ซ.สุขุมวิท 23 กรุงเทพฯ" className="mt-1 h-10 w-full rounded-lg border border-border px-3 text-sm outline-none focus:border-primary" />
-              </div>
-              {/* พิกัด: อ่านจาก EXIF เท่านั้น — ไม่มีช่องกรอกเอง */}
-              {hasCoords ? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                  <span className="rounded-full bg-success-light px-2 py-0.5 font-medium text-success">พิกัดจากรูป (EXIF)</span>
-                  <span className="font-mono text-text-secondary">{form.latitude}, {form.longitude}</span>
-                  <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                    <ExternalLink className="h-3 w-3" /> ดูบนแผนที่
-                  </a>
-                </div>
-              ) : (
-                <p className="text-xs text-muted">
-                  {exifMissing
-                    ? "รูปนี้ไม่มีพิกัดฝังไว้ — ระบบจะบันทึกเฉพาะชื่อสถานที่"
-                    : "ระบบจะอ่านพิกัดจากข้อมูล GPS ที่ฝังในรูป (EXIF) อัตโนมัติ"}
-                </p>
-              )}
-            </div>
-
-            <div className="max-w-2xl">
-              <label className="text-xs font-medium text-muted">Description</label>
-              <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="คำอธิบายหลักฐาน..." rows={3} className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm outline-none focus:border-primary resize-none" />
-            </div>
-
-            <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-800 max-w-2xl">
-              <ShieldCheck className="h-4 w-4 flex-shrink-0" />
-              ระบบจะฝังลายน้ำ (Watermark) และบันทึกลง Blockchain ให้อัตโนมัติเมื่ออัพโหลด
-            </div>
-
-            <div className="flex gap-2">
-              <button onClick={() => setStep(1)} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover transition-colors">Back</button>
-              <button onClick={() => setStep(3)} className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors">Next</button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Review */}
-        {step === 3 && (
-          <div className="space-y-5">
-            <h2 className="font-semibold">ตรวจสอบข้อมูลก่อนส่ง</h2>
-            <div className="grid grid-cols-2 gap-4 max-w-2xl text-sm">
+            <div className="grid grid-cols-3 gap-4 max-w-2xl text-sm">
               <div><span className="text-muted">Case:</span> <span className="font-medium">{activeCase.case_number}</span></div>
-              <div><span className="text-muted">Files:</span> <span className="font-medium">{files.length} images</span></div>
-              <div><span className="text-muted">Category:</span> <span className="font-medium">{form.category}</span></div>
+              <div><span className="text-muted">Files:</span> <span className="font-medium">{items.length} images</span></div>
               <div><span className="text-muted">Officer:</span> <span className="font-medium">{user.badge_number || user.full_name || user.username}</span></div>
-              <div className="col-span-2">
-                <span className="text-muted">สถานที่เกิดเหตุ:</span>{" "}
-                <span className="font-medium">
-                  {form.location || "—"}
-                  {hasCoords && <span className="font-mono text-xs text-muted"> ({form.latitude}, {form.longitude})</span>}
-                </span>
-              </div>
+            </div>
+
+            {missingDates > 0 && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs text-amber-800">
+                มี {missingDates} ไฟล์ที่ไม่มีวันเวลาถ่ายฝังอยู่ — กรอกเองได้ และจะถูกบันทึกว่าเป็นค่าที่กรอกเอง ไม่ใช่ค่าจากไฟล์
+              </p>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-muted">
+                    <th className="pb-2 pr-3 font-medium">ไฟล์</th>
+                    <th className="pb-2 pr-3 font-medium">วันเวลาที่ถ่าย</th>
+                    <th className="pb-2 font-medium">คำอธิบาย</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it, i) => (
+                    <tr key={it.preview} className="border-b border-border/60 align-top">
+                      <td className="py-3 pr-3">
+                        <div className="flex items-center gap-2">
+                          <img src={it.preview} alt="" className="h-10 w-10 flex-shrink-0 rounded object-cover" />
+                          <span className="max-w-[10rem] truncate text-xs text-text-secondary" title={it.file.name}>{it.file.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 pr-3">
+                        {it.exifCapturedAt ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-full bg-success-light px-2 py-0.5 text-xs font-medium text-success">จากไฟล์ (EXIF)</span>
+                            <span className="text-xs font-medium">{formatIncident(it.exifCapturedAt)}</span>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <input type="datetime-local" value={it.manualCapturedAt} onChange={(e) => updateItem(i, { manualCapturedAt: e.target.value })} className="h-9 w-full min-w-[12rem] rounded-lg border border-border px-2 text-xs outline-none focus:border-primary" />
+                            {it.manualCapturedAt && (
+                              <span className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">กรอกเอง</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <input type="text" value={it.description} onChange={(e) => updateItem(i, { description: e.target.value })} placeholder="คำอธิบายรูปนี้..." className="h-9 w-full rounded-lg border border-border px-2 text-xs outline-none focus:border-primary" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
             <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-xs text-blue-800 max-w-2xl">
@@ -298,11 +276,12 @@ export default function UploadEvidencePage() {
             {submitStep === 5 && !isSubmitting && (
               <div className="rounded-lg border border-success/20 bg-success-light p-4">
                 <p className="text-sm font-medium text-success flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> อัปโหลดสำเร็จ! ลายน้ำถูกฝังและบันทึกลง Blockchain แล้ว</p>
+                <p className="mt-1 flex items-center gap-2 text-xs text-success"><Loader2 className="h-3 w-3 animate-spin" /> กำลังกลับไปหน้าคดี...</p>
               </div>
             )}
 
             <div className="flex gap-2">
-              <button onClick={() => setStep(2)} disabled={isSubmitting} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover disabled:opacity-40 transition-colors">Back</button>
+              <button onClick={() => setStep(1)} disabled={isSubmitting} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover disabled:opacity-40 transition-colors">Back</button>
               <button onClick={handleSubmit} disabled={isSubmitting || submitStep === 5} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40 hover:bg-primary/90 transition-colors">
                 <Shield className="h-4 w-4" /> Upload & Authenticate
               </button>
