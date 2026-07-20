@@ -4,16 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, Loader2, Images, MapPin, CalendarDays, FolderOpen } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService } from "@/services";
 import { visibleCases, canCreateCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
 
-/** รูปหลักฐานชิ้นแรกที่อัพโหลดของคดี (ใช้เป็นภาพปกการ์ด) */
+/** รูปหลักฐานที่อัพโหลดล่าสุดของคดี (ใช้เป็นภาพปกการ์ด) */
 const coverOf = (evidence: EvidenceItem[], caseId: string) =>
   evidence
     .filter((e) => e.case_id === caseId && e.thumbnail_url)
-    .sort((a, b) => a.uploaded_at.localeCompare(b.uploaded_at))[0]?.thumbnail_url;
+    .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))[0]?.thumbnail_url;
 
 /** จำนวนหลักฐานจริงของคดี (คดีสร้างใหม่ยังไม่มีหลักฐาน) */
 const evidenceCountOf = (evidence: EvidenceItem[], caseId: string) =>
@@ -21,6 +22,7 @@ const evidenceCountOf = (evidence: EvidenceItem[], caseId: string) =>
 
 export default function CasesPage() {
   const { user } = useAuth();
+  const supervisorMap = useSupervisorMap();
   const [cases, setCases] = useState<Case[]>([]);
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [query, setQuery] = useState("");
@@ -38,11 +40,12 @@ export default function CasesPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return visibleCases(user, cases).filter((c) => {
+    // ยังโหลด map ไม่เสร็จ = แสดงเฉพาะคดีของตัวเองไปก่อน แล้วขยายเมื่อโหลดเสร็จ
+    return visibleCases(user, cases, supervisorMap ?? {}).filter((c) => {
       if (!q) return true;
       return `${c.case_number} ${c.title}`.toLowerCase().includes(q);
     });
-  }, [user, cases, query]);
+  }, [user, cases, query, supervisorMap]);
 
   if (!user) {
     return (

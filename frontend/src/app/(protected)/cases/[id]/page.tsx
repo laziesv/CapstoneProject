@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, Calendar, Loader2, ShieldAlert, UploadCloud } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Loader2, ShieldAlert, UploadCloud, ImageOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
@@ -14,6 +15,7 @@ import { formatIncident } from "@/utils/format";
 export default function CaseDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const supervisorMap = useSupervisorMap();
   const [caseData, setCaseData] = useState<Case | null | undefined>(undefined);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
 
@@ -28,7 +30,8 @@ export default function CaseDetailPage() {
     })();
   }, [id]);
 
-  if (!user || caseData === undefined) {
+  // รอ supervisorMap ด้วย ไม่งั้นจะขึ้น "ไม่มีสิทธิ์" แวบหนึ่งก่อนสายบังคับบัญชาโหลดเสร็จ
+  if (!user || caseData === undefined || supervisorMap === null) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -38,7 +41,7 @@ export default function CaseDetailPage() {
 
   if (caseData === null) return <p className="p-6">Case not found</p>;
 
-  if (!canSeeCase(user, caseData)) {
+  if (!canSeeCase(user, caseData, supervisorMap)) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
         <ShieldAlert className="h-10 w-10 text-danger" />
@@ -88,7 +91,14 @@ export default function CaseDetailPage() {
         {evidenceList.map((e) => (
           <Link key={e.evidence_id} href={`/evidence/${e.evidence_id}`} className="group rounded-xl border border-border bg-surface overflow-hidden hover:shadow-md transition-all">
             <div className="aspect-video bg-slate-100 overflow-hidden">
-              <img src={e.thumbnail_url} alt={e.description} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+              {e.thumbnail_url ? (
+                <img src={e.thumbnail_url} alt={e.description} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+              ) : (
+                // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
+                <div className="flex h-full w-full items-center justify-center">
+                  <ImageOff className="h-7 w-7 text-muted" />
+                </div>
+              )}
             </div>
             <div className="p-4">
               <p className="font-mono text-xs text-primary">{e.evidence_number}</p>

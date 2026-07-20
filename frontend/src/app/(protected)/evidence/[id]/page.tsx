@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2 } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService, accessLogService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
@@ -13,6 +14,7 @@ import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
 export default function EvidenceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
+  const supervisorMap = useSupervisorMap();
   const [evidence, setEvidence] = useState<EvidenceItem | null | undefined>(undefined);
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
   const [relatedTx, setRelatedTx] = useState<BlockchainTx[]>([]);
@@ -37,7 +39,7 @@ export default function EvidenceDetailPage() {
     })();
   }, [id]);
 
-  if (!user || evidence === undefined) {
+  if (!user || evidence === undefined || supervisorMap === null) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -47,7 +49,7 @@ export default function EvidenceDetailPage() {
 
   if (evidence === null) return <p className="p-6">Evidence not found</p>;
 
-  const allowed = user.role === "admin" ? true : caseData ? canSeeCase(user, caseData) : false;
+  const allowed = user.role === "admin" ? true : caseData ? canSeeCase(user, caseData, supervisorMap) : false;
 
   if (!allowed) {
     return (
@@ -76,7 +78,17 @@ export default function EvidenceDetailPage() {
         {/* Left: Image */}
         <div className="col-span-2 space-y-4">
           <div className="rounded-xl border border-border bg-surface overflow-hidden">
-            <img src={evidence.thumbnail_url} alt={evidence.description} className="w-full object-cover" style={{ maxHeight: 420 }} />
+            {evidence.thumbnail_url ? (
+              <img src={evidence.thumbnail_url} alt={evidence.description} className="w-full object-cover" style={{ maxHeight: 420 }} />
+            ) : (
+              // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
+              // (endpoint ดูรูปมีแล้วที่ /api/evidence-files/{file_id})
+              <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-20 text-center">
+                <ImageOff className="h-8 w-8 text-muted" />
+                <p className="text-sm text-muted">ยังแสดงรูปไม่ได้</p>
+                <p className="text-xs text-muted">ไฟล์ถูกเก็บไว้แล้ว แต่ API ยังไม่ส่ง file_id กลับมา</p>
+              </div>
+            )}
           </div>
 
           {/* Blockchain Transactions */}
@@ -137,8 +149,9 @@ export default function EvidenceDetailPage() {
               <Row label="Case" value={evidence.case_number || ""} mono />
               <Row label="Officer" value={evidence.officer_name || ""} />
               <Row label="Filename" value={evidence.original_filename} />
-              <Row label="Size" value={`${(evidence.file_size_bytes / 1e6).toFixed(1)} MB`} />
-              <Row label="Captured" value={new Date(evidence.captured_at).toLocaleString("th-TH")} />
+              {/* TODO(backend): ค่าเหล่านี้อยู่ใน DB แล้ว แต่ยังไม่อยู่ใน EvidenceResponse */}
+              <Row label="Size" value={evidence.file_size_bytes ? `${(evidence.file_size_bytes / 1e6).toFixed(1)} MB` : "—"} />
+              <Row label="Captured" value={evidence.captured_at ? new Date(evidence.captured_at).toLocaleString("th-TH") : "—"} />
               <Row label="Uploaded" value={new Date(evidence.uploaded_at).toLocaleString("th-TH")} />
             </div>
           </div>
@@ -146,7 +159,10 @@ export default function EvidenceDetailPage() {
           {/* File Hash */}
           <div className="rounded-xl border border-border bg-surface p-5">
             <h3 className="font-semibold text-sm mb-2">SHA-256 Hash</h3>
-            <p className="break-all font-mono text-[10px] text-muted leading-relaxed bg-slate-50 rounded-lg p-3">{evidence.file_hash_sha256}</p>
+            <p className="break-all font-mono text-[10px] text-muted leading-relaxed bg-slate-50 rounded-lg p-3">
+              {/* TODO(backend): server คำนวณไว้แล้วใน evidence_files.file_hash แค่ยังไม่ส่งกลับมา */}
+              {evidence.file_hash_sha256 ?? "— API ยังไม่ส่ง hash กลับมา"}
+            </p>
           </div>
 
           {/* Watermark Status */}

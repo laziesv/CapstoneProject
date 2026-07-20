@@ -1,9 +1,9 @@
 // ── สิทธิ์คดี ตามยศ + ลำดับบังคับบัญชา ──────────────────
-// ตรรกะสิทธิ์ทั้งหมด (frontend/mock) รวมที่ไฟล์นี้ที่เดียว — แก้เกณฑ์ได้ที่นี่
-// TODO(backend): เมื่อมี /api/cases + authz ฝั่ง server ให้ย้ายการบังคับสิทธิ์ไป backend
+// ตรรกะสิทธิ์ฝั่ง client รวมที่ไฟล์นี้ที่เดียว — แก้เกณฑ์ได้ที่นี่
+// TODO(backend): ให้ /api/cases กรองตามสิทธิ์เอง แล้วลบตรรกะนี้ทิ้ง
+//                การกรองฝั่ง client คือ "ซ่อน UI" ไม่ใช่การรักษาความปลอดภัย
 
 import type { Case } from "@/interfaces";
-import { getSupervisorMap } from "@/utils/hierarchyStore";
 
 // ยศตำรวจไทย เรียงจากสูง → ต่ำ (index น้อย = ยศสูง)
 export const POLICE_RANKS = [
@@ -54,39 +54,48 @@ export function canCreateCase(user?: AccessUser | null): boolean {
   return canCreateByRank(user.rank);
 }
 
-/** รายชื่อ username ผู้ใต้บังคับบัญชาทั้งหมด (transitive) ของ username ที่ให้
- *  อ่านสายบังคับบัญชาจาก hierarchyStore (ตั้งค่าได้ในหน้า Manage Users) */
-export function subordinatesOf(username?: string): string[] {
-  if (!username) return [];
-  const map = getSupervisorMap();
+/** mapping user_id → user_id ของหัวหน้า (null = ไม่มีหัวหน้า)
+ *  โหลดผ่าน `userService.getSupervisorMap()` ซึ่งดึงจาก /api/users/selectable */
+export type SupervisorMap = Record<string, string | null>;
+
+/** user_id ผู้ใต้บังคับบัญชาทั้งหมด (รวมลูกน้องของลูกน้อง) ของ user_id ที่ให้
+ *
+ *  ใช้ user_id ไม่ใช่ username เพราะคดีจาก API อ้างผู้ใช้ด้วย UUID —
+ *  ถ้าใช้ username จะเทียบกับ created_by ไม่ติด */
+export function subordinatesOf(userId?: string, map: SupervisorMap = {}): string[] {
+  if (!userId) return [];
   const result: string[] = [];
   const walk = (boss: string) => {
-    for (const [u, supervisor] of Object.entries(map)) {
-      if (supervisor === boss && !result.includes(u)) {
-        result.push(u);
-        walk(u);
+    for (const [id, supervisor] of Object.entries(map)) {
+      // เช็ค !includes กันลูปค้างถ้าข้อมูลมีวงจร (backend กันไว้แล้วอีกชั้น)
+      if (supervisor === boss && !result.includes(id)) {
+        result.push(id);
+        walk(id);
       }
     }
   };
-  walk(username);
+  walk(userId);
   return result;
 }
 
 /** เห็นคดีนี้ได้หรือไม่: admin เห็นทุกคดี; ไม่งั้นต้องเป็นคดีของตัวเองหรือของลูกน้อง
- *
- *  หมายเหตุ: คดีที่มาจาก API จริงอ้างผู้ใช้ด้วย **UUID** ส่วนสายบังคับบัญชา
- *  (hierarchyStore) ยังอ้างด้วย **username** จึงใส่ทั้งสองค่าลง scope
- *  ผลคือ "คดีของตัวเอง" ใช้ได้ แต่ "คดีของลูกน้อง" ยังไม่ทำงานกับข้อมูลจริง
- *  เพราะแปลง username → UUID ไม่ได้ (GET /api/users เป็น admin-only)
- *  TODO(backend): ให้ server กรองคดีตามสิทธิ์เอง แล้วลบตรรกะนี้ทิ้ง */
-export function canSeeCase(user: AccessUser | null | undefined, c: Case): boolean {
+ *  ไม่ส่ง map มา = เห็นเฉพาะคดีของตัวเอง (ปลอดภัยกว่าเมื่อยังโหลดไม่เสร็จ) */
+export function canSeeCase(
+  user: AccessUser | null | undefined,
+  c: Case,
+  map: SupervisorMap = {}
+): boolean {
   if (!user) return false;
   if (user.role === "admin") return true;
-  const scope = [user.username, user.user_id, ...subordinatesOf(user.username)].filter(Boolean);
+  const scope = [user.user_id, ...subordinatesOf(user.user_id, map)].filter(Boolean);
   return scope.includes(c.created_by) || (c.assigned_officers ?? []).some((o) => scope.includes(o));
 }
 
 /** กรองเฉพาะคดีที่ผู้ใช้เห็นได้ */
-export function visibleCases(user: AccessUser | null | undefined, cases: Case[]): Case[] {
-  return cases.filter((c) => canSeeCase(user, c));
+export function visibleCases(
+  user: AccessUser | null | undefined,
+  cases: Case[],
+  map: SupervisorMap = {}
+): Case[] {
+  return cases.filter((c) => canSeeCase(user, c, map));
 }

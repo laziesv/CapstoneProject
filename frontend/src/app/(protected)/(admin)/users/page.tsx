@@ -17,7 +17,7 @@ const emptyForm = {
   department: "",
   badge_number: "",
   role: "officer",
-  supervisor: "",
+  supervisor_id: "",
 };
 
 export default function UsersPage() {
@@ -26,8 +26,8 @@ export default function UsersPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-  // สายบังคับบัญชา (username → หัวหน้า) จาก hierarchyStore — admin เป็นผู้ควบคุม
-  const [supMap, setSupMap] = useState<Record<string, string | null>>({});
+  // แถวที่กำลังบันทึกอยู่ — กันกดซ้ำระหว่างรอ API
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   // หัวหน้าที่เลือกได้ = ผู้มียศชั้นสัญญาบัตร (คนที่สร้างคดีได้)
   const supervisorOptions = useMemo(() => users.filter((u) => canCreateByRank(u.rank)), [users]);
@@ -47,17 +47,26 @@ export default function UsersPage() {
     loadUsers();
   }, [loadUsers]);
 
-  useEffect(() => {
-    // อ่านสายบังคับบัญชาผ่าน service หลัง mount
-    (async () => {
-      setSupMap(await userService.getSupervisorMap());
-    })();
-  }, []);
-
-  // ตั้ง/แก้หัวหน้าของผู้ใช้ + อัปเดต state ให้ตารางรีเฟรชทันที
-  const changeSupervisor = (username: string, supervisor: string) => {
-    userService.setSupervisor(username, supervisor || null);
-    setSupMap((m) => ({ ...m, [username]: supervisor || null }));
+  /** ยิง PUT แล้วเอา user ที่ backend คืนมาแทนแถวเดิม
+   *  ใช้ค่าจาก response ไม่ใช่ค่าที่เราส่งไป — backend อาจปรับ/ปฏิเสธบางค่า */
+  const patchUser = async (
+    userId: string,
+    input: Parameters<typeof userService.update>[1],
+    okText: string
+  ) => {
+    setSavingId(userId);
+    setMsg(null);
+    try {
+      const updated = await userService.update(userId, input);
+      setUsers((us) => us.map((u) => (u.user_id === userId ? updated : u)));
+      setMsg({ type: "ok", text: okText });
+    } catch (err) {
+      // ApiError.message = detail จาก backend เช่น "สายบังคับบัญชาวนซ้ำ"
+      const text = err instanceof ApiError ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้";
+      setMsg({ type: "err", text });
+    } finally {
+      setSavingId(null);
+    }
   };
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -74,10 +83,8 @@ export default function UsersPage() {
 
     setSubmitting(true);
     try {
-      // supervisor เก็บฝั่ง client เท่านั้น (backend ยังไม่มี field นี้) — แยกออกจาก payload
-      const { supervisor, ...payload } = form;
-      await userService.create(payload);
-      changeSupervisor(form.username, supervisor);
+      // "" จาก select = ไม่มีหัวหน้า → ต้องส่ง null ไม่ใช่ "" (backend คาด UUID)
+      await userService.create({ ...form, supervisor_id: form.supervisor_id || null });
       setMsg({ type: "ok", text: `เพิ่มผู้ใช้ "${form.username}" สำเร็จ` });
       setForm(emptyForm);
       loadUsers();
@@ -129,10 +136,10 @@ export default function UsersPage() {
           <Field label="หน่วยงาน"><input value={form.department} onChange={set("department")} className={inputCls} /></Field>
           <Field label="เลขบัตร"><input value={form.badge_number} onChange={set("badge_number")} className={inputCls} /></Field>
           <Field label="หัวหน้า (สายบังคับบัญชา)">
-            <select value={form.supervisor} onChange={set("supervisor")} className={inputCls}>
+            <select value={form.supervisor_id} onChange={set("supervisor_id")} className={inputCls}>
               <option value="">— ไม่มี (เป็นหัวหน้าสูงสุด) —</option>
               {supervisorOptions.map((u) => (
-                <option key={u.user_id} value={u.username}>{u.full_name || u.username} ({u.rank})</option>
+                <option key={u.user_id} value={u.user_id}>{u.full_name || u.username} ({u.rank})</option>
               ))}
             </select>
           </Field>
@@ -175,15 +182,22 @@ export default function UsersPage() {
                   <td className="px-5 py-3 text-muted">{u.department || "-"}</td>
                   <td className="px-5 py-3">
                     <select
-                      value={supMap[u.username] ?? ""}
-                      onChange={(e) => changeSupervisor(u.username, e.target.value)}
-                      className="h-8 rounded-lg border border-border bg-surface px-2 text-xs text-muted outline-none focus:border-primary"
+                      value={u.supervisor_id ?? ""}
+                      disabled={savingId === u.user_id}
+                      onChange={(e) =>
+                        patchUser(
+                          u.user_id,
+                          { supervisor_id: e.target.value || null },
+                          `อัปเดตหัวหน้าของ "${u.username}" แล้ว`
+                        )
+                      }
+                      className="h-8 rounded-lg border border-border bg-surface px-2 text-xs text-muted outline-none focus:border-primary disabled:opacity-50"
                     >
                       <option value="">— ไม่มี —</option>
                       {supervisorOptions
-                        .filter((s) => s.username !== u.username)
+                        .filter((s) => s.user_id !== u.user_id)
                         .map((s) => (
-                          <option key={s.user_id} value={s.username}>{s.full_name || s.username}</option>
+                          <option key={s.user_id} value={s.user_id}>{s.full_name || s.username}</option>
                         ))}
                     </select>
                   </td>
@@ -191,9 +205,21 @@ export default function UsersPage() {
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${u.role === "admin" ? "bg-primary-light text-primary" : "bg-slate-100 text-text-secondary"}`}>{u.role}</span>
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${u.is_active ? "bg-success-light text-success" : "bg-danger-light text-danger"}`}>
+                    <button
+                      type="button"
+                      disabled={savingId === u.user_id}
+                      onClick={() =>
+                        patchUser(
+                          u.user_id,
+                          { is_active: !u.is_active },
+                          `${u.is_active ? "ระงับ" : "เปิดใช้"}บัญชี "${u.username}" แล้ว`
+                        )
+                      }
+                      title={u.is_active ? "คลิกเพื่อระงับบัญชี" : "คลิกเพื่อเปิดใช้บัญชี"}
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium transition-opacity hover:opacity-75 disabled:opacity-50 ${u.is_active ? "bg-success-light text-success" : "bg-danger-light text-danger"}`}
+                    >
                       {u.is_active ? "active" : "inactive"}
-                    </span>
+                    </button>
                   </td>
                 </tr>
               ))}

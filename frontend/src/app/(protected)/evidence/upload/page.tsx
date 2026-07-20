@@ -7,6 +7,7 @@ import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRigh
 import { useAuth } from "@/hooks/useAuth";
 import { caseService, evidenceService } from "@/services";
 import { visibleCases } from "@/utils/caseAccess";
+import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { readCapturedAt } from "@/utils/exif";
 import { formatIncident } from "@/utils/format";
 import type { Case, UploadEvidenceFile, UploadedEvidenceRef } from "@/interfaces";
@@ -37,6 +38,7 @@ const sourceOf = (p: PendingFile): UploadEvidenceFile["captured_at_source"] =>
 export default function UploadEvidencePage() {
   const { user } = useAuth();
   const router = useRouter();
+  const supervisorMap = useSupervisorMap();
   const [cases, setCases] = useState<Case[] | null>(null);
   const [caseId, setCaseId] = useState("");
   const [step, setStep] = useState<Step>(1);
@@ -49,8 +51,8 @@ export default function UploadEvidencePage() {
   const [results, setResults] = useState<UploadedEvidenceRef[] | null>(null);
 
   const myCases = useMemo(
-    () => (cases ? visibleCases(user, cases) : []),
-    [user, cases]
+    () => (cases ? visibleCases(user, cases, supervisorMap ?? {}) : []),
+    [user, cases, supervisorMap]
   );
   const activeCase = useMemo(() => myCases.find((c) => c.case_id === caseId), [myCases, caseId]);
 

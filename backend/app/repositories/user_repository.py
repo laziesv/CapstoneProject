@@ -49,6 +49,18 @@ class UserRepository:
         )
 
     @staticmethod
+    def list_active(
+        db: Session,
+    ) -> list[User]:
+        """เฉพาะผู้ใช้ที่ยังใช้งานอยู่ — ใช้กับ dropdown เลือกผู้รับผิดชอบ"""
+        return (
+            db.query(User)
+            .filter(User.is_active.is_(True))
+            .order_by(User.username)
+            .all()
+        )
+
+    @staticmethod
     def create(
         db: Session,
         user: User,

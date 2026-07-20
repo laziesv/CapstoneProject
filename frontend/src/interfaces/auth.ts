@@ -12,6 +12,9 @@ export interface AuthUser {
   profile_image_url?: string | null;
   role?: string;
   is_active: boolean;
+  // สายบังคับบัญชา — supervisor_username backend คำนวณให้ ไม่ต้อง join เอง
+  supervisor_id?: string | null;
+  supervisor_username?: string | null;
 }
 
 export interface LoginResponse {

@@ -42,6 +42,7 @@ def seed_sample_data():
         rank="พันตำรวจโท",
         department="กองพิสูจน์หลักฐาน",
         badge_number="OFF-1820",
+        role="investigator",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
@@ -53,11 +54,16 @@ def seed_sample_data():
         rank="ดาบตำรวจ",
         department="งานสืบสวน",
         badge_number="OFF-3344",
+        role="officer",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add_all([somsak, wichai])
-    db.flush()
+    db.flush()  # ให้ somsak มี user_id ก่อน ถึงจะอ้างเป็นหัวหน้าได้
+
+    # สายบังคับบัญชา: วิชัย (ดาบตำรวจ) อยู่ใต้ สมศักดิ์ (พันตำรวจโท)
+    # ใช้เดโมสิทธิ์ "หัวหน้าเห็นคดีของลูกน้อง"
+    wichai.supervisor_id = somsak.user_id
 
     admin = db.query(User).filter(User.username == "admin").first()
     officer_id = admin.user_id if admin else somsak.user_id

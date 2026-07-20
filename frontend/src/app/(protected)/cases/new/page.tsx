@@ -1,15 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FolderPlus, Loader2, ShieldAlert, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { caseService } from "@/services";
+import { caseService, userService } from "@/services";
 import { canCreateCase, subordinatesOf } from "@/utils/caseAccess";
-// TODO(backend): ตัวเลือกผู้รับผิดชอบยังใช้ mockUsers — เปลี่ยนเป็น userService.list()
-// เมื่อ backend มีข้อมูล supervisor/ยศ ครบชุดเดียวกับ mock
-import { mockUsers } from "@/utils/mockData";
+import { useSupervisorMap } from "@/hooks/useSupervisorMap";
+import type { SelectableUser } from "@/interfaces";
 
 
 const emptyForm = {
@@ -29,22 +28,40 @@ export default function NewCasePage() {
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
 
-  // ตัวเลือกผู้รับผิดชอบ = ตัวเอง + ลูกน้อง
+  const supervisorMap = useSupervisorMap();
+  const [allUsers, setAllUsers] = useState<SelectableUser[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    userService
+      .listSelectable()
+      .then((us) => {
+        if (!cancelled) setAllUsers(us);
+      })
+      .catch(() => {
+        // โหลดรายชื่อไม่ได้ = ไม่มีตัวเลือกให้เลือก แต่ยังสร้างคดีได้
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // ตัวเลือกผู้รับผิดชอบ = ลูกน้องของเรา (อ้างด้วย user_id ให้ตรงกับที่ backend ต้องการ)
   const officerOptions = useMemo(() => {
-    if (!user?.username) return [];
-    const subs = subordinatesOf(user.username);
-    return mockUsers.filter((u) => subs.includes(u.username));
-  }, [user]);
+    if (!user?.user_id) return [];
+    const subs = subordinatesOf(user.user_id, supervisorMap ?? {});
+    return allUsers.filter((u) => subs.includes(u.user_id));
+  }, [user, allUsers, supervisorMap]);
 
   const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  const toggleOfficer = (username: string) => {
+  const toggleOfficer = (userId: string) => {
     setForm((f) => ({
       ...f,
-      assigned_officers: f.assigned_officers.includes(username)
-        ? f.assigned_officers.filter((u) => u !== username)
-        : [...f.assigned_officers, username],
+      assigned_officers: f.assigned_officers.includes(userId)
+        ? f.assigned_officers.filter((u) => u !== userId)
+        : [...f.assigned_officers, userId],
     }));
   };
 
@@ -64,7 +81,7 @@ export default function NewCasePage() {
         description: form.description.trim(),
         location: form.location.trim(),
         incident_date: form.incident_date,
-        created_by: user!.username!,
+        created_by: user!.user_id,
         assigned_officers: form.assigned_officers
       });
       router.push(`/cases/${created.case_id}`);
@@ -133,13 +150,13 @@ export default function NewCasePage() {
               {officerOptions.length === 0 && (<p className="text-sm text-muted">ไม่มีผู้ใต้บังคับบัญชา</p>
             )}
               {officerOptions.map((u) => (
-                <label key={u.username} className="flex items-center gap-2 text-sm">
-                  <input 
-                  type="checkbox" 
-                  checked={form.assigned_officers.includes(u.username)} 
-                  onChange={() => toggleOfficer(u.username)} 
+                <label key={u.user_id} className="flex items-center gap-2 text-sm">
+                  <input
+                  type="checkbox"
+                  checked={form.assigned_officers.includes(u.user_id)}
+                  onChange={() => toggleOfficer(u.user_id)}
                 />
-                  {u.full_name} ({u.rank})
+                  {u.full_name ?? u.username}{u.rank ? ` (${u.rank})` : ""}
                 </label>
               ))}
             </div>

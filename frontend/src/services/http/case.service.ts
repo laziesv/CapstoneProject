@@ -70,8 +70,8 @@ export const caseService = {
 
   /** สร้างคดีใหม่ แล้วคืนคดีที่สร้าง (พร้อม case_id/case_number ที่ระบบออกให้) */
   async create(input: NewCaseInput): Promise<Case> {
-    // backend รับ assigned_officer เป็น UUID คนเดียว — ค่าที่ไม่ใช่ UUID
-    // (เช่น username จาก dropdown ที่ยังอ่าน mockUsers) ส่งไปจะได้ 422 จึงตัดทิ้ง
+    // backend รับ assigned_officer เป็น UUID ได้คนเดียว — ส่งคนแรกไป
+    // TODO(backend): รองรับผู้รับผิดชอบหลายคน (ตาราง case_officers) แล้วเลิกตัดทิ้ง
     const assigned = input.assigned_officers.find((o) => UUID_RE.test(o)) ?? null;
 
     const dto = await request<CaseApiResponse>("/api/cases", {
