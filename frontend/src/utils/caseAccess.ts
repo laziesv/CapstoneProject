@@ -43,6 +43,7 @@ export function canCreateByRank(rank?: string | null): boolean {
 
 interface AccessUser {
   username?: string;
+  user_id?: string;
   role?: string;
   rank?: string | null;
 }
@@ -71,12 +72,18 @@ export function subordinatesOf(username?: string): string[] {
   return result;
 }
 
-/** เห็นคดีนี้ได้หรือไม่: admin เห็นทุกคดี; ไม่งั้นต้องเป็นคดีของตัวเองหรือของลูกน้อง */
+/** เห็นคดีนี้ได้หรือไม่: admin เห็นทุกคดี; ไม่งั้นต้องเป็นคดีของตัวเองหรือของลูกน้อง
+ *
+ *  หมายเหตุ: คดีที่มาจาก API จริงอ้างผู้ใช้ด้วย **UUID** ส่วนสายบังคับบัญชา
+ *  (hierarchyStore) ยังอ้างด้วย **username** จึงใส่ทั้งสองค่าลง scope
+ *  ผลคือ "คดีของตัวเอง" ใช้ได้ แต่ "คดีของลูกน้อง" ยังไม่ทำงานกับข้อมูลจริง
+ *  เพราะแปลง username → UUID ไม่ได้ (GET /api/users เป็น admin-only)
+ *  TODO(backend): ให้ server กรองคดีตามสิทธิ์เอง แล้วลบตรรกะนี้ทิ้ง */
 export function canSeeCase(user: AccessUser | null | undefined, c: Case): boolean {
   if (!user) return false;
   if (user.role === "admin") return true;
-  const scope = [user.username, ...subordinatesOf(user.username)].filter(Boolean);
-  return scope.includes(c.created_by)  || (c.assigned_officers ?? []).some((o) => scope.includes(o));
+  const scope = [user.username, user.user_id, ...subordinatesOf(user.username)].filter(Boolean);
+  return scope.includes(c.created_by) || (c.assigned_officers ?? []).some((o) => scope.includes(o));
 }
 
 /** กรองเฉพาะคดีที่ผู้ใช้เห็นได้ */

@@ -2,15 +2,22 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRight, ShieldAlert } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRight, ShieldAlert, ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { caseService, evidenceService } from "@/services";
 import { visibleCases } from "@/utils/caseAccess";
 import { readCapturedAt } from "@/utils/exif";
 import { formatIncident } from "@/utils/format";
-import type { Case, UploadEvidenceFile } from "@/interfaces";
+import type { Case, UploadEvidenceFile, UploadedEvidenceRef } from "@/interfaces";
 
-type Step = 1 | 2;
+type Step = 1 | 2 | 3;
+
+/** ขั้นตอนที่ระบบทำกับ "แต่ละไฟล์" — ไล่ทีละบรรทัดในหน้า Authenticate */
+const PHASES = ["อ่านไฟล์", "คำนวณ SHA-256", "ฝังลายน้ำ (LSB)", "บันทึกลง Blockchain"];
+const PHASE_MS = 380;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** ไฟล์ที่รออัพโหลด + metadata ของตัวเอง (1 รายการ = 1 หลักฐาน)
  *  exifCapturedAt อ่านครั้งเดียวตอนเพิ่มไฟล์ แล้วผูกติดกับไฟล์นั้นถาวร —
@@ -35,8 +42,11 @@ export default function UploadEvidencePage() {
   const [step, setStep] = useState<Step>(1);
   const [items, setItems] = useState<PendingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStep, setSubmitStep] = useState(0);
+  // ── สถานะของขั้น Authenticate ──
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);  // ไฟล์ที่กำลังประมวลผล
+  const [phase, setPhase] = useState(0);          // ขั้นตอนของไฟล์นั้น
+  const [results, setResults] = useState<UploadedEvidenceRef[] | null>(null);
 
   const myCases = useMemo(
     () => (cases ? visibleCases(user, cases) : []),
@@ -78,12 +88,12 @@ export default function UploadEvidencePage() {
     });
 
   const handleSubmit = async () => {
-    setIsSubmitting(true);
-    setSubmitStep(1);
-    // step indicator เดินคู่ไปกับการส่งจริง (service จำลอง delay ให้สอดคล้องกัน)
-    const steps = [2, 3, 4, 5];
-    steps.forEach((s, i) => setTimeout(() => setSubmitStep(s), (i + 1) * 800));
-    await evidenceService.upload({
+    setStep(3);
+    setIsProcessing(true);
+    setActiveIdx(0);
+    setPhase(0);
+
+    const refs = await evidenceService.upload({
       case_id: caseId,
       files: items.map((it) => ({
         file: it.file,
@@ -92,14 +102,29 @@ export default function UploadEvidencePage() {
         captured_at_source: sourceOf(it),
       })),
     });
-    setSubmitStep(5);
-    setIsSubmitting(false);
-    // คืน object URL ของ preview ก่อนออกจากหน้า แล้วพากลับไปหน้าคดี
-    items.forEach((it) => URL.revokeObjectURL(it.preview));
-    setTimeout(() => router.push(`/cases/${caseId}`), 1200);
+
+    // เดินขั้นตอนทีละไฟล์ให้เห็นว่าแต่ละไฟล์ถูกประมวลผลแยกกัน
+    for (let i = 0; i < items.length; i++) {
+      setActiveIdx(i);
+      for (let p = 0; p < PHASES.length; p++) {
+        setPhase(p);
+        await sleep(PHASE_MS);
+      }
+      setPhase(PHASES.length); // ครบทุกขั้นของไฟล์นี้
+      await sleep(200);
+    }
+
+    setResults(refs);
+    setIsProcessing(false);
   };
 
-  const stepLabels = ["Upload Images", "Review"];
+  /** ออกจากหน้า — คืน object URL ของ preview ทั้งหมดก่อน */
+  const goToCase = () => {
+    items.forEach((it) => URL.revokeObjectURL(it.preview));
+    router.push(`/cases/${caseId}`);
+  };
+
+  const stepLabels = ["Upload Images", "Review", "Authenticate"];
   const missingDates = items.filter((it) => !capturedAtOf(it)).length;
 
   // ── Guards ──────────────────────────────────────────
@@ -261,31 +286,92 @@ export default function UploadEvidencePage() {
               ฝังลายน้ำ + บันทึก Blockchain อัตโนมัติ
             </div>
 
-            {/* Submit Progress */}
-            {isSubmitting && (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2.5">
-                {["Hashing metadata (SHA-256)", "Embedding watermark (LSB)", "Saving to storage", "Recording to blockchain", "Complete"].map((label, i) => (
-                  <div key={label} className="flex items-center gap-3 text-sm">
-                    {submitStep > i + 1 ? <CheckCircle2 className="h-4 w-4 text-success" /> : submitStep === i + 1 ? <Loader2 className="h-4 w-4 text-primary animate-spin" /> : <div className="h-4 w-4 rounded-full border border-border" />}
-                    <span className={submitStep >= i + 1 ? "text-foreground" : "text-muted"}>{label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {submitStep === 5 && !isSubmitting && (
-              <div className="rounded-lg border border-success/20 bg-success-light p-4">
-                <p className="text-sm font-medium text-success flex items-center gap-2"><CheckCircle2 className="h-4 w-4" /> อัปโหลดสำเร็จ! ลายน้ำถูกฝังและบันทึกลง Blockchain แล้ว</p>
-                <p className="mt-1 flex items-center gap-2 text-xs text-success"><Loader2 className="h-3 w-3 animate-spin" /> กำลังกลับไปหน้าคดี...</p>
-              </div>
-            )}
-
             <div className="flex gap-2">
-              <button onClick={() => setStep(1)} disabled={isSubmitting} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover disabled:opacity-40 transition-colors">Back</button>
-              <button onClick={handleSubmit} disabled={isSubmitting || submitStep === 5} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white disabled:opacity-40 hover:bg-primary/90 transition-colors">
-                <Shield className="h-4 w-4" /> Upload & Authenticate
+              <button onClick={() => setStep(1)} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover transition-colors">Back</button>
+              <button onClick={handleSubmit} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors">
+                <Shield className="h-4 w-4" /> Upload &amp; Authenticate
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Step 3: Authenticate — โชว์กลไกภายในทีละไฟล์ แล้วสรุป hash + QR */}
+        {step === 3 && (
+          <div className="space-y-5">
+            {isProcessing ? (
+              <>
+                <div>
+                  <h2 className="font-semibold">กำลังรับรองหลักฐาน</h2>
+                  <p className="mt-1 text-xs text-muted">แต่ละไฟล์ถูกประมวลผลแยกกัน — hash ที่ได้จึงเป็นของไฟล์นั้นโดยเฉพาะ</p>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* รูปที่กำลังประมวลผล + เส้นสแกน */}
+                  <div className="space-y-2">
+                    <div className="scan-frame mx-auto max-w-sm rounded-xl border border-border bg-slate-900">
+                      {items[activeIdx] && (
+                        <img src={items[activeIdx].preview} alt="" className="w-full object-contain opacity-90" style={{ maxHeight: 260 }} />
+                      )}
+                      <div className="scan-line" />
+                    </div>
+                    <p className="text-center text-xs text-muted">
+                      ไฟล์ <span className="font-medium text-foreground">{activeIdx + 1} / {items.length}</span>
+                      {items[activeIdx] && <> · <span className="font-mono">{items[activeIdx].file.name}</span></>}
+                    </p>
+                  </div>
+
+                  {/* ขั้นตอนของไฟล์ปัจจุบัน */}
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2.5 self-start">
+                    {PHASES.map((label, i) => (
+                      <div key={label} className="flex items-center gap-3 text-sm">
+                        {phase > i ? <CheckCircle2 className="h-4 w-4 text-success" />
+                          : phase === i ? <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          : <div className="h-4 w-4 rounded-full border border-border" />}
+                        <span className={phase >= i ? "text-foreground" : "text-muted"}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="rounded-lg border border-success/20 bg-success-light p-4">
+                  <p className="flex items-center gap-2 text-sm font-medium text-success">
+                    <CheckCircle2 className="h-4 w-4" /> รับรองสำเร็จ {results?.length} ไฟล์ — ลายน้ำถูกฝังและบันทึกลง Blockchain แล้ว
+                  </p>
+                </div>
+
+                <p className="text-xs text-muted">สแกน QR เพื่ออ่านค่า SHA-256 ของไฟล์นั้น ใช้เทียบกับ hash ของไฟล์ต้นฉบับได้</p>
+
+                <div className="space-y-3">
+                  {results?.map((r) => (
+                    <div key={r.evidence_number} className="flex gap-4 rounded-xl border border-border bg-surface p-4">
+                      <div className="flex-shrink-0 rounded-lg bg-white p-2">
+                        <QRCodeSVG value={r.file_hash_sha256} size={104} level="M" />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm font-semibold text-primary">{r.evidence_number}</span>
+                          <span className="truncate text-xs text-text-secondary">{r.original_filename}</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted">SHA-256</p>
+                          <p className="break-all rounded bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-text-secondary">{r.file_hash_sha256}</p>
+                        </div>
+                        <p className="text-xs text-muted">
+                          tx <span className="font-mono text-primary">{r.tx_hash.slice(0, 18)}…</span>
+                          {" · "}block <span className="font-mono">#{r.block_number}</span>
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={goToCase} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors">
+                  ไปหน้าคดี <ArrowRight className="h-4 w-4" />
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
