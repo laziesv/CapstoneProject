@@ -20,6 +20,23 @@ export interface Case {
   evidence_count?: number;
 }
 
+/** รูปแบบที่ backend คืนมาจริงจาก /api/cases (CaseResponse ฝั่ง FastAPI)
+ *  ต่างจาก `Case` ที่ frontend ใช้ — id เป็น UUID, ผู้รับผิดชอบเป็นคนเดียว
+ *  แปลงด้วย toCase() ใน case.service.ts */
+export interface CaseApiResponse {
+  case_id: string;
+  case_number: string;
+  title: string;
+  description: string | null;
+  created_by: string;              // UUID ของผู้ใช้
+  assigned_officer: string | null; // UUID — backend ยังรองรับคนเดียว
+  incident_date: string | null;
+  location: string | null;
+  created_at: string;
+  updated_at: string | null;
+  closed_at: string | null;
+}
+
 /** payload สร้างคดีใหม่ — สเปคสำหรับ POST /api/cases */
 export interface NewCaseInput {
   title: string;
@@ -61,6 +78,16 @@ export interface UploadEvidenceFile {
 export interface UploadEvidenceInput {
   case_id: string;
   files: UploadEvidenceFile[];
+}
+
+/** ผลลัพธ์ต่อ 1 ไฟล์ที่อัพโหลดสำเร็จ — response ของ POST /api/evidence
+ *  ค่าทั้งหมดต้องมาจาก server เท่านั้น (client คำนวณเองแล้วส่งมาเชื่อไม่ได้) */
+export interface UploadedEvidenceRef {
+  original_filename: string;
+  evidence_number: string;
+  file_hash_sha256: string;
+  tx_hash: string;
+  block_number: number;
 }
 
 export interface WatermarkRecord {

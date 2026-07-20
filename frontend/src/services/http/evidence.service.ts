@@ -7,7 +7,9 @@
 // │ GET  /api/evidence?case_id={id}      → EvidenceItem[]                │
 // │      scope ตามสิทธิ์คดี (เห็นเฉพาะหลักฐานของคดีที่ตัวเองเข้าถึงได้)     │
 // │ GET  /api/evidence/{id}              → EvidenceItem (403 นอก scope)  │
-// │ POST /api/evidence                   → EvidenceItem                  │
+// │ POST /api/evidence                   → UploadedEvidenceRef[]         │
+// │      (1 รายการต่อ 1 ไฟล์: evidence_number, file_hash_sha256,          │
+// │       tx_hash, block_number — หน้าเว็บเอาไปแสดง/ทำ QR)                │
 // │      body = UploadEvidenceInput (multipart)                          │
 // │        case_id + files[] โดยแต่ละ item = { file, description,         │
 // │        captured_at?, captured_at_source? ("exif"|"manual") }         │
@@ -29,8 +31,17 @@
 //   list: (f) => request<EvidenceItem[]>(`/api/evidence${f?.case_id ? `?case_id=${f.case_id}` : ""}`)
 //   upload: ใช้ FormData (แนบไฟล์) — client.ts ต้องรองรับ multipart ตอนนั้น
 
-import type { EvidenceItem, BlockchainTx, UploadEvidenceInput } from "@/interfaces";
+import type { EvidenceItem, BlockchainTx, UploadEvidenceInput, UploadedEvidenceRef } from "@/interfaces";
 import { mockEvidence, mockTx } from "@/utils/mockData";
+
+/** สุ่ม hex ความยาวที่กำหนด — ใช้เฉพาะ mock เท่านั้น
+ *  TODO(backend): ของจริง hash ต้องคำนวณจากไฟล์ฝั่ง server (SHA-256 ของ bytes ทั้งไฟล์)
+ *  ถ้าอยากได้ hash จริงฝั่ง client ก่อน backend พร้อม ใช้ crypto.subtle.digest("SHA-256", buf) */
+function randomHex(len: number): string {
+  const bytes = new Uint8Array(len / 2);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export const evidenceService = {
   /** รายการหลักฐาน (กรองตามคดีได้) */
@@ -46,11 +57,18 @@ export const evidenceService = {
     return mockEvidence.find((e) => e.evidence_id === id);
   },
 
-  /** อัพโหลดหลักฐานใหม่ — ฝัง watermark + บันทึก blockchain ฝั่ง server เสมอ */
-  async upload(input: UploadEvidenceInput): Promise<void> {
-    // mock: จำลองเวลาประมวลผล (hash → watermark → save → blockchain) — payload ยังไม่ถูกใช้
-    void input;
-    await new Promise((resolve) => setTimeout(resolve, 4000));
+  /** อัพโหลดหลักฐานใหม่ — ฝัง watermark + บันทึก blockchain ฝั่ง server เสมอ
+   *  คืนผลรายไฟล์ (1 ไฟล์ = 1 หลักฐาน) เพื่อให้หน้าเว็บแสดง hash/tx ที่ได้ */
+  async upload(input: UploadEvidenceInput): Promise<UploadedEvidenceRef[]> {
+    // mock: จำลองผลลัพธ์ที่ server จะคืนกลับมา — ยังไม่ได้ประมวลผลไฟล์จริง
+    const year = new Date().getFullYear();
+    return input.files.map((f, i) => ({
+      original_filename: f.file.name,
+      evidence_number: `EV-${year}-${String(mockEvidence.length + i + 1).padStart(5, "0")}`,
+      file_hash_sha256: randomHex(64),
+      tx_hash: `0x${randomHex(40)}`,
+      block_number: 18450 + Math.floor(Math.random() * 500),
+    }));
   },
 
   /** ธุรกรรม blockchain ของหลักฐานชิ้นนั้น */
