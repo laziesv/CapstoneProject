@@ -26,14 +26,15 @@ Backend ต้องรันแยกที่ `http://localhost:8000` — ด�
 ```
 src/
 ├── app/
-│   ├── (dashboard)/          # Protected routes — ต้อง auth แล้วเท่านั้น
-│   │   ├── layout.tsx        # Dashboard layout (Sidebar + TopBar) ครอบด้วย AuthGuard
+│   ├── (protected)/          # Protected routes — ต้อง auth แล้วเท่านั้น
+│   │   ├── layout.tsx        # Layout (Sidebar + TopBar) ครอบด้วย AuthGuard
 │   │   ├── dashboard/        # หน้าหลัก — stats, recent evidence, activity (ดึง /api/dashboard)
-│   │   ├── cases/            # รายการคดี + [id] detail
-│   │   ├── evidence/         # Evidence vault + upload + [id] detail
-│   │   ├── verify/           # ตรวจสอบ watermark
-│   │   ├── logs/             # Access logs
-│   │   ├── users/            # จัดการผู้ใช้ (admin เท่านั้น)
+│   │   ├── cases/            # รายการคดี + [id] detail (แสดง grid รูปหลักฐานของคดี — ทางเข้าเดียวสู่หลักฐาน)
+│   │   ├── evidence/         # [id] detail + upload เท่านั้น (ไม่มีหน้า list — Vault ถูกรวมเข้าหน้าคดีแล้ว)
+│   │   ├── (admin)/          # หน้าเฉพาะ admin
+│   │   │   ├── verify/       # ตรวจสอบ watermark
+│   │   │   ├── logs/         # Access logs
+│   │   │   └── users/        # จัดการผู้ใช้
 │   │   └── profile/          # โปรไฟล์ผู้ใช้ + เปลี่ยนรหัสผ่าน
 │   ├── login/                # หน้า login (ไม่ต้อง auth)
 │   ├── layout.tsx            # Root layout
@@ -42,12 +43,40 @@ src/
 ├── components/
 │   ├── AuthGuard.tsx         # ป้องกัน route ที่ต้อง auth
 │   └── layout/               # Sidebar, TopBar
-├── lib/
-│   ├── auth.ts               # จัดการ session/token + authFetch
-│   └── mockData.ts           # Mock data (บางหน้ายังใช้อยู่)
-└── types/
-    └── index.ts              # TypeScript type definitions ทั้งหมด
+├── config/                   # constant (API_BASE, storage keys)
+├── interfaces/               # TypeScript types/DTOs ทั้งหมด (auth/user/evidence/dashboard)
+├── services/                 # API layer
+│   ├── http/                 # client.ts (fetch+token+ApiError) + auth/dashboard/user services
+│   └── index.ts              # barrel: import { authService } from "@/services"
+├── contexts/                 # React contexts (AuthContext)
+├── hooks/                    # custom hooks (useAuth)
+└── utils/                    # session helpers + mockData
 ```
+
+## Layering (สำคัญ)
+
+```
+component → hooks/contexts → services → services/http → utils/session + config
+                                 ↑
+                            interfaces (types ที่ใช้ร่วมกันทุกชั้น)
+```
+
+- **config/** — ค่าคงที่ (API_BASE, TOKEN_KEY)
+- **interfaces/** — type/DTO ทั้งหมด import ผ่าน `@/interfaces` (รวม payload/response ของทุก endpoint)
+- **utils/session.ts** — เก็บ/อ่าน token+user ใน localStorage (ไม่ยุ่ง network)
+- **services/** — เรียก API ผ่าน `service.method()` (typed, โยน `ApiError`) — component ไม่เรียก fetch ตรง
+- **contexts/AuthContext + hooks/useAuth** — เข้าถึง user ปัจจุบันใน component (`const { user, signOut } = useAuth()`)
+
+### กฎ data access (สำคัญ)
+
+- **component/page ห้าม import `@/utils/mockData`, `@/utils/caseStore`, `@/utils/hierarchyStore` ตรง**
+  — เส้นทางข้อมูลทุกเส้นต้องผ่าน `@/services` เท่านั้น (mock เป็น internal ของ service)
+- **ไฟล์ใน `services/http/` คือสเปค endpoint สำหรับทีม backend** — header comment ของแต่ละไฟล์
+  ระบุ METHOD/path/payload/response/สิทธิ์ ที่ต้อง implement พร้อม `TODO(backend)` จุดสลับ
+  จาก mock → `request()` (ตอนนี้ auth/dashboard/user เรียก API จริงแล้ว ส่วน case/evidence/
+  accessLog/watermark ยังเป็น mock-backed contract)
+- ข้อยกเว้นเดียว: `utils/caseAccess.ts` (ตรรกะสิทธิ์ฝั่ง client สำหรับ demo) และ dropdown
+  ผู้รับผิดชอบใน `cases/new` ยังอ่าน mockUsers — มี `TODO(backend)` กำกับแล้ว
 
 ## Code style
 
@@ -55,7 +84,7 @@ src/
 - **Path alias** — import จาก `@/components/...` แทน relative paths ยาว
 - **Tailwind CSS v4** — ใช้ utility classes ตาม custom theme ใน `globals.css`
 - **lucide-react** — library icon เดียวที่ใช้ใน project นี้
-- **ไม่มี** axios หรือ fetch wrapper — ใช้ `authFetch` จาก `@/lib/auth` (แนบ token ให้อัตโนมัติ)
+- **ไม่มี** axios — เรียก API ผ่าน `service.method()` จาก `@/services` (client ใน `services/http/client.ts` แนบ token ให้อัตโนมัติ)
 - ไม่ใช้ `pnpm` — project นี้ใช้ `npm` เท่านั้น
 
 ## Design system
@@ -72,9 +101,9 @@ src/
 
 ## Auth & data patterns
 
-- Auth ใช้ JWT token จาก `POST /api/auth/login` — เก็บผ่าน `@/lib/auth` (`setSession`/`getUser`/`logout`)
-- ทุก request ที่ต้อง auth ใช้ `authFetch()` (แนบ Bearer token + logout อัตโนมัติเมื่อ 401)
-- Roles: `admin`, `investigator`, `officer`, `viewer` — เมนู/หน้า admin เช็ค `getUser()?.role === "admin"`
+- Auth ใช้ JWT token จาก `POST /api/auth/login` — เก็บผ่าน `@/utils/session` (`setSession`/`getUser`/`clearSession`)
+- ทุก request ที่ต้อง auth ผ่าน `request()` ใน `services/http/client.ts` (แนบ Bearer token + logout อัตโนมัติเมื่อ 401)
+- Roles: `admin`, `investigator`, `officer`, `viewer` — component เช็คสิทธิ์ผ่าน `useAuth()` → `user?.role === "admin"`
 - หน้าใน `(dashboard)/` ถูกครอบด้วย `AuthGuard` (redirect ไป /login ถ้าไม่มี token)
 
 ## Backend API

@@ -4,17 +4,15 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.auth import hash_password
+from app.core.auth import hash_password
 from app.database import engine
-from app.models.user import User
-from app.models.case import Case
-from app.models.evidence import EvidenceItem
-from app.models.blockchain_transaction import BlockchainTransaction
-from app.models.access_log import AccessLog
-from app.models.evidence_file import EvidenceFile
+from app.models.users import User
+from app.models.cases import Case
+from app.models.evidence_items import EvidenceItem
+from app.models.blockchain_transactions import BlockchainTransaction
+from app.models.access_logs import AccessLog
+from app.models.evidence_files import EvidenceFile
 from app.models.enums import (
-    CaseStatus,
-    EvidenceStatus,
     FileType,
     BlockchainAction,
     AuditAction,
@@ -44,6 +42,7 @@ def seed_sample_data():
         rank="พันตำรวจโท",
         department="กองพิสูจน์หลักฐาน",
         badge_number="OFF-1820",
+        role="investigator",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
@@ -55,33 +54,38 @@ def seed_sample_data():
         rank="ดาบตำรวจ",
         department="งานสืบสวน",
         badge_number="OFF-3344",
+        role="officer",
         is_active=True,
         created_at=datetime.now(timezone.utc),
     )
     db.add_all([somsak, wichai])
-    db.flush()
+    db.flush()  # ให้ somsak มี user_id ก่อน ถึงจะอ้างเป็นหัวหน้าได้
+
+    # สายบังคับบัญชา: วิชัย (ดาบตำรวจ) อยู่ใต้ สมศักดิ์ (พันตำรวจโท)
+    # ใช้เดโมสิทธิ์ "หัวหน้าเห็นคดีของลูกน้อง"
+    wichai.supervisor_id = somsak.user_id
 
     admin = db.query(User).filter(User.username == "admin").first()
     officer_id = admin.user_id if admin else somsak.user_id
 
     # ── คดี ─────────────────────────────────────────────
     c1 = Case(case_number="CASE-2026-0042", title="คดีลักทรัพย์ ซ.สุขุมวิท 23",
-              description="เหตุลักทรัพย์ภายในอาคารพาณิชย์", status=CaseStatus.INVESTIGATING,
+              description="เหตุลักทรัพย์ภายในอาคารพาณิชย์",
               created_by=officer_id, assigned_officer=officer_id,
               incident_date=_dt("2026-04-10T00:00:00"), location="ซ.สุขุมวิท 23 กรุงเทพฯ",
               created_at=_dt("2026-04-11T08:00:00"))
     c2 = Case(case_number="CASE-2026-0058", title="คดีทำร้ายร่างกาย ตลาดนัด",
-              description="เหตุทำร้ายร่างกายบริเวณตลาดนัด", status=CaseStatus.OPEN,
+              description="เหตุทำร้ายร่างกายบริเวณตลาดนัด",
               created_by=officer_id, assigned_officer=officer_id,
               incident_date=_dt("2026-04-22T00:00:00"), location="ตลาดนัดจตุจักร กรุงเทพฯ",
               created_at=_dt("2026-04-22T14:30:00"))
     c3 = Case(case_number="CASE-2026-0061", title="คดีวิ่งราวทรัพย์ สยามสแควร์",
-              description="เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์", status=CaseStatus.OPEN,
+              description="เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์",
               created_by=somsak.user_id, assigned_officer=officer_id,
               incident_date=_dt("2026-04-28T00:00:00"), location="สยามสแควร์ กรุงเทพฯ",
               created_at=_dt("2026-04-28T10:15:00"))
     c4 = Case(case_number="CASE-2025-0189", title="คดียาเสพติด ลาดพร้าว",
-              description="จับกุมยาเสพติดย่านลาดพร้าว", status=CaseStatus.CLOSED,
+              description="จับกุมยาเสพติดย่านลาดพร้าว",
               created_by=officer_id, assigned_officer=officer_id,
               incident_date=_dt("2025-12-05T00:00:00"), location="ลาดพร้าว กรุงเทพฯ",
               created_at=_dt("2025-12-05T16:00:00"), closed_at=_dt("2026-02-01T10:00:00"))
@@ -90,40 +94,34 @@ def seed_sample_data():
 
     # ── หลักฐาน ─────────────────────────────────────────
     e1 = EvidenceItem(evidence_number="EV-2026-00101", case_id=c1.case_id, uploaded_by=officer_id,
-                      category="crime_scene", description="ภาพถ่ายจุดเกิดเหตุ ประตูหน้าร้าน",
-                      original_filename="scene_001.jpg", status=EvidenceStatus.VERIFIED,
-                      file_hash_sha256="a3f2c8d1e5b94f7a6c0d3e8b1f4a7c2d5e8b0f3a6c9d2e5b8a1c4f7d0e3b6a9c",
+                      description="ภาพถ่ายจุดเกิดเหตุ ประตูหน้าร้าน",
+                      original_filename="scene_001.jpg",
                       is_watermarked=True, is_blockchain_verified=True,
                       captured_at=_dt("2026-04-10T14:23:00"), uploaded_at=_dt("2026-04-11T08:15:00"),
                       verified_at=_dt("2026-04-15T09:00:00"))
     e2 = EvidenceItem(evidence_number="EV-2026-00102", case_id=c1.case_id, uploaded_by=officer_id,
-                      category="forensic", description="ลายนิ้วมือบริเวณลูกบิดประตู",
-                      original_filename="fingerprint_door.jpg", status=EvidenceStatus.VERIFIED,
-                      file_hash_sha256="b4e3d9a2f6c05e8b7d1a4f7c0e3b6a9d2f5c8b1e4a7d0c3f6b9a2e5d8c1f4a7d",
+                      description="ลายนิ้วมือบริเวณลูกบิดประตู",
+                      original_filename="fingerprint_door.jpg",
                       is_watermarked=True, is_blockchain_verified=True,
                       captured_at=_dt("2026-04-10T14:45:00"), uploaded_at=_dt("2026-04-11T08:20:00"))
     e3 = EvidenceItem(evidence_number="EV-2026-00103", case_id=c1.case_id, uploaded_by=officer_id,
-                      category="surveillance", description="ภาพจากกล้องวงจรปิดด้านหน้าร้าน",
-                      original_filename="cctv_front.jpg", status=EvidenceStatus.PENDING,
-                      file_hash_sha256="c5f4e0b3a7d16f9c8e2b5a8d1f4c7e0b3a6d9c2f5e8b1a4d7f0c3e6b9a2d5c8e",
+                      description="ภาพจากกล้องวงจรปิดด้านหน้าร้าน",
+                      original_filename="cctv_front.jpg",
                       is_watermarked=True, is_blockchain_verified=False,
                       captured_at=_dt("2026-04-10T13:00:00"), uploaded_at=_dt("2026-04-12T09:00:00"))
     e4 = EvidenceItem(evidence_number="EV-2026-00201", case_id=c2.case_id, uploaded_by=officer_id,
-                      category="crime_scene", description="ภาพถ่ายจุดเกิดเหตุภายในตลาด",
-                      original_filename="market_scene.jpg", status=EvidenceStatus.VERIFIED,
-                      file_hash_sha256="d6a5f1c4b8e27a0d9f3c6b9e2a5d8f1c4b7e0a3d6c9f2b5e8a1d4c7f0b3e6a9f",
+                      description="ภาพถ่ายจุดเกิดเหตุภายในตลาด",
+                      original_filename="market_scene.jpg",
                       is_watermarked=True, is_blockchain_verified=True,
                       captured_at=_dt("2026-04-22T15:10:00"), uploaded_at=_dt("2026-04-22T16:00:00"))
     e5 = EvidenceItem(evidence_number="EV-2026-00301", case_id=c3.case_id, uploaded_by=officer_id,
-                      category="surveillance", description="กล้องวงจรปิด ทางเดินสยามสแควร์",
-                      original_filename="siam_cctv_01.jpg", status=EvidenceStatus.FLAGGED,
-                      file_hash_sha256="e7b6a2d5c9f38b1e0a4d7c0f3b6e9a2d5c8f1b4e7a0d3c6f9b2e5a8d1c4f7b0a",
+                      description="กล้องวงจรปิด ทางเดินสยามสแควร์",
+                      original_filename="siam_cctv_01.jpg",
                       is_watermarked=False, is_blockchain_verified=False,
                       captured_at=_dt("2026-04-28T09:30:00"), uploaded_at=_dt("2026-04-29T10:00:00"))
     e6 = EvidenceItem(evidence_number="EV-2026-00302", case_id=c3.case_id, uploaded_by=officer_id,
-                      category="document", description="ใบแจ้งความ เหตุวิ่งราวทรัพย์",
-                      original_filename="report_doc.jpg", status=EvidenceStatus.PENDING,
-                      file_hash_sha256="f8c7b3e6d0a49c2f1b5e8a1d4c7f0b3e6a9d2c5f8b1e4a7d0c3f6b9a2e5d8c1b",
+                      description="ใบแจ้งความ เหตุวิ่งราวทรัพย์",
+                      original_filename="report_doc.jpg",
                       is_watermarked=False, is_blockchain_verified=False,
                       captured_at=_dt("2026-04-28T11:00:00"), uploaded_at=_dt("2026-04-29T10:05:00"))
     db.add_all([e1, e2, e3, e4, e5, e6])
@@ -163,31 +161,31 @@ def seed_sample_data():
     # ── access logs ─────────────────────────────────────
     logs = [
         AccessLog(user_id=somsak.user_id, evidence_id=e1.evidence_id, action=AuditAction.VIEW,
-                  action_type="view", ip_address="192.168.1.45", user_agent="Chrome/125",
+                  ip_address="192.168.1.45", user_agent="Chrome/125",
                   result=AuditResult.SUCCESS, accessed_at=_dt("2026-04-12T10:30:00")),
-        AccessLog(user_id=officer_id, evidence_id=e1.evidence_id, action=AuditAction.VIEW,
-                  action_type="download", ip_address="192.168.1.20", user_agent="Chrome/125",
+        AccessLog(user_id=officer_id, evidence_id=e1.evidence_id, action=AuditAction.DOWNLOAD,
+                  ip_address="192.168.1.20", user_agent="Chrome/125",
                   result=AuditResult.SUCCESS, accessed_at=_dt("2026-04-13T18:00:00")),
         AccessLog(user_id=wichai.user_id, evidence_id=e2.evidence_id, action=AuditAction.VIEW,
-                  action_type="view", ip_address="10.0.0.55", user_agent="Firefox/130",
+                  ip_address="10.0.0.55", user_agent="Firefox/130",
                   result=AuditResult.FAILED, accessed_at=_dt("2026-04-14T16:15:00")),
-        AccessLog(user_id=officer_id, evidence_id=e4.evidence_id, action=AuditAction.VIEW,
-                  action_type="view", ip_address="192.168.1.20", user_agent="Chrome/125",
+        AccessLog(user_id=officer_id, evidence_id=e4.evidence_id, action=AuditAction.DOWNLOAD,
+                  ip_address="192.168.1.20", user_agent="Chrome/125",
                   result=AuditResult.SUCCESS, accessed_at=_dt("2026-04-23T15:00:00")),
-        AccessLog(user_id=somsak.user_id, evidence_id=e4.evidence_id, action=AuditAction.VIEW,
-                  action_type="print", ip_address="192.168.1.45", user_agent="Chrome/125",
+        AccessLog(user_id=somsak.user_id, evidence_id=e4.evidence_id, action=AuditAction.DOWNLOAD,
+                  ip_address="192.168.1.45", user_agent="Chrome/125",
                   result=AuditResult.SUCCESS, accessed_at=_dt("2026-04-24T21:00:00")),
     ]
     db.add_all(logs)
 
     # ── ไฟล์หลักฐาน (ตัวอย่างสำหรับ e1) ─────────────────
     f1 = EvidenceFile(
-        evidence_id=e1.evidence_id, file_type=FileType.IMAGE,
+        evidence_id=e1.evidence_id, file_type=FileType.ORIGINAL,
         file_path="/storage/2026/04/scene_001.jpg",
         file_url="https://picsum.photos/seed/EV-2026-00101/800/600",
-        mime_type="image/jpeg", file_size_bytes=4200000,
+        file_size_bytes=4200000,
         file_hash="a3f2c8d1e5b94f7a6c0d3e8b1f4a7c2d5e8b0f3a6c9d2e5b8a1c4f7d0e3b6a9c",
-        is_original=True, version=1, created_at=_dt("2026-04-11T08:15:00"),
+        created_at=_dt("2026-04-11T08:15:00"),
     )
     db.add(f1)
 

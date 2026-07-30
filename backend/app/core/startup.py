@@ -4,10 +4,11 @@ from datetime import datetime, timezone
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.auth import hash_password
+from app.core.auth import hash_password
 from app.database import engine
 from app.models import *
-from app.models.user import User
+from app.models.users import User
+from app.core.seed import seed_sample_data
 
 # backend/ (ที่อยู่ของ alembic.ini)
 _BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -70,6 +71,4 @@ def startup():
     test_database_connection()
     run_migrations()
     seed_admin()
-
-    from app.core.seed import seed_sample_data
     seed_sample_data()
