@@ -1,0 +1,115 @@
+// ── Evidence service ────────────────────────────────────
+// เชื่อมกับ API จริงแล้ว (ยกเว้น blockchain transactions ที่ยังไม่มี endpoint)
+//
+// ┌──────────────────────────────────────────────────────────────────────┐
+// │ endpoint ที่ backend มีอยู่ตอนนี้                                      │
+// ├──────────────────────────────────────────────────────────────────────┤
+// │ GET  /api/evidences?case_id={uuid}  → EvidenceApiResponse[]          │
+// │      ต้อง auth · ไม่ส่ง case_id = คืนทั้งหมด                          │
+// │ POST /api/evidences/upload          → EvidenceApiResponse            │
+// │      ต้อง auth · multipart: file (1 ไฟล์ต่อ 1 request)                │
+// │              + evidence = JSON string ของ                            │
+// │                { case_id, description?, captured_at? }               │
+// │      uploaded_by มาจาก token (ไม่ต้องส่ง) · server คำนวณ SHA-256 จริง  │
+// │ GET  /api/evidence-files/{file_id}  → ไฟล์รูป (FileResponse)          │
+// └──────────────────────────────────────────────────────────────────────┘
+//
+// TODO(backend): ยังไม่มี GET /api/evidences/{id} — get() จึงดึงลิสต์มาหาเอง
+// TODO(backend): ยังไม่มี endpoint blockchain transactions — transactionsOf ยัง mock
+
+import type {
+  EvidenceItem,
+  BlockchainTx,
+  UploadEvidenceInput,
+  UploadedEvidenceRef,
+  EvidenceApiResponse,
+} from "@/interfaces";
+import { API_BASE } from "@/config";
+import { mockTx } from "@/utils/mockData";
+import { request } from "./client";
+
+/** สุ่ม hex — ใช้เฉพาะ tx/block ที่ยังไม่มี endpoint จริง
+ *  TODO(backend): ลบทิ้งเมื่อมี blockchain endpoint */
+function randomHex(len: number): string {
+  const bytes = new Uint8Array(len / 2);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** แปลงรูปแบบของ backend → รูปแบบที่ frontend ใช้ทั้งระบบ */
+function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
+  return {
+    evidence_id: dto.evidence_id,
+    evidence_number: dto.evidence_number,
+    case_id: dto.case_id,
+    case_number: dto.case_number ?? undefined,
+    uploaded_by: dto.uploaded_by,
+    officer_name: dto.officer_name ?? undefined,
+    description: dto.description ?? "",
+    original_filename: dto.original_filename ?? "",
+    is_watermarked: dto.is_watermarked,
+    is_blockchain_verified: dto.is_blockchain_verified,
+    uploaded_at: dto.uploaded_at,
+    captured_at: dto.captured_at ?? undefined,
+    file_hash_sha256: dto.file_hash ?? undefined,
+    file_size_bytes: dto.file_size_bytes ?? undefined,
+    // ไฟล์เสิร์ฟผ่าน endpoint แยก — ประกอบ URL จาก file_id
+    thumbnail_url: dto.file_id ? `${API_BASE}/api/evidence-files/${dto.file_id}` : undefined,
+  };
+}
+
+export const evidenceService = {
+  /** รายการหลักฐาน (กรองตามคดีได้ — กรองฝั่ง server) */
+  async list(filters: { case_id?: string } = {}): Promise<EvidenceItem[]> {
+    const qs = filters.case_id ? `?case_id=${encodeURIComponent(filters.case_id)}` : "";
+    const data = await request<EvidenceApiResponse[]>(`/api/evidences${qs}`);
+    return data.map(toEvidence);
+  },
+
+  /** หลักฐานตาม id (undefined ถ้าไม่พบ)
+   *  TODO(backend): ยังไม่มี GET /api/evidences/{id} — ต้องดึงลิสต์มาหาเอง */
+  async get(id: string): Promise<EvidenceItem | undefined> {
+    const all = await this.list();
+    return all.find((e) => e.evidence_id === id);
+  },
+
+  /** อัพโหลดหลักฐานใหม่ — ยิงทีละไฟล์เพราะ endpoint รับครั้งละ 1 ไฟล์ */
+  async upload(input: UploadEvidenceInput): Promise<UploadedEvidenceRef[]> {
+    const refs: UploadedEvidenceRef[] = [];
+
+    for (const item of input.files) {
+      const form = new FormData();
+      form.append("file", item.file);
+      form.append(
+        "evidence",
+        JSON.stringify({
+          case_id: input.case_id,
+          description: item.description || null,
+          captured_at: item.captured_at || null,
+        })
+      );
+
+      const dto = await request<EvidenceApiResponse>("/api/evidences/upload", {
+        method: "POST",
+        body: form,
+      });
+
+      refs.push({
+        original_filename: dto.original_filename ?? item.file.name,
+        evidence_number: dto.evidence_number,
+        // SHA-256 จริงที่ server คำนวณจากไฟล์ที่บันทึกไว้
+        file_hash_sha256: dto.file_hash ?? "",
+        // TODO(backend): ใช้ค่าจริงเมื่อมี blockchain endpoint
+        tx_hash: `0x${randomHex(40)}`,
+        block_number: 18450 + Math.floor(Math.random() * 500),
+      });
+    }
+
+    return refs;
+  },
+
+  /** ธุรกรรม blockchain ของหลักฐานชิ้นนั้น — ยัง mock (ไม่มี endpoint) */
+  async transactionsOf(evidenceId: string): Promise<BlockchainTx[]> {
+    return mockTx.filter((t) => t.evidence_id === evidenceId);
+  },
+};

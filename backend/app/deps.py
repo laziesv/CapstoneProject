@@ -2,10 +2,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
-from app.auth import decode_access_token
+from app.core.auth import decode_access_token
 from app.database import get_db
-from app.models.user import User
-from app.repositories.user_repository import get_user_by_id
+from app.models.users import User
+from app.repositories.user_repository import UserRepository
 
 # ── Bearer token scheme ─────────────────────────────────
 security = HTTPBearer()
@@ -32,7 +32,7 @@ def get_current_user(
     if not user_id:
         raise _credentials_error
 
-    user = get_user_by_id(db, user_id)
+    user = UserRepository.get_by_id(db, user_id)
 
     if not user:
         raise _credentials_error
