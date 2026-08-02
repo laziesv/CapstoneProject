@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService, accessLogService } from "@/services";
@@ -19,6 +20,7 @@ export default function EvidenceDetailPage() {
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
   const [relatedTx, setRelatedTx] = useState<BlockchainTx[]>([]);
   const [relatedLogs, setRelatedLogs] = useState<AccessLog[]>([]);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -49,7 +51,28 @@ export default function EvidenceDetailPage() {
 
   if (evidence === null) return <p className="p-6">Evidence not found</p>;
 
-  const allowed = user.role === "admin" ? true : caseData ? canSeeCase(user, caseData, supervisorMap) : false;
+  const isAdmin = user.role === "admin";
+  // ข้อมูลเชิงลึก (hash/blockchain/logs/watermark) เปิดเผยกลไกภายใน — เฉพาะ admin
+  const allowed = isAdmin ? true : caseData ? canSeeCase(user, caseData, supervisorMap) : false;
+
+  // ดาวน์โหลดไฟล์ที่ฝังลายน้ำแล้ว (thumbnail_url ชี้ display_file_id = ตัวลายน้ำ)
+  // endpoint ข้ามโดเมน (8000↔3000) ทำให้ attribute download ถูกเมิน — ต้องดึงเป็น blob เอง
+  const handleDownload = async () => {
+    if (!evidence?.thumbnail_url) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(evidence.thumbnail_url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = evidence.original_filename || `${evidence.evidence_number}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (!allowed) {
     return (
@@ -68,30 +91,71 @@ export default function EvidenceDetailPage() {
         <ArrowLeft className="h-4 w-4" /> กลับไปหน้าคดี {evidence.case_number ?? ""}
       </Link>
 
-      {/* Phase 2 Banner */}
+      {/* Header — ชื่อหลักฐาน + สถานะ (badge สถานะเปิดเผยกลไก จึงเฉพาะ admin) */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted">หลักฐานดิจิทัล</p>
+          <h1 className="mt-1 font-mono text-2xl font-bold tracking-tight">{evidence.evidence_number}</h1>
+          {evidence.description && <p className="mt-1 max-w-xl text-sm text-text-secondary">{evidence.description}</p>}
+        </div>
+        <div className="flex flex-col items-end gap-2">
+          <button
+            onClick={handleDownload}
+            disabled={!evidence.thumbnail_url || downloading}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
+          >
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            ดาวน์โหลดภาพ
+          </button>
+          {isAdmin && (
+            <div className="flex flex-wrap justify-end gap-2">
+              <StatusPill ok={evidence.is_watermarked} icon={ShieldCheck} okText="ฝังลายน้ำแล้ว" noText="ยังไม่ฝังลายน้ำ" />
+              <StatusPill ok={evidence.is_blockchain_verified} icon={Link2} okText="บันทึกบล็อกเชนแล้ว" noText="รอบันทึกบล็อกเชน" />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Phase 2 Banner — เปิดเผยกลไกภายใน จึงแสดงเฉพาะ admin */}
+      {isAdmin && (
       <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
         <Fingerprint className="h-5 w-5 text-primary" />
         <p className="text-sm text-blue-800">การเข้าถึงหน้านี้ถูกบันทึกลง Blockchain และฝัง Dynamic Watermark อัตโนมัติ</p>
       </div>
+      )}
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Left: Image */}
-        <div className="col-span-2 space-y-4">
-          <div className="rounded-xl border border-border bg-surface overflow-hidden">
+        <div className="space-y-6 lg:col-span-2">
+          <figure className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
             {evidence.thumbnail_url ? (
-              <img src={evidence.thumbnail_url} alt={evidence.description} className="w-full object-cover" style={{ maxHeight: 420 }} />
+              // พื้นเข้ม + object-contain เพื่อให้เห็นภาพหลักฐานเต็มเฟรม ไม่โดนครอบ
+              <div className="flex items-center justify-center bg-slate-900" style={{ minHeight: 320 }}>
+                <img src={evidence.thumbnail_url} alt={evidence.description || evidence.original_filename} className="max-h-[540px] w-full object-contain" />
+              </div>
             ) : (
               // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
               // (endpoint ดูรูปมีแล้วที่ /api/evidence-files/{file_id})
-              <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-20 text-center">
+              <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
                 <ImageOff className="h-8 w-8 text-muted" />
                 <p className="text-sm text-muted">ยังแสดงรูปไม่ได้</p>
                 <p className="text-xs text-muted">ไฟล์ถูกเก็บไว้แล้ว แต่ API ยังไม่ส่ง file_id กลับมา</p>
               </div>
             )}
-          </div>
+            <figcaption className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 text-xs text-muted">
+              <span className="inline-flex items-center gap-1.5 truncate">
+                <ImageIcon className="h-3.5 w-3.5 flex-shrink-0" /> {evidence.original_filename}
+              </span>
+              {evidence.captured_at && (
+                <span className="inline-flex items-center gap-1.5 flex-shrink-0">
+                  <Calendar className="h-3.5 w-3.5" /> ถ่ายเมื่อ {new Date(evidence.captured_at).toLocaleDateString("th-TH")}
+                </span>
+              )}
+            </figcaption>
+          </figure>
 
-          {/* Blockchain Transactions */}
+          {/* Blockchain Transactions — admin เท่านั้น */}
+          {isAdmin && (
           <div className="rounded-xl border border-border bg-surface">
             <div className="border-b border-border px-5 py-3 flex items-center gap-2">
               <Link2 className="h-4 w-4 text-muted" />
@@ -115,8 +179,10 @@ export default function EvidenceDetailPage() {
               </table>
             </div>
           </div>
+          )}
 
-          {/* Access History */}
+          {/* Access History — admin เท่านั้น */}
+          {isAdmin && (
           <div className="rounded-xl border border-border bg-surface">
             <div className="border-b border-border px-5 py-3 flex items-center gap-2">
               <Clock className="h-4 w-4 text-muted" />
@@ -135,41 +201,64 @@ export default function EvidenceDetailPage() {
               {relatedLogs.length === 0 && <p className="px-5 py-4 text-center text-xs text-muted">No access logs</p>}
             </div>
           </div>
+          )}
         </div>
 
         {/* Right: Info */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {/* Evidence Info */}
-          <div className="rounded-xl border border-border bg-surface p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Evidence Info</h3>
+          <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+            {/* เจ้าหน้าที่ผู้ดูแล — เด่นด้านบนพร้อม avatar */}
+            <div className="flex items-center gap-3 border-b border-border bg-surface-hover/60 px-5 py-4">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                {(evidence.officer_name || "?").trim().charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{evidence.officer_name || "—"}</p>
+                <p className="text-xs text-muted">เจ้าหน้าที่ผู้ดูแลหลักฐาน</p>
+              </div>
             </div>
-            <div className="space-y-2.5 text-sm">
-              <Row label="Number" value={evidence.evidence_number} mono />
-              <Row label="Case" value={evidence.case_number || ""} mono />
-              <Row label="Officer" value={evidence.officer_name || ""} />
-              <Row label="Filename" value={evidence.original_filename} />
-              {/* TODO(backend): ค่าเหล่านี้อยู่ใน DB แล้ว แต่ยังไม่อยู่ใน EvidenceResponse */}
-              <Row label="Size" value={evidence.file_size_bytes ? `${(evidence.file_size_bytes / 1e6).toFixed(1)} MB` : "—"} />
-              <Row label="Captured" value={evidence.captured_at ? new Date(evidence.captured_at).toLocaleString("th-TH") : "—"} />
-              <Row label="Uploaded" value={new Date(evidence.uploaded_at).toLocaleString("th-TH")} />
-            </div>
+            <dl className="divide-y divide-border text-sm">
+              <InfoRow icon={FolderOpen} label="คดี">
+                <Link href={`/cases/${evidence.case_id}`} className="font-mono text-xs font-medium text-primary hover:underline">
+                  {evidence.case_number || "—"}
+                </Link>
+              </InfoRow>
+              <InfoRow icon={FileText} label="ชื่อไฟล์">
+                <span title={evidence.original_filename}>{evidence.original_filename}</span>
+              </InfoRow>
+              <InfoRow icon={HardDrive} label="ขนาดไฟล์">
+                {evidence.file_size_bytes ? `${(evidence.file_size_bytes / 1e6).toFixed(1)} MB` : "—"}
+              </InfoRow>
+              <InfoRow icon={Calendar} label="วันที่ถ่าย">
+                {evidence.captured_at ? new Date(evidence.captured_at).toLocaleString("th-TH") : "—"}
+              </InfoRow>
+              <InfoRow icon={UploadCloud} label="วันที่อัปโหลด">
+                {new Date(evidence.uploaded_at).toLocaleString("th-TH")}
+              </InfoRow>
+            </dl>
           </div>
 
-          {/* File Hash */}
-          <div className="rounded-xl border border-border bg-surface p-5">
-            <h3 className="font-semibold text-sm mb-2">SHA-256 Hash</h3>
-            <p className="break-all font-mono text-[10px] text-muted leading-relaxed bg-slate-50 rounded-lg p-3">
+          {/* File Hash — admin เท่านั้น */}
+          {isAdmin && (
+          <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
+            <div className="mb-2 flex items-center gap-2">
+              <Fingerprint className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold">SHA-256 Hash</h3>
+            </div>
+            <p className="break-all rounded-lg bg-slate-900 p-3 font-mono text-[10px] leading-relaxed text-emerald-300">
               {/* TODO(backend): server คำนวณไว้แล้วใน evidence_files.file_hash แค่ยังไม่ส่งกลับมา */}
               {evidence.file_hash_sha256 ?? "— API ยังไม่ส่ง hash กลับมา"}
             </p>
           </div>
+          )}
 
-          {/* Watermark Status */}
-          <div className="rounded-xl border border-border bg-surface p-5 space-y-3">
+          {/* Watermark Status — admin เท่านั้น */}
+          {isAdmin && (
+          <div className="space-y-3 rounded-xl border border-border bg-surface p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              <h3 className="font-semibold text-sm">Watermark</h3>
+              <h3 className="text-sm font-semibold">Watermark</h3>
             </div>
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
@@ -182,17 +271,34 @@ export default function EvidenceDetailPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex justify-between">
-      <span className="text-muted">{label}</span>
-      <span className={`font-medium text-right ${mono ? "font-mono text-xs" : ""}`}>{value}</span>
+    <div className="flex items-center justify-between gap-3 px-5 py-3">
+      <dt className="inline-flex flex-shrink-0 items-center gap-2 text-muted">
+        <Icon className="h-4 w-4 flex-shrink-0 text-slate-400" />
+        {label}
+      </dt>
+      <dd className="min-w-0 flex-1 truncate text-right font-medium">{children}</dd>
     </div>
+  );
+}
+
+function StatusPill({ ok, icon: Icon, okText, noText }: { ok: boolean; icon: LucideIcon; okText: string; noText: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+        ok ? "border-success/20 bg-success-light text-success" : "border-border bg-surface-hover text-muted"
+      }`}
+    >
+      <Icon className="h-3.5 w-3.5" />
+      {ok ? okText : noText}
+    </span>
   );
 }

@@ -83,6 +83,8 @@ export interface EvidenceApiResponse {
   officer_name: string | null;
   // มาจากไฟล์ต้นฉบับในตาราง evidence_files
   file_id: string | null;
+  // ไฟล์ที่ให้ผู้ใช้ดู/ดาวน์โหลด — ตัวที่ฝังลายน้ำแล้ว
+  display_file_id: string | null;
   file_hash: string | null;
   file_size_bytes: number | null;
 }
@@ -141,15 +143,38 @@ export interface BlockchainTx {
 }
 
 /** ผลการตรวจสอบลายน้ำ — สเปค response ของ POST /api/watermark/verify */
+/** รูปแบบที่ backend คืนจาก POST /api/watermark/verify (multipart image) */
+export interface WatermarkVerifyApiResponse {
+  found: boolean;
+  evidence_id: string | null;
+  evidence_number: string | null;
+  officer_name: string | null;
+  uploaded_at: string | null;
+  match_percent: number;
+  static_ok: boolean;
+  dynamic_ok: boolean;
+  static_qr_png: string | null;
+  dynamic_qr_png: string | null;
+  static_decoded: string | null;
+  dynamic_decoded: string | null;
+}
+
+/** ผลถอดลายน้ำที่ frontend ใช้ — อัปโหลดภาพแล้วระบบเดาว่าเป็นหลักฐานชิ้นไหน
+ *  หมายเหตุ: officer/uploaded มาจาก DB (lookup ด้วย evidence_id) ไม่ใช่จากลายน้ำ
+ *  — static QR เก็บแค่ sha256(evidence_id) เท่านั้น ไม่มีข้อมูลคน/เวลา/พิกัด */
 export interface VerifyResult {
+  found: boolean;
+  evidenceId: string | null;
+  evidenceNumber: string | null;
+  officerName: string | null;
+  uploadedAt: string | null;
   matchPercent: number;
-  officerId: string;
-  officerName: string;
-  timestamp: string;
-  gps: string;
-  staticWm: boolean;
-  dynamicWm: boolean;
-  tampered: boolean;
+  staticOk: boolean;   // static QR = sha256(evidence_id) ไหม (ยืนยันตัวตน)
+  dynamicOk: boolean;  // dynamic QR = file_hash ไหม (ผูกกับเนื้อไฟล์)
+  staticQrPng: string | null;   // QR ที่แกะได้ (data URI) เอาไว้โชว์
+  dynamicQrPng: string | null;
+  staticDecoded: string | null;
+  dynamicDecoded: string | null;
 }
 
 export interface AccessLog {

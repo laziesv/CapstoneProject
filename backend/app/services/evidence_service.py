@@ -1,8 +1,10 @@
 import os
+import sys
 import uuid
 import shutil
 from datetime import datetime
 
+import cv2
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
@@ -13,6 +15,12 @@ from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
 from app.models.enums import FileType
 
+# mainyy.py ใช้ implicit import (from clTBwavelet import ...) จึงต้องมีโฟลเดอร์
+# watermark อยู่บน sys.path ก่อน import — ทำที่นี่เพื่อไม่ต้องแก้โค้ดในโฟลเดอร์ watermark
+_WM_DIR = os.path.join(os.path.dirname(__file__), "..", "watermark")
+if _WM_DIR not in sys.path:
+    sys.path.insert(0, _WM_DIR)
+from app.watermark.mainyy import DigitalWatermarkingSystem
 
 UPLOAD_DIR = "uploads/evidence"
 
@@ -85,6 +93,44 @@ class EvidenceService:
             )
 
             EvidenceFileRepository.create(db, evidence_file)
+
+            # ── ฝังลายน้ำ DWT+QIM ลงสำเนาของภาพ ──
+            # ลายน้ำทำงานกับช่อง grayscale ช่องเดียว จึงฝังเฉพาะช่องความสว่าง (Y)
+            # แล้วประกบช่องสี (Cr/Cb) เดิมกลับ เพื่อคงสีของภาพหลักฐานไว้
+            bgr = cv2.imread(file_path, cv2.IMREAD_COLOR)
+            if bgr is None:
+                raise ValueError("อ่านไฟล์ภาพไม่ได้ ฝังลายน้ำไม่สำเร็จ")
+
+            y, cr, cb = cv2.split(cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb))
+
+            system = DigitalWatermarkingSystem()
+            y_wm = system.embed(
+                y,
+                static_data=str(evidence.evidence_id),  # PK → sha256 ข้างใน embed
+                dynamic_hash=file_hash,                  # ตัวเดียวกับที่ verify จะใช้ถอด
+            )
+            # embed pad ขนาดเป็นทวีคูณของ 8 — ตัดกลับให้เท่าเดิมเพื่อประกบกับ Cr/Cb
+            y_wm = y_wm[: y.shape[0], : y.shape[1]]
+            wm_img = cv2.cvtColor(cv2.merge([y_wm, cr, cb]), cv2.COLOR_YCrCb2BGR)
+
+            wm_file_id = uuid.uuid4()
+            wm_filename = f"{wm_file_id}_wm_{upload_file.filename}"
+            wm_path = os.path.join(UPLOAD_DIR, wm_filename)
+            cv2.imwrite(wm_path, wm_img)
+
+            wm_hash = calculate_sha256(wm_path)
+
+            watermarked_file = EvidenceFile(
+                file_id=wm_file_id,
+                evidence_id=evidence.evidence_id,
+                file_type=FileType.WATERMARKED,
+                file_path=wm_path,
+                file_size_bytes=os.path.getsize(wm_path),
+                file_hash=wm_hash,
+            )
+            EvidenceFileRepository.create(db, watermarked_file)
+
+            evidence.is_watermarked = True
 
             db.commit()
             db.refresh(evidence)

@@ -48,6 +48,16 @@ def upload(
 def list_all(
     case_id: UUID | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    return EvidenceService.get_all(db, case_id)
+    items = EvidenceService.get_all(db, case_id)
+    responses = [EvidenceResponse.model_validate(it) for it in items]
+
+    # SHA-256 hash เปิดเผยลายนิ้วมือของไฟล์ — เห็นได้เฉพาะ admin
+    # (front กรองในหน้าเว็บแล้ว แต่ต้องกันที่นี่ด้วย ไม่งั้นเปิด DevTools ก็เห็น)
+    # หมายเหตุ: /upload ยังคืน hash เต็ม เพราะคนอัพต้องใช้ทำ QR ในหน้า Authenticate
+    if current_user.role != "admin":
+        for r in responses:
+            r.file_hash = None
+
+    return responses

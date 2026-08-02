@@ -1,4 +1,5 @@
 import os
+import mimetypes
 
 from uuid import UUID
 
@@ -42,8 +43,12 @@ def preview_file(
         )
 
 
+    # เดา MIME จากนามสกุลไฟล์จริง — file.file_type เป็น ORIGINAL/WATERMARKED
+    # ไม่ใช่ media type (ของเดิมส่งค่าผิด ทำให้ Content-Type เพี้ยนตอนดาวน์โหลด)
+    media_type = mimetypes.guess_type(file.file_path)[0] or "application/octet-stream"
+
     return FileResponse(
         path=file.file_path,
         filename=os.path.basename(file.file_path),
-        media_type=file.file_type
+        media_type=media_type,
     )
