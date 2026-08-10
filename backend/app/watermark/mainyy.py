@@ -39,8 +39,10 @@ class WatermarkEvaluator:
 
 class ImageAttacks:
     """ คลาสสำหรับจำลองการโจมตีภาพ รองรับ Float32 (ใช้สำหรับ Unit Testing ฝั่ง Backend) """
+    
     @staticmethod
-    def attack_jpeg(img_f32: np.ndarray, quality: int = 50) -> np.ndarray:
+    def attack_jpeg(img_f32: np.ndarray, quality: int = 40) -> np.ndarray:
+        """ การโจมตีด้วยการบีบอัด JPEG (อ้างอิงจาก Compression Quality: 0, 40, 80) """
         img_8u = np.clip(img_f32, 0, 255).astype(np.uint8)
         encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
         _, encimg = cv2.imencode('.jpg', img_8u, encode_param)
@@ -48,11 +50,36 @@ class ImageAttacks:
         return decimg.astype(np.float32)
 
     @staticmethod
-    def attack_crop(img_f32: np.ndarray, crop_percent: float = 0.1) -> np.ndarray:
+    def attack_crop(img_f32: np.ndarray, block_size: int = 152) -> np.ndarray:
+        """ 
+        การโจมตีด้วยการตัดภาพ (อ้างอิงจาก Cropping Block Size: 8, 152, 200)
+        ทำการตัดภาพตามขนาด Block Size จากกึ่งกลางภาพ แล้วขยายกลับเป็นขนาดเดิม
+        """
         h, w = img_f32.shape
-        ch, cw = int(h * crop_percent), int(w * crop_percent)
-        cropped = img_f32[ch:h-ch, cw:w-cw]
+        
+        # ป้องกันไม่ให้ Block Size มีขนาดใหญ่กว่ารูปภาพจริง
+        block_size = min(block_size, h, w)
+        
+        # หาจุดกึ่งกลางของภาพสำหรับเริ่มตัด
+        start_y = (h - block_size) // 2
+        start_x = (w - block_size) // 2
+        
+        cropped = img_f32[start_y:start_y+block_size, start_x:start_x+block_size]
+        
+        # ขยายภาพที่ตัดกลับไปเป็นขนาดเดิม
         return cv2.resize(cropped, (w, h), interpolation=cv2.INTER_CUBIC)
+
+    @staticmethod
+    def attack_gaussian_noise(img_f32: np.ndarray, var: float = 0.4, mean: float = 0.0) -> np.ndarray:
+        """ การโจมตีด้วยการเพิ่มสัญญาณรบกวน (อ้างอิงจาก Fausain (Noise): 0, 0.4, 0.8) """
+        sigma = var ** 0.5
+        
+        # ปรับสเกลของ Sigma ให้เหมาะสมกับค่าระดับสี (0-255) เพื่อให้เห็นผลกระทบชัดเจน
+        scale = 255.0 if img_f32.max() > 1.0 else 1.0
+        noise = np.random.normal(mean, sigma * scale, img_f32.shape)
+        
+        noisy_img = img_f32 + noise
+        return np.clip(noisy_img, 0, 255).astype(np.float32)
 
     @staticmethod
     def attack_rotate(img_f32: np.ndarray, angle: float = 5.0) -> np.ndarray:
@@ -73,7 +100,6 @@ class ImageAttacks:
         small_f32 = cv2.resize(img_f32, (w//2, h//2), interpolation=cv2.INTER_AREA)
         compressed_f32 = ImageAttacks.attack_jpeg(small_f32, quality=60)
         return cv2.resize(compressed_f32, (w, h), interpolation=cv2.INTER_CUBIC)
-
 class ImageRegistration:
     """ คลาสสำหรับจัดศูนย์รูปภาพ (Alignment) ก่อนสกัดลายน้ำ เพื่อแก้ปัญหา Geometric Attacks """
     @staticmethod
@@ -146,6 +172,9 @@ class DigitalWatermarkingSystem:
         รับ Input: np.ndarray ของภาพต้นฉบับ (Grayscale)
         คืนค่า: np.ndarray ภาพที่ฝังลายน้ำแล้ว (uint8 พร้อมสำหรับการบันทึก/ส่งกลับ)
         """
+        target_size = 128 * (2 ** self.level) # ถ้า level 3 จะได้ 1024
+        image_array = cv2.resize(image_array, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
+        # ----------------------------------------------------
         divisor = 2 ** self.level
         host_img_f32 = pad_to_multiple(image_array.astype(np.float32), divisor)
 
@@ -154,7 +183,7 @@ class DigitalWatermarkingSystem:
         lh_band = clTBwavelet.get_subband(dwt_coeffs, "LH", self.level)
         hl_band = clTBwavelet.get_subband(dwt_coeffs, "HL", self.level)
         band_h, band_w = lh_band.shape
-        qr_size = min(band_h, band_w) // 2 
+        qr_size = 128 
 
         # 2. สร้าง QR Code และ Sequence
         hashed_static_data = hashlib.sha256(static_data.encode('utf-8')).hexdigest()
@@ -198,6 +227,11 @@ class DigitalWatermarkingSystem:
         กระบวนการสกัดลายน้ำสำหรับการ Verify ข้อมูลดิจิทัล (รับ Input แบบ np.ndarray)
         คืนค่า: Tuple ของภาพ QR Code (Static, Dynamic) ในรูปแบบ np.ndarray
         """
+        # --- เพิ่มโค้ดส่วนนี้ (บังคับ Resize ภาพให้เป็น 1024x1024 ทั้งสองภาพให้ตรงกับตอนฝัง) ---
+        target_size = 128 * (2 ** self.level) # ถ้า level 3 จะได้ 1024
+        suspected_image = cv2.resize(suspected_image, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
+        reference_image = cv2.resize(reference_image, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
+        # -------------------------------------------------------------------------
         # สร้าง Seed ตอนถอดกลับเพื่อให้ตรงกับตอนฝัง
         seed_value = int(hashlib.sha256(dynamic_hash.encode('utf-8')).hexdigest(), 16) % (10**8)
         np.random.seed(seed_value)
@@ -214,7 +248,7 @@ class DigitalWatermarkingSystem:
         hl_ext = clTBwavelet.get_subband(dwt_ext, "HL", self.level)
 
         band_h, band_w = lh_ext.shape
-        qr_size = min(band_h, band_w) // 2 
+        qr_size = 128 
         start_y = (band_h - qr_size) // 2
         start_x = (band_w - qr_size) // 2
 

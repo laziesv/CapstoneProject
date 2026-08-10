@@ -63,8 +63,23 @@ class EvidenceItem(Base):
         return self.files[0] if self.files else None
 
     @property
+    def watermarked_file(self):
+        """ไฟล์ที่ฝังลายน้ำแล้ว (None ถ้ายังไม่ได้ฝัง เช่นข้อมูล seed เก่า)"""
+        for f in self.files:
+            if f.file_type == FileType.WATERMARKED:
+                return f
+        return None
+
+    @property
     def file_id(self):
         f = self.original_file
+        return f.file_id if f else None
+
+    @property
+    def display_file_id(self):
+        """ไฟล์ที่ให้ผู้ใช้ดู/ดาวน์โหลด — ใช้ตัวที่ฝังลายน้ำก่อนเสมอ
+        เพื่อให้สำเนาที่หลุดออกไปมีลายน้ำติดไปด้วย (fallback เป็นต้นฉบับถ้ายังไม่ได้ฝัง)"""
+        f = self.watermarked_file or self.original_file
         return f.file_id if f else None
 
     @property

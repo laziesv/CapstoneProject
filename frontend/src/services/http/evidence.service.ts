@@ -53,8 +53,11 @@ function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
     captured_at: dto.captured_at ?? undefined,
     file_hash_sha256: dto.file_hash ?? undefined,
     file_size_bytes: dto.file_size_bytes ?? undefined,
-    // ไฟล์เสิร์ฟผ่าน endpoint แยก — ประกอบ URL จาก file_id
-    thumbnail_url: dto.file_id ? `${API_BASE}/api/evidence-files/${dto.file_id}` : undefined,
+    // ไฟล์เสิร์ฟผ่าน endpoint แยก — ใช้ไฟล์ที่ฝังลายน้ำแล้ว (display_file_id)
+    // เพื่อให้ภาพที่โชว์และดาวน์โหลดมีลายน้ำติดไปด้วย (fallback file_id ถ้าไม่มี)
+    thumbnail_url: (dto.display_file_id ?? dto.file_id)
+      ? `${API_BASE}/api/evidence-files/${dto.display_file_id ?? dto.file_id}`
+      : undefined,
   };
 }
 

@@ -15,7 +15,7 @@ import type { Case, UploadEvidenceFile, UploadedEvidenceRef } from "@/interfaces
 type Step = 1 | 2 | 3;
 
 /** ขั้นตอนที่ระบบทำกับ "แต่ละไฟล์" — ไล่ทีละบรรทัดในหน้า Authenticate */
-const PHASES = ["อ่านไฟล์", "คำนวณ SHA-256", "ฝังลายน้ำ (LSB)", "บันทึกลง Blockchain"];
+const PHASES = ["อ่านไฟล์", "คำนวณ SHA-256", "ฝังลายน้ำ (DWT+QIM)", "บันทึกลง Blockchain"];
 const PHASE_MS = 380;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
