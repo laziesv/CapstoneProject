@@ -101,12 +101,15 @@ class EvidenceService:
             EvidenceFileRepository.create(db, evidence_file)
 
             # ── ฝังลายน้ำ DWT+QIM ลงสำเนาของภาพ ──
-            # ลายน้ำทำงานกับช่อง grayscale ช่องเดียว จึงฝังเฉพาะช่องความสว่าง (Y)
-            # แล้วประกบช่องสี (Cr/Cb) เดิมกลับ เพื่อคงสีของภาพหลักฐานไว้
+            # สำคัญ: embed()/extract() บังคับทำงานที่ 1024x1024 เสมอ (mainyy.py)
+            # จึงต้อง resize ภาพเป็น 1024x1024 "ก่อน" แล้วค่อยฝังบนช่องความสว่าง (Y)
+            # ประกบ Cr/Cb (ขนาด 1024x1024 เท่ากัน) กลับเพื่อคงสี
+            # ถ้าฝังที่ขนาดอื่นแล้วอัปสเกลกลับ ลายน้ำจะเพี้ยนจน extract ไม่ออก
             bgr = cv2.imread(file_path, cv2.IMREAD_COLOR)
             if bgr is None:
                 raise ValueError("อ่านไฟล์ภาพไม่ได้ ฝังลายน้ำไม่สำเร็จ")
 
+            bgr = cv2.resize(bgr, (1024, 1024), interpolation=cv2.INTER_CUBIC)
             y, cr, cb = cv2.split(cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb))
 
             system = DigitalWatermarkingSystem()
@@ -115,8 +118,7 @@ class EvidenceService:
                 static_data=str(evidence.evidence_id),  # PK → sha256 ข้างใน embed
                 dynamic_hash=file_hash,                  # ตัวเดียวกับที่ verify จะใช้ถอด
             )
-            # embed pad ขนาดเป็นทวีคูณของ 8 — ตัดกลับให้เท่าเดิมเพื่อประกบกับ Cr/Cb
-            y_wm = y_wm[: y.shape[0], : y.shape[1]]
+            # y_wm เป็น 1024x1024 เท่ากับ Cr/Cb แล้ว ประกบกลับเป็นภาพสีได้เลย
             wm_img = cv2.cvtColor(cv2.merge([y_wm, cr, cb]), cv2.COLOR_YCrCb2BGR)
 
             wm_file_id = uuid.uuid4()
