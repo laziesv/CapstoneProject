@@ -58,6 +58,10 @@ class EvidenceService:
 
     @staticmethod
     def upload(db: Session, data, upload_file: UploadFile, uploaded_by):
+        # Blockchain integration:
+        # DB rollback cannot undo filesystem writes, so track files created by this
+        # upload and remove them when the orchestration fails.
+        created_file_paths = []
 
         try:
             os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -65,9 +69,12 @@ class EvidenceService:
             file_id = uuid.uuid4()
             filename = f"{file_id}_{upload_file.filename}"
             file_path = os.path.join(UPLOAD_DIR, filename)
+            original_file_existed = os.path.exists(file_path)
 
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(upload_file.file, buffer)
+            if not original_file_existed:
+                created_file_paths.append(file_path)
 
             file_hash = calculate_sha256(file_path)
 
@@ -116,7 +123,10 @@ class EvidenceService:
             wm_file_id = uuid.uuid4()
             wm_filename = f"{wm_file_id}_wm_{upload_file.filename}"
             wm_path = os.path.join(UPLOAD_DIR, wm_filename)
-            cv2.imwrite(wm_path, wm_img)
+            watermarked_file_existed = os.path.exists(wm_path)
+            watermarked_file_written = cv2.imwrite(wm_path, wm_img)
+            if watermarked_file_written and not watermarked_file_existed:
+                created_file_paths.append(wm_path)
 
             wm_hash = calculate_sha256(wm_path)
 
@@ -139,4 +149,10 @@ class EvidenceService:
 
         except Exception:
             db.rollback()
+            for created_file_path in reversed(created_file_paths):
+                try:
+                    if os.path.exists(created_file_path):
+                        os.remove(created_file_path)
+                except OSError:
+                    pass
             raise
