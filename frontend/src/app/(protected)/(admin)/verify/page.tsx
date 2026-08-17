@@ -3,6 +3,7 @@ import { useState } from "react";
 import { UploadCloud, ShieldCheck, CheckCircle2, XCircle, Loader2, QrCode, ShieldAlert } from "lucide-react";
 import { watermarkService, ApiError } from "@/services";
 import type { VerifyResult } from "@/interfaces";
+import ProtectedImage from "@/components/ProtectedImage";
 
 export default function VerifyPage() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export default function VerifyPage() {
             <input type="file" id="v-input" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} className="hidden" />
             {preview ? (
               <div className="relative">
-                <img src={preview} alt="uploaded" className="mx-auto max-h-72 rounded-lg" />
+                <ProtectedImage src={preview} alt="uploaded" className="mx-auto max-h-72 rounded-lg" />
                 {isVerifying && (
                   <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/30">
                     <div className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-medium">

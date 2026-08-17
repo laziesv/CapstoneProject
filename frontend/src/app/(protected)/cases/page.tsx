@@ -6,6 +6,7 @@ import { Plus, Search, Loader2, Images, MapPin, CalendarDays, FolderOpen } from 
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService } from "@/services";
+import ProtectedImage from "@/components/ProtectedImage";
 import { visibleCases, canCreateCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
@@ -113,7 +114,7 @@ export default function CasesPage() {
                 {/* Cover */}
                 <div className="relative aspect-video overflow-hidden bg-slate-100">
                   {cover ? (
-                    <img
+                    <ProtectedImage
                       src={cover}
                       alt={c.title}
                       className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"

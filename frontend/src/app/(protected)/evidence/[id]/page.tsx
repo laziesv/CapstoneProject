@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import ProtectedImage from "@/components/ProtectedImage";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService, accessLogService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
+import { getToken } from "@/utils/session";
 import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
 
 
@@ -21,6 +23,7 @@ export default function EvidenceDetailPage() {
   const [relatedTx, setRelatedTx] = useState<BlockchainTx[]>([]);
   const [relatedLogs, setRelatedLogs] = useState<AccessLog[]>([]);
   const [downloading, setDownloading] = useState(false);
+  const [showAccess, setShowAccess] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -29,17 +32,21 @@ export default function EvidenceDetailPage() {
         setEvidence(null);
         return;
       }
-      const [c, tx, logs] = await Promise.all([
+      const [c, tx] = await Promise.all([
         caseService.get(ev.case_id),
         evidenceService.transactionsOf(id),
-        accessLogService.list({ evidence_id: id }),
       ]);
       setCaseData(c);
       setRelatedTx(tx);
-      setRelatedLogs(logs);
       setEvidence(ev);
     })();
   }, [id]);
+
+  // ประวัติการเข้าถึงเป็นข้อมูลเฉพาะ admin (endpoint ก็ admin-only) — ดึงแยกและเฉพาะ admin
+  useEffect(() => {
+    if (user?.role !== "admin") return;
+    accessLogService.list({ evidence_id: id }).then(setRelatedLogs).catch(() => {});
+  }, [id, user]);
 
   if (!user || evidence === undefined || supervisorMap === null) {
     return (
@@ -61,7 +68,16 @@ export default function EvidenceDetailPage() {
     if (!evidence?.thumbnail_url) return;
     setDownloading(true);
     try {
-      const res = await fetch(evidence.thumbnail_url);
+      // ?action=download + แนบ token เพื่อให้ server บันทึก DOWNLOAD log ว่าใครโหลด
+      // (การโชว์รูปผ่าน <img> ไม่มี param/token จึงไม่ถูกนับเป็นดาวน์โหลด)
+      const sep = evidence.thumbnail_url.includes("?") ? "&" : "?";
+      const token = getToken();
+      // no-store: บังคับยิง server ทุกครั้ง ไม่ให้เบราว์เซอร์ serve จาก cache
+      // (ถ้า cache ครั้งที่ 2 จะไม่ถึง server → ไม่บันทึก DOWNLOAD log)
+      const res = await fetch(`${evidence.thumbnail_url}${sep}action=download`, {
+        cache: "no-store",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -69,6 +85,11 @@ export default function EvidenceDetailPage() {
       a.download = evidence.original_filename || `${evidence.evidence_number}.png`;
       a.click();
       URL.revokeObjectURL(url);
+
+      // รีเฟรช timeline ให้เห็น DOWNLOAD ที่เพิ่งบันทึกทันที (เฉพาะ admin ที่เห็นประวัติ)
+      if (isAdmin) {
+        accessLogService.list({ evidence_id: id }).then(setRelatedLogs).catch(() => {});
+      }
     } finally {
       setDownloading(false);
     }
@@ -131,7 +152,7 @@ export default function EvidenceDetailPage() {
             {evidence.thumbnail_url ? (
               // พื้นเข้ม + object-contain เพื่อให้เห็นภาพหลักฐานเต็มเฟรม ไม่โดนครอบ
               <div className="flex items-center justify-center bg-slate-900" style={{ minHeight: 320 }}>
-                <img src={evidence.thumbnail_url} alt={evidence.description || evidence.original_filename} className="max-h-[540px] w-full object-contain" />
+                <ProtectedImage src={evidence.thumbnail_url} alt={evidence.description || evidence.original_filename} className="max-h-[540px] w-full object-contain" />
               </div>
             ) : (
               // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
@@ -181,25 +202,28 @@ export default function EvidenceDetailPage() {
           </div>
           )}
 
-          {/* Access History — admin เท่านั้น */}
+          {/* Access History — admin เท่านั้น (กดปุ่มเปิด timeline ใน modal) */}
           {isAdmin && (
-          <div className="rounded-xl border border-border bg-surface">
-            <div className="border-b border-border px-5 py-3 flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted" />
-              <h3 className="font-semibold text-sm">Access History</h3>
+          <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-5 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                <Clock className="h-4 w-4 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">ประวัติการเข้าถึง</h3>
+                <p className="text-xs text-muted">
+                  {relatedLogs.length > 0 ? `มีการเข้าถึง ${relatedLogs.length} ครั้ง` : "ยังไม่มีการเข้าถึง"}
+                </p>
+              </div>
             </div>
-            <div className="divide-y divide-border">
-              {relatedLogs.map((l) => (
-                <div key={l.log_id} className="flex items-center gap-4 px-5 py-3 text-xs">
-                  <span className="font-medium">{l.user_name}</span>
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5">{l.action}</span>
-                  <span className="text-muted">{l.ip_address}</span>
-                  <span className={`ml-auto rounded-full px-2 py-0.5 ${l.result === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{l.result}</span>
-                  <span className="text-muted">{new Date(l.accessed_at).toLocaleString("th-TH")}</span>
-                </div>
-              ))}
-              {relatedLogs.length === 0 && <p className="px-5 py-4 text-center text-xs text-muted">No access logs</p>}
-            </div>
+            <button
+              onClick={() => setShowAccess(true)}
+              disabled={relatedLogs.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-medium transition-colors hover:bg-surface-hover disabled:opacity-50"
+            >
+              <Clock className="h-4 w-4" />
+              ดูไทม์ไลน์
+            </button>
           </div>
           )}
         </div>
@@ -271,6 +295,97 @@ export default function EvidenceDetailPage() {
               </div>
             </div>
           </div>
+          )}
+        </div>
+      </div>
+
+      {isAdmin && showAccess && (
+        <AccessTimelineModal
+          logs={relatedLogs}
+          evidenceNumber={evidence.evidence_number}
+          onClose={() => setShowAccess(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// สีของ badge — ชุดเดียวกับหน้า /logs (แผนที่สั้น เก็บ local ไม่คุ้มแยกไฟล์ share)
+const actionStyle: Record<string, string> = {
+  view: "bg-blue-50 text-blue-700",
+  download: "bg-purple-50 text-purple-700",
+  print: "bg-amber-50 text-amber-700",
+  share: "bg-cyan-50 text-cyan-700",
+  export: "bg-slate-100 text-slate-600",
+};
+const resultStyle: Record<string, string> = {
+  success: "bg-green-50 text-green-700",
+  denied: "bg-red-50 text-red-700",
+  unauthorized: "bg-red-100 text-red-800",
+  failed: "bg-red-50 text-red-700",
+};
+
+function AccessTimelineModal({ logs, evidenceNumber, onClose }: { logs: AccessLog[]; evidenceNumber: string; onClose: () => void }) {
+  // ปิดด้วย ESC + ล็อกสกรอลล์พื้นหลังตอน modal เปิด
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  // เรียงใหม่→เก่า (ล่าสุดอยู่บน)
+  const ordered = [...logs].sort((a, b) => b.accessed_at.localeCompare(a.accessed_at));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex max-h-[80vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* หัว modal */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-semibold">ประวัติการเข้าถึง — <span className="font-mono">{evidenceNumber}</span></h3>
+          </div>
+          <button onClick={onClose} aria-label="ปิด" className="rounded-lg p-1 text-muted transition-colors hover:bg-surface-hover hover:text-text">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Timeline */}
+        <div className="overflow-y-auto px-5 py-5">
+          {ordered.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted">ยังไม่มีการเข้าถึง</p>
+          ) : (
+            <ol className="relative ml-2 border-l border-border">
+              {ordered.map((l) => (
+                <li key={l.log_id} className="relative mb-5 pl-6 last:mb-0">
+                  {/* จุดบนเส้นเวลา */}
+                  <span className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-primary" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium">{l.user_name ?? "—"}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${actionStyle[l.action] ?? "bg-slate-100 text-slate-600"}`}>{l.action}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${resultStyle[l.result] ?? "bg-slate-100 text-slate-600"}`}>{l.result}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">
+                    {new Date(l.accessed_at).toLocaleString("th-TH")}
+                    <span className="mx-1.5">·</span>
+                    <span className="font-mono">{l.ip_address}</span>
+                  </p>
+                </li>
+              ))}
+            </ol>
           )}
         </div>
       </div>

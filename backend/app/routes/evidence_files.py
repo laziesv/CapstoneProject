@@ -3,13 +3,17 @@ import mimetypes
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.deps import get_current_user_optional
+from app.models.users import User
+from app.models.enums import AuditAction
 from app.services.evidence_service import EvidenceService
+from app.services.access_log_service import AccessLogService, client_info
 
 
 router = APIRouter(
@@ -21,7 +25,12 @@ router = APIRouter(
 @router.get("/{file_id}")
 def preview_file(
     file_id: UUID,
-    db: Session = Depends(get_db)
+    request: Request,
+    action: str | None = None,
+    db: Session = Depends(get_db),
+    # auth แบบไม่บังคับ — <img> โหลดรูปแบบไม่มี token ต้องผ่านได้
+    # แต่ถ้ามี token (ตอนกดดาวน์โหลด) จะรู้ว่าใครโหลด เอาไปบันทึก log
+    current_user: User | None = Depends(get_current_user_optional),
 ):
 
     file = EvidenceService.get_file(
@@ -40,6 +49,22 @@ def preview_file(
         raise HTTPException(
             status_code=404,
             detail="Physical file not found"
+        )
+
+    # บันทึก DOWNLOAD เฉพาะตอนกดปุ่มดาวน์โหลด (?action=download) และรู้ว่าใครโหลด
+    # การโชว์รูปผ่าน <img> (ไม่มี action) จะไม่สร้าง log
+    if action == "download" and current_user is not None:
+        ip, user_agent = client_info(request)
+        # หา case_id จากหลักฐานของไฟล์นี้ ให้ log มี case_id ครบเหมือน VIEW
+        evidence = EvidenceService.get_by_id(db, file.evidence_id)
+        AccessLogService.record(
+            db,
+            user_id=current_user.user_id,
+            action=AuditAction.DOWNLOAD,
+            evidence_id=file.evidence_id,
+            case_id=evidence.case_id if evidence else None,
+            ip=ip,
+            user_agent=user_agent,
         )
 
 

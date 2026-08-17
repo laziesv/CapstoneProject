@@ -6,6 +6,7 @@ import Link from "next/link";
 import { dashboardService, accessLogService } from "@/services";
 import { useAuth } from "@/hooks/useAuth";
 import type { DashboardData, AccessLog } from "@/interfaces";
+import ProtectedImage from "@/components/ProtectedImage";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -125,7 +126,7 @@ export default function DashboardPage() {
             {data.recent_evidence.map((e) => (
               <Link key={e.evidence_id} href={`/evidence/${e.evidence_id}`} className="flex items-center gap-4 px-5 py-3 hover:bg-surface-hover transition-colors">
                 <div className="h-10 w-10 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
-                  {e.thumbnail_url && <img src={e.thumbnail_url} alt="" className="h-full w-full object-cover" />}
+                  {e.thumbnail_url && <ProtectedImage src={e.thumbnail_url} alt="" className="h-full w-full object-cover" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{e.evidence_number}</p>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, MapPin, Calendar, Loader2, ShieldAlert, UploadCloud, ImageOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
+import ProtectedImage from "@/components/ProtectedImage";
 import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
@@ -92,7 +93,7 @@ export default function CaseDetailPage() {
           <Link key={e.evidence_id} href={`/evidence/${e.evidence_id}`} className="group rounded-xl border border-border bg-surface overflow-hidden hover:shadow-md transition-all">
             <div className="aspect-video bg-slate-100 overflow-hidden">
               {e.thumbnail_url ? (
-                <img src={e.thumbnail_url} alt={e.description} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
+                <ProtectedImage src={e.thumbnail_url} alt={e.description} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
               ) : (
                 // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
                 <div className="flex h-full w-full items-center justify-center">

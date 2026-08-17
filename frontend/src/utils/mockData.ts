@@ -1,4 +1,4 @@
-import { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
+import { Case, EvidenceItem, BlockchainTx } from "@/interfaces";
 
 export const currentUser = {
   user_id: "u-001",
@@ -57,12 +57,4 @@ export const mockTx: BlockchainTx[] = [
   { tx_internal_id: "tx-004", tx_hash: "0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e", evidence_id: "e-004", evidence_number: "EV-2026-00201", initiated_by: "u-001", officer_name: "ร.ต.อ.สมชาย", action_type: "upload", block_number: 18245102, contract_address: "0x5b8da53d35a0993d44c1825c3ed955525a", status: "confirmed", gas_used: 53200, block_timestamp: "2026-04-22T16:01:00Z" },
   { tx_internal_id: "tx-005", tx_hash: "0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f", evidence_id: "e-001", evidence_number: "EV-2026-00101", initiated_by: "u-001", officer_name: "ร.ต.อ.สมชาย", action_type: "verify", block_number: 18250100, contract_address: "0x5b8da53d35a0993d44c1825c3ed955525a", status: "confirmed", gas_used: 31500, block_timestamp: "2026-04-15T09:00:00Z" },
   { tx_internal_id: "tx-006", tx_hash: "0x6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a", evidence_id: "e-003", evidence_number: "EV-2026-00103", initiated_by: "u-001", officer_name: "ร.ต.อ.สมชาย", action_type: "upload", block_number: 18251000, contract_address: "0x5b8da53d35a0993d44c1825c3ed955525a", status: "pending", gas_used: 0, block_timestamp: "2026-04-12T09:01:00Z" },
-];
-
-export const mockLogs: AccessLog[] = [
-  { log_id: "l-001", user_id: "u-002", user_name: "พ.ต.ท.สมศักดิ์", evidence_id: "e-001", evidence_number: "EV-2026-00101", action: "view", ip_address: "192.168.1.45", user_agent: "Chrome/125", tx_hash: "0x2b3c4d5e6f...", result: "success", accessed_at: "2026-04-12T10:30:00Z" },
-  { log_id: "l-002", user_id: "u-001", user_name: "ร.ต.อ.สมชาย", evidence_id: "e-001", evidence_number: "EV-2026-00101", action: "download", ip_address: "192.168.1.20", user_agent: "Chrome/125", tx_hash: "0x7a8b9c0d1e...", result: "success", accessed_at: "2026-04-13T11:00:00Z" },
-  { log_id: "l-003", user_id: "u-003", user_name: "ด.ต.วิชัย", evidence_id: "e-002", evidence_number: "EV-2026-00102", action: "view", ip_address: "10.0.0.55", user_agent: "Firefox/130", result: "denied", accessed_at: "2026-04-14T09:15:00Z" },
-  { log_id: "l-004", user_id: "u-001", user_name: "ร.ต.อ.สมชาย", evidence_id: "e-004", evidence_number: "EV-2026-00201", action: "view", ip_address: "192.168.1.20", user_agent: "Chrome/125", tx_hash: "0x8b9c0d1e2f...", result: "success", accessed_at: "2026-04-23T08:00:00Z" },
-  { log_id: "l-005", user_id: "u-002", user_name: "พ.ต.ท.สมศักดิ์", evidence_id: "e-004", evidence_number: "EV-2026-00201", action: "print", ip_address: "192.168.1.45", user_agent: "Chrome/125", tx_hash: "0x9c0d1e2f3a...", result: "success", accessed_at: "2026-04-24T14:00:00Z" },
 ];

@@ -1,23 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, Loader2, ArrowLeft, FileClock, Users, Files, ShieldX } from "lucide-react";
+import Link from "next/link";
+import { Search, Loader2, ArrowLeft, FileClock, Users, Files, ShieldX, ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import type { AccessLog } from "@/interfaces";
 import { accessLogService } from "@/services";
 
 const actionStyle: Record<string, string> = {
   view: "bg-blue-50 text-blue-700",
   download: "bg-purple-50 text-purple-700",
-  print: "bg-amber-50 text-amber-700",
-  share: "bg-cyan-50 text-cyan-700",
-  export: "bg-slate-100 text-slate-600",
+  query: "bg-slate-100 text-slate-600",
 };
 const resultStyle: Record<string, string> = {
   success: "bg-green-50 text-green-700",
-  denied: "bg-red-50 text-red-700",
-  unauthorized: "bg-red-100 text-red-800",
   failed: "bg-red-50 text-red-700",
 };
+
+const PAGE_SIZE = 25;
 
 export default function LogsPage() {
   const [logs, setLogs] = useState<AccessLog[]>([]);
@@ -38,9 +37,21 @@ export default function LogsPage() {
 
   // ── ตัวกรอง ──────────────────────────────────────────
   const [query, setQuery] = useState("");
-  const [evidenceId, setEvidenceId] = useState("");   // ใช้ทั้ง dropdown และ drill-down รายชิ้น
+  const [evidenceId, setEvidenceId] = useState("");   // dropdown + drill-down รายชิ้น
   const [action, setAction] = useState("");
   const [result, setResult] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showQuery, setShowQuery] = useState(false);  // ซ่อน QUERY (ดูรายการ) เป็นค่าเริ่มต้น
+  const [page, setPage] = useState(1);
+
+  // เปลี่ยนตัวกรองใดๆ → เด้งกลับหน้า 1 (reset ตอน render ตามแพทเทิร์นที่ React แนะนำ)
+  const filterKey = [query, evidenceId, action, result, dateFrom, dateTo, showQuery].join("|");
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setPage(1);
+  }
 
   // ── รายการหลักฐานสำหรับ dropdown (distinct จาก log ที่โหลดมา) ──
   const evidenceOptions = useMemo(() => {
@@ -54,10 +65,18 @@ export default function LogsPage() {
   // ── กรอง in-memory ──────────────────────────────────
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo + "T23:59:59") : null;
     return logs.filter((l) => {
+      if (!showQuery && l.action === "query") return false;
       if (evidenceId && l.evidence_id !== evidenceId) return false;
       if (action && l.action !== action) return false;
       if (result && l.result !== result) return false;
+      if (from || to) {
+        const t = new Date(l.accessed_at);
+        if (from && t < from) return false;
+        if (to && t > to) return false;
+      }
       if (q) {
         const haystack = [l.user_name, l.evidence_number, l.ip_address, l.action]
           .filter(Boolean)
@@ -67,15 +86,22 @@ export default function LogsPage() {
       }
       return true;
     });
-  }, [logs, evidenceId, action, result, query]);
+  }, [logs, showQuery, evidenceId, action, result, dateFrom, dateTo, query]);
 
   // ── สรุปสถิติจากผลที่กรอง ───────────────────────────
   const stats = useMemo(() => {
     const users = new Set(filtered.map((l) => l.user_id));
-    const evidence = new Set(filtered.map((l) => l.evidence_id));
-    const denied = filtered.filter((l) => l.result !== "success").length;
-    return { total: filtered.length, users: users.size, evidence: evidence.size, denied };
+    const evidence = new Set(filtered.filter((l) => l.evidence_id).map((l) => l.evidence_id));
+    const failed = filtered.filter((l) => l.result !== "success").length;
+    return { total: filtered.length, users: users.size, evidence: evidence.size, failed };
   }, [filtered]);
+
+  // ── แบ่งหน้า ─────────────────────────────────────────
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const current = Math.min(page, totalPages);
+  const paged = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const startIdx = filtered.length === 0 ? 0 : (current - 1) * PAGE_SIZE + 1;
+  const endIdx = Math.min(current * PAGE_SIZE, filtered.length);
 
   const selectedEvidenceNumber = evidenceId
     ? evidenceOptions.find((e) => e.id === evidenceId)?.number ?? evidenceId
@@ -111,7 +137,7 @@ export default function LogsPage() {
         <StatCard icon={FileClock} label="รายการทั้งหมด" value={stats.total} />
         <StatCard icon={Users} label="ผู้เข้าถึง (คน)" value={stats.users} />
         <StatCard icon={Files} label="หลักฐาน (ชิ้น)" value={stats.evidence} />
-        <StatCard icon={ShieldX} label="ถูกปฏิเสธ/ล้มเหลว" value={stats.denied} danger={stats.denied > 0} />
+        <StatCard icon={ShieldX} label="ล้มเหลว" value={stats.failed} danger={stats.failed > 0} />
       </div>
 
       {/* Filters */}
@@ -141,24 +167,44 @@ export default function LogsPage() {
           onChange={(e) => setAction(e.target.value)}
           className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-muted outline-none focus:border-primary"
         >
-          <option value="">All Actions</option>
+          <option value="">ทุก Action</option>
           <option value="view">View</option>
           <option value="download">Download</option>
-          <option value="print">Print</option>
-          <option value="share">Share</option>
-          <option value="export">Export</option>
+          <option value="query">Query</option>
         </select>
         <select
           value={result}
           onChange={(e) => setResult(e.target.value)}
           className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-muted outline-none focus:border-primary"
         >
-          <option value="">All Results</option>
+          <option value="">ทุกผลลัพธ์</option>
           <option value="success">Success</option>
-          <option value="denied">Denied</option>
           <option value="failed">Failed</option>
-          <option value="unauthorized">Unauthorized</option>
         </select>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-muted outline-none focus:border-primary"
+          aria-label="ตั้งแต่วันที่"
+        />
+        <span className="text-sm text-muted">–</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-muted outline-none focus:border-primary"
+          aria-label="ถึงวันที่"
+        />
+        <label className="flex items-center gap-2 text-sm text-muted cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={showQuery}
+            onChange={(e) => setShowQuery(e.target.checked)}
+            className="h-4 w-4 rounded border-border accent-primary"
+          />
+          แสดงการดูรายการ (Query)
+        </label>
       </div>
 
       {/* Table */}
@@ -185,22 +231,27 @@ export default function LogsPage() {
               <tr>
                 <td colSpan={6} className="px-5 py-6 text-center text-sm text-danger">{error}</td>
               </tr>
-            ) : filtered.length === 0 ? (
+            ) : paged.length === 0 ? (
               <tr>
                 <td colSpan={6} className="px-5 py-6 text-center text-sm text-muted">ไม่พบบันทึกการเข้าถึง</td>
               </tr>
             ) : (
-              filtered.map((l) => (
+              paged.map((l) => (
                 <tr key={l.log_id} className="hover:bg-surface-hover transition-colors">
                   <td className="px-5 py-3 font-medium text-xs">{l.user_name ?? "—"}</td>
                   <td className="px-5 py-3">
-                    <button
-                      onClick={() => setEvidenceId(l.evidence_id)}
-                      className="font-mono text-xs text-primary hover:underline"
-                      title="ดูประวัติการเข้าถึงเฉพาะหลักฐานชิ้นนี้"
-                    >
-                      {l.evidence_number ?? l.evidence_id}
-                    </button>
+                    {l.evidence_id ? (
+                      <Link
+                        href={`/evidence/${l.evidence_id}`}
+                        className="inline-flex items-center gap-1.5 font-mono text-xs text-primary hover:underline"
+                        title="เปิดดูหลักฐาน (รูป)"
+                      >
+                        <ImageIcon className="h-3.5 w-3.5" />
+                        {l.evidence_number ?? l.evidence_id}
+                      </Link>
+                    ) : (
+                      <span className="text-xs text-muted">—</span>
+                    )}
                   </td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${actionStyle[l.action] ?? "bg-slate-100 text-slate-600"}`}>{l.action}</span>
@@ -215,6 +266,30 @@ export default function LogsPage() {
             )}
           </tbody>
         </table>
+
+        {/* Pagination */}
+        {!loading && !error && filtered.length > 0 && (
+          <div className="flex items-center justify-between border-t border-border px-5 py-3 text-xs text-muted">
+            <span>แสดง {startIdx}–{endIdx} จาก {filtered.length}</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={current <= 1}
+                className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 font-medium transition-colors hover:bg-surface-hover disabled:opacity-40"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" /> ก่อนหน้า
+              </button>
+              <span className="px-2">หน้า {current} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={current >= totalPages}
+                className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 font-medium transition-colors hover:bg-surface-hover disabled:opacity-40"
+              >
+                ถัดไป <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

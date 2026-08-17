@@ -11,10 +11,10 @@
 // │              + evidence = JSON string ของ                            │
 // │                { case_id, description?, captured_at? }               │
 // │      uploaded_by มาจาก token (ไม่ต้องส่ง) · server คำนวณ SHA-256 จริง  │
-// │ GET  /api/evidence-files/{file_id}  → ไฟล์รูป (FileResponse)          │
+// │ GET  /api/evidences/{id}            → EvidenceApiResponse (+log VIEW) │
+// │ GET  /api/evidence-files/{file_id}?action=download → ไฟล์ (+log DL)   │
 // └──────────────────────────────────────────────────────────────────────┘
 //
-// TODO(backend): ยังไม่มี GET /api/evidences/{id} — get() จึงดึงลิสต์มาหาเอง
 // TODO(backend): ยังไม่มี endpoint blockchain transactions — transactionsOf ยัง mock
 
 import type {
@@ -26,7 +26,7 @@ import type {
 } from "@/interfaces";
 import { API_BASE } from "@/config";
 import { mockTx } from "@/utils/mockData";
-import { request } from "./client";
+import { request, ApiError } from "./client";
 
 /** สุ่ม hex — ใช้เฉพาะ tx/block ที่ยังไม่มี endpoint จริง
  *  TODO(backend): ลบทิ้งเมื่อมี blockchain endpoint */
@@ -70,10 +70,15 @@ export const evidenceService = {
   },
 
   /** หลักฐานตาม id (undefined ถ้าไม่พบ)
-   *  TODO(backend): ยังไม่มี GET /api/evidences/{id} — ต้องดึงลิสต์มาหาเอง */
+   *  เปิดหน้านี้ = server บันทึก VIEW log ให้อัตโนมัติ (เลี่ยงไม่ได้) */
   async get(id: string): Promise<EvidenceItem | undefined> {
-    const all = await this.list();
-    return all.find((e) => e.evidence_id === id);
+    try {
+      const dto = await request<EvidenceApiResponse>(`/api/evidences/${id}`);
+      return toEvidence(dto);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return undefined;
+      throw e;
+    }
   },
 
   /** อัพโหลดหลักฐานใหม่ — ยิงทีละไฟล์เพราะ endpoint รับครั้งละ 1 ไฟล์ */

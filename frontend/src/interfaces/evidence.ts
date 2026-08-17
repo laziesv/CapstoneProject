@@ -4,8 +4,9 @@ export type WatermarkType = "static" | "dynamic";
 export type WmAlgorithm = "dct" | "dwt" | "lsb" | "hybrid";
 export type TxAction = "upload" | "access" | "verify" | "transfer" | "flag";
 export type TxStatus = "pending" | "confirmed" | "failed";
-export type AccessAction = "view" | "download" | "print" | "share" | "export";
-export type AccessResult = "success" | "denied" | "unauthorized";
+// ตรงกับ enum ฝั่ง backend (AuditAction / AuditResult) — DB มีแค่ค่าเหล่านี้จริง
+export type AccessAction = "view" | "download" | "query";
+export type AccessResult = "success" | "failed";
 
 export interface Case {
   case_id: string;

@@ -48,6 +48,12 @@ class EvidenceService:
 
 
     @staticmethod
+    def get_by_id(db: Session, evidence_id):
+        """หลักฐานตาม id (None ถ้าไม่พบ)"""
+        return EvidenceRepository.get_by_id(db, evidence_id)
+
+
+    @staticmethod
     def get_all(db: Session, case_id=None):
         """หลักฐานทั้งหมด กรองตามคดีได้"""
         if case_id:

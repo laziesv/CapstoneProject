@@ -1,85 +1,66 @@
-from uuid import UUID
-
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.models.access_logs import AccessLog
 from app.models.enums import AuditAction, AuditResult
-from app.repositories.access_log_repository import (
-    AccessLogRepository,
-)
+from app.repositories.access_log_repository import AccessLogRepository
+
+
+def client_info(request: Request):
+    """ดึง IP + user-agent จาก request — เผื่ออยู่หลัง proxy อ่าน X-Forwarded-For ก่อน"""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        ip = forwarded.split(",")[0].strip()
+    else:
+        ip = request.client.host if request.client else None
+    return ip, request.headers.get("user-agent")
+
+
+def _to_enum(enum_cls, value):
+    """แปลง string จาก query (เช่น 'view') → enum member; ค่าไม่ถูกต้อง = None (ไม่กรอง)"""
+    if not value:
+        return None
+    try:
+        return enum_cls[str(value).upper()]
+    except KeyError:
+        return None
 
 
 class AccessLogService:
 
     @staticmethod
-    def create_log(
+    def record(
         db: Session,
-        user_id: UUID,
+        *,
+        user_id,
         action: AuditAction,
-        result: AuditResult,
-        case_id: UUID | None = None,
-        evidence_id: UUID | None = None,
-        ip_address: str | None = None,
+        evidence_id=None,
+        case_id=None,
+        ip: str | None = None,
         user_agent: str | None = None,
-        tx_internal_id: UUID | None = None,
-    ) -> AccessLog:
-
-        access_log = AccessLog(
+        result: AuditResult = AuditResult.SUCCESS,
+    ):
+        """บันทึกการเข้าถึง 1 ครั้ง — QUERY (ดูรายการ), VIEW (เปิดชิ้น), DOWNLOAD (โหลด)"""
+        log = AccessLog(
             user_id=user_id,
-            case_id=case_id,
             evidence_id=evidence_id,
+            case_id=case_id,
             action=action,
-            ip_address=ip_address,
+            ip_address=ip,
             user_agent=user_agent,
-            tx_internal_id=tx_internal_id,
             result=result,
         )
+        AccessLogRepository.create(db, log)
+        db.commit()
 
-        return AccessLogRepository.create(
-            db,
-            access_log,
-        )
-
-    @staticmethod
-    def get_log(
-        db: Session,
-        log_id: UUID,
-    ) -> AccessLog | None:
-
-        return AccessLogRepository.get_by_id(
-            db,
-            log_id,
-        )
+        return log
 
     @staticmethod
-    def get_user_logs(
-        db: Session,
-        user_id: UUID,
-    ) -> list[AccessLog]:
-
-        return AccessLogRepository.get_by_user(
+    def list(db: Session, filters: dict):
+        return AccessLogRepository.list(
             db,
-            user_id,
-        )
-
-    @staticmethod
-    def get_case_logs(
-        db: Session,
-        case_id: UUID,
-    ) -> list[AccessLog]:
-
-        return AccessLogRepository.get_by_case(
-            db,
-            case_id,
-        )
-
-    @staticmethod
-    def get_evidence_logs(
-        db: Session,
-        evidence_id: UUID,
-    ) -> list[AccessLog]:
-
-        return AccessLogRepository.get_by_evidence(
-            db,
-            evidence_id,
+            evidence_id=filters.get("evidence_id"),
+            user_id=filters.get("user_id"),
+            action=_to_enum(AuditAction, filters.get("action")),
+            result=_to_enum(AuditResult, filters.get("result")),
         )

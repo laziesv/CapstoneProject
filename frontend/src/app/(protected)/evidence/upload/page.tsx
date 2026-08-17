@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRight, ShieldAlert, ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import ProtectedImage from "@/components/ProtectedImage";
 import { caseService, evidenceService } from "@/services";
 import { visibleCases } from "@/utils/caseAccess";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
@@ -209,7 +210,7 @@ export default function UploadEvidencePage() {
               <div className="grid grid-cols-5 gap-3">
                 {items.map((it, i) => (
                   <div key={it.preview} className="relative rounded-lg overflow-hidden aspect-square bg-slate-100">
-                    <img src={it.preview} alt="" className="h-full w-full object-cover" />
+                    <ProtectedImage src={it.preview} alt="" className="h-full w-full object-cover" />
                     <button onClick={() => removeFile(i)} className="absolute top-1 right-1 rounded-full bg-black/50 p-0.5 text-white hover:bg-black/70"><X className="h-3 w-3" /></button>
                   </div>
                 ))}
@@ -255,7 +256,7 @@ export default function UploadEvidencePage() {
                     <tr key={it.preview} className="border-b border-border/60 align-top">
                       <td className="py-3 pr-3">
                         <div className="flex items-center gap-2">
-                          <img src={it.preview} alt="" className="h-10 w-10 flex-shrink-0 rounded object-cover" />
+                          <ProtectedImage src={it.preview} alt="" className="h-10 w-10 flex-shrink-0 rounded object-cover" />
                           <span className="max-w-[10rem] truncate text-xs text-text-secondary" title={it.file.name}>{it.file.name}</span>
                         </div>
                       </td>
@@ -312,7 +313,7 @@ export default function UploadEvidencePage() {
                   <div className="space-y-2">
                     <div className="scan-frame mx-auto max-w-sm rounded-xl border border-border bg-slate-900">
                       {items[activeIdx] && (
-                        <img src={items[activeIdx].preview} alt="" className="w-full object-contain opacity-90" style={{ maxHeight: 260 }} />
+                        <ProtectedImage src={items[activeIdx].preview} alt="" className="w-full object-contain opacity-90" style={{ maxHeight: 260 }} />
                       )}
                       <div className="scan-line" />
                     </div>

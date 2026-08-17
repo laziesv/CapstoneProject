@@ -10,6 +10,7 @@ from sqlalchemy import (
     func,
 )
 
+from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.database import Base
@@ -38,3 +39,19 @@ class AccessLog(Base):
     result = Column(Enum(AuditResult),nullable=False,server_default=AuditResult.SUCCESS.value,)
 
     accessed_at = Column(TIMESTAMP(timezone=True),nullable=False,server_default=func.now(),index=True,)
+
+    # ผู้เข้าถึง + หลักฐานที่ถูกเข้าถึง — ใช้ดึงชื่อที่อ่านออกมาแสดงแทน UUID เปล่าๆ
+    user = relationship("User", lazy="selectin")
+    evidence = relationship("EvidenceItem", lazy="selectin")
+
+    # ── ค่าที่อ่านออก เปิดให้ schema อ่านผ่าน from_attributes ──
+    @property
+    def user_name(self):
+        u = self.user
+        if not u:
+            return None
+        return u.full_name or u.username
+
+    @property
+    def evidence_number(self):
+        return self.evidence.evidence_number if self.evidence else None

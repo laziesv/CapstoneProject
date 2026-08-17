@@ -93,7 +93,7 @@ def create_new_user(db: Session, data: UserCreate) -> User:
 
 
 def list_all_users(db: Session):
-    return UserRepository.list(db)
+    return UserRepository.get_all(db)
 
 
 def list_selectable_users(db: Session):

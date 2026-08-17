@@ -78,3 +78,25 @@ class AccessLogRepository:
             )
             .all()
         )
+
+    @staticmethod
+    def list(
+        db: Session,
+        *,
+        evidence_id: UUID | None = None,
+        user_id: UUID | None = None,
+        action=None,
+        result=None,
+    ) -> list[AccessLog]:
+        query = db.query(AccessLog)
+
+        if evidence_id:
+            query = query.filter(AccessLog.evidence_id == evidence_id)
+        if user_id:
+            query = query.filter(AccessLog.user_id == user_id)
+        if action:
+            query = query.filter(AccessLog.action == action)
+        if result:
+            query = query.filter(AccessLog.result == result)
+
+        return query.order_by(AccessLog.accessed_at.desc()).all()
