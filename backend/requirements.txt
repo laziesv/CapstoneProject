@@ -16,8 +16,13 @@ python-multipart==0.0.20
 
 email-validator==2.2.0
 
+# ── Watermarking (DWT+QIM) + QR ─────────────────────────
+numpy
 opencv-python
 scikit-image
 PyWavelets
 qrcode[pil]
+# pyzbar ต้องมี ZBar shared library ในเครื่องด้วย:
+#   Windows/macOS: wheel แถม DLL มาให้แล้ว (ติดตั้งผ่าน pip พอ)
+#   Linux (เช่น Docker/CI): sudo apt-get install -y libzbar0
 pyzbar
