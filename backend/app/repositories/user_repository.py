@@ -39,7 +39,7 @@ class UserRepository:
         )
 
     @staticmethod
-    def list(
+    def get_all(
         db: Session,
     ) -> list[User]:
         return (

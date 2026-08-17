@@ -17,6 +17,7 @@ class BlockchainAction(str, enum.Enum):
 class AuditAction(str, enum.Enum):
     VIEW = "VIEW"
     DOWNLOAD = "DOWNLOAD"
+    QUERY = "QUERY"
 
 
 class AuditResult(str, enum.Enum):
