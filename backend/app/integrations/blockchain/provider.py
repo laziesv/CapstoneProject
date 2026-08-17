@@ -30,5 +30,9 @@ def get_blockchain_client() -> BlockchainClient:
         ),
         confirmation_timeout_seconds=settings.confirmation_timeout_seconds,
         signer_private_key=settings.writer_private_key,
+        # Blockchain integration:
+        # Besu QBFT uses PoA-style block headers, so Web3 must install the PoA
+        # middleware before reading or building transactions.
+        proof_of_authority=True,
     )
     return BlockchainClient(client_settings)
