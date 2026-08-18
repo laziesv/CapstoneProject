@@ -200,6 +200,21 @@ class BlockchainIntegrationService:
             "writer": record["writer"],
         }
 
+    def get_evidence(self, evidence_ref: str) -> dict[str, Any]:
+        """Read one evidence registration directly from contract state."""
+
+        if not self._settings.enabled:
+            raise RuntimeError("blockchain integration is disabled")
+        canonical_ref = normalize_bytes32(evidence_ref, "evidence_ref")
+        record = self._client_provider().get_evidence(canonical_ref)
+        return {
+            "evidence_hash": record["evidence_hash"],
+            "uploader_ref": record["uploader_ref"],
+            "recorded_at": record["recorded_at"],
+            "writer": record["writer"],
+            "exists": record["exists"],
+        }
+
     def _require_write_enabled(self) -> None:
         if not self._settings.enabled:
             raise RuntimeError("blockchain integration is disabled")

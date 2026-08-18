@@ -41,6 +41,19 @@ class UserRepository:
         )
 
     @staticmethod
+    def get_by_ids(
+        db: Session,
+        user_ids: set,
+    ) -> List[User]:
+        if not user_ids:
+            return []
+        return (
+            db.query(User)
+            .filter(User.user_id.in_(user_ids))
+            .all()
+        )
+
+    @staticmethod
     def list(
         db: Session,
     ) -> list[User]:

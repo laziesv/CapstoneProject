@@ -8,6 +8,23 @@ from app.models.enums import AuditAction, AuditResult
 
 class AccessLogRepository:
     @staticmethod
+    def list_successful_downloads_by_evidence(
+        db: Session,
+        *,
+        evidence_id: UUID,
+    ) -> list[AccessLog]:
+        return (
+            db.query(AccessLog)
+            .filter(
+                AccessLog.evidence_id == evidence_id,
+                AccessLog.action == AuditAction.DOWNLOAD,
+                AccessLog.result == AuditResult.SUCCESS,
+            )
+            .order_by(AccessLog.accessed_at.asc(), AccessLog.log_id.asc())
+            .all()
+        )
+
+    @staticmethod
     def stage_download(
         db: Session,
         *,

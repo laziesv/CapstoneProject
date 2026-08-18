@@ -23,6 +23,36 @@ class BlockchainTransactionRepository:
         )
 
     @staticmethod
+    def get_by_evidence_and_action(
+        db: Session,
+        *,
+        evidence_id: UUID,
+        action_type: BlockchainAction,
+    ) -> list[BlockchainTransaction]:
+        return (
+            db.query(BlockchainTransaction)
+            .filter(
+                BlockchainTransaction.evidence_id == evidence_id,
+                BlockchainTransaction.action_type == action_type,
+            )
+            .order_by(BlockchainTransaction.created_at.asc())
+            .all()
+        )
+
+    @staticmethod
+    def get_by_ids(
+        db: Session,
+        tx_internal_ids: set[UUID],
+    ) -> list[BlockchainTransaction]:
+        if not tx_internal_ids:
+            return []
+        return (
+            db.query(BlockchainTransaction)
+            .filter(BlockchainTransaction.tx_internal_id.in_(tx_internal_ids))
+            .all()
+        )
+
+    @staticmethod
     def stage_evidence_registration(
         db: Session,
         *,

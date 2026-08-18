@@ -10,8 +10,16 @@ from app.database import get_db
 from app.deps import get_current_user
 from app.models.users import User
 from app.repositories.case_repository import CaseRepository
+from app.repositories.evidence_items_repository import EvidenceRepository
+from app.schemas.chain_of_custody import ChainOfCustodyResponse
 from app.schemas.evidence import EvidenceCreate, EvidenceResponse
 from app.services.case_authorization import can_access_case
+from app.services.chain_of_custody_service import (
+    ChainOfCustodyBlockchainReadError,
+    ChainOfCustodyEvidenceNotFoundError,
+    ChainOfCustodyMalformedChainDataError,
+    ChainOfCustodyService,
+)
 from app.services.evidence_service import EvidenceService
 from app.services.evidence_access_service import EvidenceAccessService
 from app.services.personalized_watermark_service import remove_personalized_copy
@@ -21,6 +29,34 @@ router = APIRouter(
     prefix="/evidences",
     tags=["Evidence"]
 )
+
+
+@router.get(
+    "/{evidence_id}/chain-of-custody",
+    response_model=ChainOfCustodyResponse,
+)
+def chain_of_custody(
+    evidence_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    evidence = EvidenceRepository.get_by_id(db, evidence_id)
+    case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None
+    if case is None or not can_access_case(db, current_user, case):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+
+    try:
+        return ChainOfCustodyService().get_chain_of_custody(db, evidence_id)
+    except ChainOfCustodyEvidenceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except (
+        ChainOfCustodyBlockchainReadError,
+        ChainOfCustodyMalformedChainDataError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Chain of Custody verification is unavailable",
+        ) from exc
 
 
 class _TemporaryFileResponse(FileResponse):
