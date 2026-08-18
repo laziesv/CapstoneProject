@@ -62,6 +62,7 @@ export interface EvidenceItem {
   // ว่างได้เมื่อหลักฐานยังไม่มีไฟล์แนบ (เช่นข้อมูล seed เก่า)
   file_hash_sha256?: string;
   file_size_bytes?: number;
+  display_file_id?: string;
   thumbnail_url?: string;
   captured_at?: string;
 }

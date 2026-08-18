@@ -10,6 +10,7 @@ import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
+import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 
 
 export default function CaseDetailPage() {
@@ -91,14 +92,16 @@ export default function CaseDetailPage() {
         {evidenceList.map((e) => (
           <Link key={e.evidence_id} href={`/evidence/${e.evidence_id}`} className="group rounded-xl border border-border bg-surface overflow-hidden hover:shadow-md transition-all">
             <div className="aspect-video bg-slate-100 overflow-hidden">
-              {e.thumbnail_url ? (
-                <img src={e.thumbnail_url} alt={e.description} className="h-full w-full object-cover group-hover:scale-105 transition-transform" />
-              ) : (
-                // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
+              <EvidencePreviewImage
+                fileId={e.display_file_id}
+                alt={e.description}
+                className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                fallback={
                 <div className="flex h-full w-full items-center justify-center">
                   <ImageOff className="h-7 w-7 text-muted" />
                 </div>
-              )}
+                }
+              />
             </div>
             <div className="p-4">
               <p className="font-mono text-xs text-primary">{e.evidence_number}</p>

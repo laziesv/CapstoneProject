@@ -43,9 +43,8 @@ def can_access_case(
 ) -> bool:
     """Return whether the current user can see the case."""
 
-    # Server-side authorization:
-    # Mirrors the existing frontend case visibility rule so evidence access cannot
-    # rely on client-side checks alone.
+    # การตรวจสอบสิทธิ์ฝั่งเซิร์ฟเวอร์:
+    # ใช้กฎเดียวกับหน้าเว็บ เพื่อไม่ให้การเข้าถึงหลักฐานพึ่งการตรวจฝั่งผู้ใช้เท่านั้น
     if current_user.role == "admin":
         return True
 

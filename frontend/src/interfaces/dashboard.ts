@@ -11,6 +11,7 @@ export interface RecentEvidence {
   evidence_id: string;
   evidence_number: string | null;
   description: string | null;
+  display_file_id: string | null;
   thumbnail_url: string | null;
   is_watermarked: boolean;
   is_blockchain_verified: boolean;

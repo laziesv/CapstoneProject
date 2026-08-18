@@ -57,6 +57,13 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   return parse<T>(await authFetch(path, options));
 }
 
+/** เรียกไฟล์ผ่าน Bearer token เดียวกับ API ปกติ แล้วคืนข้อมูลแบบ Blob */
+export async function requestBlob(path: string, options?: RequestInit): Promise<Blob> {
+  const res = await authFetch(path, options);
+  if (!res.ok) await parse<never>(res);
+  return res.blob();
+}
+
 /** เรียก endpoint สาธารณะ (เช่น login) — ไม่แนบ token และไม่ redirect เมื่อ 401 */
 export async function publicRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

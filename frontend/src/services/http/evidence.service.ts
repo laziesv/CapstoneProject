@@ -24,9 +24,8 @@ import type {
   UploadedEvidenceRef,
   EvidenceApiResponse,
 } from "@/interfaces";
-import { API_BASE } from "@/config";
 import { mockTx } from "@/utils/mockData";
-import { request } from "./client";
+import { request, requestBlob } from "./client";
 
 /** สุ่ม hex — ใช้เฉพาะ tx/block ที่ยังไม่มี endpoint จริง
  *  TODO(backend): ลบทิ้งเมื่อมี blockchain endpoint */
@@ -53,15 +52,16 @@ function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
     captured_at: dto.captured_at ?? undefined,
     file_hash_sha256: dto.file_hash ?? undefined,
     file_size_bytes: dto.file_size_bytes ?? undefined,
-    // ไฟล์เสิร์ฟผ่าน endpoint แยก — ใช้ไฟล์ที่ฝังลายน้ำแล้ว (display_file_id)
-    // เพื่อให้ภาพที่โชว์และดาวน์โหลดมีลายน้ำติดไปด้วย (fallback file_id ถ้าไม่มี)
-    thumbnail_url: (dto.display_file_id ?? dto.file_id)
-      ? `${API_BASE}/api/evidence-files/${dto.display_file_id ?? dto.file_id}`
-      : undefined,
+    display_file_id: dto.display_file_id ?? undefined,
   };
 }
 
 export const evidenceService = {
+  /** โหลดภาพตัวอย่างที่ฝังลายน้ำแล้วผ่าน Bearer token */
+  preview(fileId: string): Promise<Blob> {
+    return requestBlob(`/api/evidence-files/${encodeURIComponent(fileId)}`);
+  },
+
   /** รายการหลักฐาน (กรองตามคดีได้ — กรองฝั่ง server) */
   async list(filters: { case_id?: string } = {}): Promise<EvidenceItem[]> {
     const qs = filters.case_id ? `?case_id=${encodeURIComponent(filters.case_id)}` : "";

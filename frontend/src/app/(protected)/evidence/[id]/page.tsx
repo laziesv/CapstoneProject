@@ -10,6 +10,7 @@ import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService, accessLogService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
+import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 
 
 export default function EvidenceDetailPage() {
@@ -20,7 +21,6 @@ export default function EvidenceDetailPage() {
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
   const [relatedTx, setRelatedTx] = useState<BlockchainTx[]>([]);
   const [relatedLogs, setRelatedLogs] = useState<AccessLog[]>([]);
-  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -55,25 +55,6 @@ export default function EvidenceDetailPage() {
   // ข้อมูลเชิงลึก (hash/blockchain/logs/watermark) เปิดเผยกลไกภายใน — เฉพาะ admin
   const allowed = isAdmin ? true : caseData ? canSeeCase(user, caseData, supervisorMap) : false;
 
-  // ดาวน์โหลดไฟล์ที่ฝังลายน้ำแล้ว (thumbnail_url ชี้ display_file_id = ตัวลายน้ำ)
-  // endpoint ข้ามโดเมน (8000↔3000) ทำให้ attribute download ถูกเมิน — ต้องดึงเป็น blob เอง
-  const handleDownload = async () => {
-    if (!evidence?.thumbnail_url) return;
-    setDownloading(true);
-    try {
-      const res = await fetch(evidence.thumbnail_url);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = evidence.original_filename || `${evidence.evidence_number}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   if (!allowed) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
@@ -100,11 +81,12 @@ export default function EvidenceDetailPage() {
         </div>
         <div className="flex flex-col items-end gap-2">
           <button
-            onClick={handleDownload}
-            disabled={!evidence.thumbnail_url || downloading}
+            disabled
+            title="รอระบบบันทึกการดาวน์โหลดลง Blockchain ในขั้นตอนถัดไป"
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {/* ปิดชั่วคราวจนกว่า Step 5C จะใช้ POST download ที่บันทึกเหตุการณ์บนเชน */}
+            <Download className="h-4 w-4" />
             ดาวน์โหลดภาพ
           </button>
           {isAdmin && (
@@ -128,20 +110,25 @@ export default function EvidenceDetailPage() {
         {/* Left: Image */}
         <div className="space-y-6 lg:col-span-2">
           <figure className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
-            {evidence.thumbnail_url ? (
-              // พื้นเข้ม + object-contain เพื่อให้เห็นภาพหลักฐานเต็มเฟรม ไม่โดนครอบ
-              <div className="flex items-center justify-center bg-slate-900" style={{ minHeight: 320 }}>
-                <img src={evidence.thumbnail_url} alt={evidence.description || evidence.original_filename} className="max-h-[540px] w-full object-contain" />
-              </div>
-            ) : (
-              // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
-              // (endpoint ดูรูปมีแล้วที่ /api/evidence-files/{file_id})
+            <div className="flex items-center justify-center bg-slate-900" style={{ minHeight: 320 }}>
+              <EvidencePreviewImage
+                fileId={evidence.display_file_id}
+                alt={evidence.description || evidence.original_filename}
+                className="max-h-[540px] w-full object-contain"
+                fallback={
+                  <div className="flex w-full flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
+                    <ImageOff className="h-8 w-8 text-muted" />
+                    <p className="text-sm text-muted">ไม่สามารถแสดงภาพตัวอย่างได้</p>
+                  </div>
+                }
+                loadingFallback={
               <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
-                <ImageOff className="h-8 w-8 text-muted" />
-                <p className="text-sm text-muted">ยังแสดงรูปไม่ได้</p>
-                <p className="text-xs text-muted">ไฟล์ถูกเก็บไว้แล้ว แต่ API ยังไม่ส่ง file_id กลับมา</p>
+                <Loader2 className="h-8 w-8 animate-spin text-muted" />
+                <p className="text-sm text-muted">กำลังโหลดภาพตัวอย่าง</p>
               </div>
-            )}
+                }
+              />
+            </div>
             <figcaption className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 text-xs text-muted">
               <span className="inline-flex items-center gap-1.5 truncate">
                 <ImageIcon className="h-3.5 w-3.5 flex-shrink-0" /> {evidence.original_filename}

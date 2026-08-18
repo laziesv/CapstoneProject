@@ -9,12 +9,13 @@ import { caseService, evidenceService } from "@/services";
 import { visibleCases, canCreateCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
+import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 
 /** รูปหลักฐานที่อัพโหลดล่าสุดของคดี (ใช้เป็นภาพปกการ์ด) */
 const coverOf = (evidence: EvidenceItem[], caseId: string) =>
   evidence
-    .filter((e) => e.case_id === caseId && e.thumbnail_url)
-    .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))[0]?.thumbnail_url;
+    .filter((e) => e.case_id === caseId && e.display_file_id)
+    .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))[0]?.display_file_id;
 
 /** จำนวนหลักฐานจริงของคดี (คดีสร้างใหม่ยังไม่มีหลักฐาน) */
 const evidenceCountOf = (evidence: EvidenceItem[], caseId: string) =>
@@ -112,18 +113,17 @@ export default function CasesPage() {
               >
                 {/* Cover */}
                 <div className="relative aspect-video overflow-hidden bg-slate-100">
-                  {cover ? (
-                    <img
-                      src={cover}
-                      alt={c.title}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                  ) : (
+                  <EvidencePreviewImage
+                    fileId={cover}
+                    alt={c.title}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    fallback={
                     <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-primary-light/40">
                       <FolderOpen className="h-8 w-8 text-slate-400" />
                       <span className="text-xs text-muted">ยังไม่มีหลักฐาน</span>
                     </div>
-                  )}
+                    }
+                  />
                 </div>
 
                 {/* Body */}
