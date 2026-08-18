@@ -12,6 +12,7 @@
 // │                { case_id, description?, captured_at? }               │
 // │      uploaded_by มาจาก token (ไม่ต้องส่ง) · server คำนวณ SHA-256 จริง  │
 // │ GET  /api/evidence-files/{file_id}  → ไฟล์รูป (FileResponse)          │
+// │ GET  /api/evidences/{id}/chain-of-custody → ChainOfCustodyResponse   │
 // └──────────────────────────────────────────────────────────────────────┘
 //
 // TODO(backend): ยังไม่มี GET /api/evidences/{id} — get() จึงดึงลิสต์มาหาเอง
@@ -23,6 +24,7 @@ import type {
   UploadEvidenceInput,
   UploadedEvidenceRef,
   EvidenceApiResponse,
+  ChainOfCustodyResponse,
 } from "@/interfaces";
 import { mockTx } from "@/utils/mockData";
 import { request, requestBlob } from "./client";
@@ -57,6 +59,13 @@ function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
 }
 
 export const evidenceService = {
+  /** โหลด Chain of Custody ที่ backend ตรวจสอบกับ private Blockchain แล้ว */
+  getChainOfCustody(evidenceId: string): Promise<ChainOfCustodyResponse> {
+    return request<ChainOfCustodyResponse>(
+      `/api/evidences/${encodeURIComponent(evidenceId)}/chain-of-custody`
+    );
+  },
+
   /** โหลดภาพตัวอย่างที่ฝังลายน้ำแล้วผ่าน Bearer token */
   preview(fileId: string): Promise<Blob> {
     return requestBlob(`/api/evidence-files/${encodeURIComponent(fileId)}`);
