@@ -14,6 +14,10 @@ from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
 from app.models.enums import FileType
+from app.integrations.blockchain import BlockchainIntegrationService
+from app.integrations.blockchain.transaction_repository import (
+    BlockchainTransactionRepository,
+)
 
 # mainyy.py ใช้ implicit import (from clTBwavelet import ...) จึงต้องมีโฟลเดอร์
 # watermark อยู่บน sys.path ก่อน import — ทำที่นี่เพื่อไม่ต้องแก้โค้ดในโฟลเดอร์ watermark
@@ -57,7 +61,13 @@ class EvidenceService:
 
 
     @staticmethod
-    def upload(db: Session, data, upload_file: UploadFile, uploaded_by):
+    def upload(
+        db: Session,
+        data,
+        upload_file: UploadFile,
+        uploaded_by,
+        blockchain_service=None,
+    ):
         # Blockchain integration:
         # DB rollback cannot undo filesystem writes, so track files created by this
         # upload and remove them when the orchestration fails.
@@ -140,12 +150,32 @@ class EvidenceService:
             )
             EvidenceFileRepository.create(db, watermarked_file)
 
-            evidence.is_watermarked = True
+            # ── บันทึกหลักฐานลง blockchain ──
+            service = blockchain_service or BlockchainIntegrationService()
+            blockchain_result = service.record_evidence(
+                evidence_id=evidence.evidence_id,
+                evidence_hash=file_hash,
+                uploader_user_id=uploaded_by,
+            )
+            BlockchainTransactionRepository.stage_evidence_registration(
+                db,
+                tx_hash=blockchain_result["tx_hash"],
+                evidence_id=evidence.evidence_id,
+                initiated_by=uploaded_by,
+                block_number=blockchain_result["block_number"],
+                contract_address=blockchain_result["contract_address"],
+            )
 
+            evidence.is_watermarked = True
+            evidence.is_blockchain_verified = True
+
+            # Blockchain integration: A confirmed chain write cannot be rolled back
+            # if this final database commit subsequently fails.
             db.commit()
             db.refresh(evidence)
 
             return evidence
+
 
         except Exception:
             db.rollback()

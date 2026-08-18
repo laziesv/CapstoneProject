@@ -21,7 +21,10 @@ watermark_stub = ModuleType("app.watermark.mainyy")
 watermark_stub.DigitalWatermarkingSystem = Mock
 sys.modules["app.watermark.mainyy"] = watermark_stub
 
-from app.models.enums import FileType
+from app.integrations.blockchain.transaction_repository import (
+    BlockchainTransactionRepository,
+)
+from app.models.enums import BlockchainAction, FileType
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.services.evidence_service import EvidenceService
 
@@ -38,6 +41,29 @@ class EvidenceFileRepositoryTests(TestCase):
         db.commit.assert_not_called()
         db.refresh.assert_not_called()
         self.assertIs(result, evidence_file)
+
+
+class BlockchainTransactionRepositoryTests(TestCase):
+    def test_registration_metadata_is_staged_without_commit(self) -> None:
+        db = Mock()
+
+        transaction = BlockchainTransactionRepository.stage_evidence_registration(
+            db,
+            tx_hash="0x" + "a" * 64,
+            evidence_id="11111111-1111-4111-8111-111111111111",
+            initiated_by="22222222-2222-4222-8222-222222222222",
+            block_number=6500,
+            contract_address="0x1111111111111111111111111111111111111111",
+        )
+
+        self.assertEqual(transaction.action_type, BlockchainAction.REGISTER)
+        self.assertEqual(transaction.status, "confirmed")
+        self.assertIsNone(transaction.input_data_hash)
+        self.assertIsNone(transaction.gas_used)
+        self.assertIsNone(transaction.block_timestamp)
+        db.add.assert_called_once_with(transaction)
+        db.flush.assert_called_once_with()
+        db.commit.assert_not_called()
 
 
 class EvidenceUploadTransactionTests(TestCase):
@@ -61,6 +87,12 @@ class EvidenceUploadTransactionTests(TestCase):
 
         watermark_system = Mock()
         watermark_system.embed.side_effect = lambda channel, **_kwargs: channel
+        blockchain_service = Mock()
+        blockchain_service.record_evidence.return_value = {
+            "tx_hash": "0x" + "c" * 64,
+            "block_number": 6500,
+            "contract_address": "0x1111111111111111111111111111111111111111",
+        }
 
         with (
             patch("app.services.evidence_service.os.makedirs"),
@@ -96,12 +128,17 @@ class EvidenceUploadTransactionTests(TestCase):
                 "create",
                 side_effect=stage_file,
             ) as create_file,
+            patch.object(
+                BlockchainTransactionRepository,
+                "stage_evidence_registration",
+            ) as stage_transaction,
         ):
             evidence = EvidenceService.upload(
                 db,
                 data,
                 upload_file,
                 uploaded_by="22222222-2222-4222-8222-222222222222",
+                blockchain_service=blockchain_service,
             )
 
         self.assertEqual(events, ["file:ORIGINAL", "file:WATERMARKED", "commit"])
@@ -114,6 +151,20 @@ class EvidenceUploadTransactionTests(TestCase):
         )
         self.assertEqual(staged_files[0].file_hash, "a" * 64)
         self.assertEqual(staged_files[1].file_hash, "b" * 64)
+        blockchain_service.record_evidence.assert_called_once_with(
+            evidence_id=evidence.evidence_id,
+            evidence_hash="a" * 64,
+            uploader_user_id="22222222-2222-4222-8222-222222222222",
+        )
+        stage_transaction.assert_called_once_with(
+            db,
+            tx_hash="0x" + "c" * 64,
+            evidence_id=evidence.evidence_id,
+            initiated_by="22222222-2222-4222-8222-222222222222",
+            block_number=6500,
+            contract_address="0x1111111111111111111111111111111111111111",
+        )
+        self.assertTrue(evidence.is_blockchain_verified)
         remove_file.assert_not_called()
 
     def test_failure_after_original_creation_removes_original(self) -> None:
@@ -236,3 +287,148 @@ class EvidenceUploadTransactionTests(TestCase):
 
         db.rollback.assert_called_once_with()
         remove_file.assert_not_called()
+
+    def test_disabled_blockchain_rolls_back_files_without_metadata(self) -> None:
+        db = Mock()
+        upload_file = SimpleNamespace(filename="synthetic.png", file=Mock())
+        data = SimpleNamespace(case_id=Mock(), description=None, captured_at=None)
+        image = Mock()
+        channel = MagicMock()
+        channel.shape = (8, 8)
+        blockchain_service = Mock()
+        blockchain_service.record_evidence.side_effect = RuntimeError(
+            "blockchain integration is disabled"
+        )
+
+        with (
+            patch("app.services.evidence_service.os.makedirs"),
+            patch(
+                "app.services.evidence_service.os.path.exists",
+                side_effect=[False, False, True, True],
+            ),
+            patch("app.services.evidence_service.os.remove") as remove_file,
+            patch("app.services.evidence_service.open", mock_open()),
+            patch("app.services.evidence_service.shutil.copyfileobj"),
+            patch(
+                "app.services.evidence_service.calculate_sha256",
+                side_effect=["a" * 64, "b" * 64],
+            ),
+            patch(
+                "app.services.evidence_service.os.path.getsize",
+                side_effect=[100, 90],
+            ),
+            patch("app.services.evidence_service.cv2.imread", return_value=image),
+            patch(
+                "app.services.evidence_service.cv2.cvtColor",
+                side_effect=["ycrcb", "watermarked-image"],
+            ),
+            patch(
+                "app.services.evidence_service.cv2.split",
+                return_value=(channel, channel, channel),
+            ),
+            patch("app.services.evidence_service.cv2.merge", return_value="merged"),
+            patch("app.services.evidence_service.cv2.imwrite", return_value=True),
+            patch("app.services.evidence_service.DigitalWatermarkingSystem") as system,
+            patch(
+                "app.services.evidence_service.EvidenceRepository.create",
+                side_effect=lambda _db, evidence: evidence,
+            ) as create_evidence,
+            patch.object(
+                EvidenceFileRepository,
+                "create",
+                side_effect=lambda _db, evidence_file: evidence_file,
+            ),
+            patch.object(
+                BlockchainTransactionRepository,
+                "stage_evidence_registration",
+            ) as stage_transaction,
+        ):
+            system.return_value.embed.return_value = channel
+            with self.assertRaisesRegex(RuntimeError, "disabled"):
+                EvidenceService.upload(
+                    db,
+                    data,
+                    upload_file,
+                    uploaded_by="22222222-2222-4222-8222-222222222222",
+                    blockchain_service=blockchain_service,
+                )
+
+        evidence = create_evidence.call_args.args[1]
+        blockchain_service.record_evidence.assert_called_once_with(
+            evidence_id=evidence.evidence_id,
+            evidence_hash="a" * 64,
+            uploader_user_id="22222222-2222-4222-8222-222222222222",
+        )
+        stage_transaction.assert_not_called()
+        self.assertIsNot(evidence.is_blockchain_verified, True)
+        db.commit.assert_not_called()
+        db.rollback.assert_called_once_with()
+        self.assertEqual(remove_file.call_count, 2)
+
+    def test_commit_failure_does_not_retry_confirmed_chain_write(self) -> None:
+        db = Mock()
+        db.commit.side_effect = RuntimeError("database commit failed")
+        upload_file = SimpleNamespace(filename="synthetic.png", file=Mock())
+        data = SimpleNamespace(case_id=Mock(), description=None, captured_at=None)
+        image = Mock()
+        channel = MagicMock()
+        channel.shape = (8, 8)
+        blockchain_service = Mock()
+        blockchain_service.record_evidence.return_value = {
+            "tx_hash": "0x" + "c" * 64,
+            "block_number": 6500,
+            "contract_address": "0x1111111111111111111111111111111111111111",
+        }
+
+        with (
+            patch("app.services.evidence_service.os.makedirs"),
+            patch(
+                "app.services.evidence_service.os.path.exists",
+                side_effect=[False, False, True, True],
+            ),
+            patch("app.services.evidence_service.os.remove") as remove_file,
+            patch("app.services.evidence_service.open", mock_open()),
+            patch("app.services.evidence_service.shutil.copyfileobj"),
+            patch(
+                "app.services.evidence_service.calculate_sha256",
+                side_effect=["a" * 64, "b" * 64],
+            ),
+            patch(
+                "app.services.evidence_service.os.path.getsize",
+                side_effect=[100, 90],
+            ),
+            patch("app.services.evidence_service.cv2.imread", return_value=image),
+            patch(
+                "app.services.evidence_service.cv2.cvtColor",
+                side_effect=["ycrcb", "watermarked-image"],
+            ),
+            patch(
+                "app.services.evidence_service.cv2.split",
+                return_value=(channel, channel, channel),
+            ),
+            patch("app.services.evidence_service.cv2.merge", return_value="merged"),
+            patch("app.services.evidence_service.cv2.imwrite", return_value=True),
+            patch("app.services.evidence_service.DigitalWatermarkingSystem") as system,
+            patch.object(
+                EvidenceFileRepository,
+                "create",
+                side_effect=lambda _db, evidence_file: evidence_file,
+            ),
+            patch.object(
+                BlockchainTransactionRepository,
+                "stage_evidence_registration",
+            ),
+        ):
+            system.return_value.embed.return_value = channel
+            with self.assertRaisesRegex(RuntimeError, "database commit failed"):
+                EvidenceService.upload(
+                    db,
+                    data,
+                    upload_file,
+                    uploaded_by="22222222-2222-4222-8222-222222222222",
+                    blockchain_service=blockchain_service,
+                )
+
+        blockchain_service.record_evidence.assert_called_once()
+        db.rollback.assert_called_once_with()
+        self.assertEqual(remove_file.call_count, 2)

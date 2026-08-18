@@ -168,6 +168,7 @@ class BlockchainIntegrationTests(TestCase):
         self.assertEqual(result["uploader_ref"], derive_actor_ref(UPLOADER_ID))
         self.assertEqual(result["tx_hash"], TX_HASH)
         self.assertEqual(result["block_number"], 6500)
+        self.assertEqual(result["contract_address"], CONTRACT_ADDRESS)
         self.assertNotIn(secret, repr(result))
 
     def test_record_access_derives_v2_arguments(self) -> None:
