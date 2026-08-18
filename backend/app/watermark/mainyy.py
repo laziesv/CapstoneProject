@@ -222,7 +222,12 @@ class DigitalWatermarkingSystem:
 
         return float_to_display(host_wm_f32)
 
-    def extract(self, suspected_image: np.ndarray, reference_image: np.ndarray, dynamic_hash: str) -> tuple[np.ndarray, np.ndarray]:
+    def extract(
+        self,
+        suspected_image: np.ndarray,
+        reference_image: np.ndarray,
+        dynamic_hash: str | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         กระบวนการสกัดลายน้ำสำหรับการ Verify ข้อมูลดิจิทัล (รับ Input แบบ np.ndarray)
         คืนค่า: Tuple ของภาพ QR Code (Static, Dynamic) ในรูปแบบ np.ndarray
@@ -232,9 +237,8 @@ class DigitalWatermarkingSystem:
         suspected_image = cv2.resize(suspected_image, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
         reference_image = cv2.resize(reference_image, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
         # -------------------------------------------------------------------------
-        # สร้าง Seed ตอนถอดกลับเพื่อให้ตรงกับตอนฝัง
-        seed_value = int(hashlib.sha256(dynamic_hash.encode('utf-8')).hexdigest(), 16) % (10**8)
-        np.random.seed(seed_value)
+        # เก็บ dynamic_hash ไว้เพื่อรองรับ caller เดิมเท่านั้น การสกัดไม่ต้องทราบค่านี้ล่วงหน้า
+        _ = dynamic_hash
 
         divisor = 2 ** self.level
         host_f32 = pad_to_multiple(reference_image.astype(np.float32), divisor)

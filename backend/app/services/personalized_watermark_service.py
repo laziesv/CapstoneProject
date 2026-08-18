@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -16,9 +17,15 @@ if _WATERMARK_DIR not in sys.path:
     sys.path.insert(0, _WATERMARK_DIR)
 
 from app.watermark.mainyy import DigitalWatermarkingSystem
+from app.watermark.clQRcodec import clQRcodec
 
 
 PERSONALIZED_TEMP_ROOT = Path(tempfile.gettempdir()) / "deva_personalized_downloads"
+_CANONICAL_ACCESS_SESSION_REF = re.compile(r"^0x[0-9a-fA-F]{64}$")
+
+
+class PersonalizedWatermarkExtractionError(Exception):
+    """Raised when an access session reference cannot be recovered safely."""
 
 
 @dataclass(frozen=True)
@@ -81,6 +88,52 @@ class PersonalizedWatermarkService:
         except Exception:
             remove_personalized_copy(temporary_path)
             raise
+
+    def extract_access_session_ref(
+        self,
+        *,
+        personalized_path: str,
+        original_path: str,
+    ) -> str:
+        personalized_file = Path(personalized_path)
+        original_file = Path(original_path)
+        if not personalized_file.is_file() or not original_file.is_file():
+            raise PersonalizedWatermarkExtractionError(
+                "Personalized image and original reference image are required"
+            )
+
+        try:
+            personalized = cv2.imread(str(personalized_file), cv2.IMREAD_COLOR)
+            original = cv2.imread(str(original_file), cv2.IMREAD_COLOR)
+            if personalized is None or original is None:
+                raise PersonalizedWatermarkExtractionError(
+                    "Unable to read watermark extraction images"
+                )
+
+            personalized_y = cv2.split(
+                cv2.cvtColor(personalized, cv2.COLOR_BGR2YCrCb)
+            )[0]
+            # ใช้ไฟล์ ORIGINAL ที่ระบบเก็บไว้เป็น reference ของ codec เท่านั้น
+            original_y = cv2.split(
+                cv2.cvtColor(original, cv2.COLOR_BGR2YCrCb)
+            )[0]
+            _, dynamic_qr = DigitalWatermarkingSystem().extract(
+                personalized_y,
+                original_y,
+            )
+            recovered = clQRcodec.decodeQR(dynamic_qr)
+        except PersonalizedWatermarkExtractionError:
+            raise
+        except Exception as exc:
+            raise PersonalizedWatermarkExtractionError(
+                "Unable to extract access session reference"
+            ) from exc
+
+        if not _CANONICAL_ACCESS_SESSION_REF.fullmatch(recovered):
+            raise PersonalizedWatermarkExtractionError(
+                "Extracted access session reference is malformed"
+            )
+        return "0x" + recovered[2:].lower()
 
 
 def remove_personalized_copy(file_path: str) -> None:
