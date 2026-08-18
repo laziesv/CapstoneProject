@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy.orm import Session
 
 from app.models.users import User
@@ -51,7 +53,8 @@ class UserRepository:
     @staticmethod
     def list_active(
         db: Session,
-    ) -> list[User]:
+    # ใช้ List เพื่อไม่ให้ชนกับชื่อเมธอด list ที่ประกาศไว้ก่อนหน้า
+    ) -> List[User]:
         """เฉพาะผู้ใช้ที่ยังใช้งานอยู่ — ใช้กับ dropdown เลือกผู้รับผิดชอบ"""
         return (
             db.query(User)
