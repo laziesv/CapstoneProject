@@ -2,13 +2,15 @@ import json
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
 from app.models.users import User
+from app.repositories.case_repository import CaseRepository
 from app.schemas.evidence import EvidenceCreate, EvidenceResponse
+from app.services.case_authorization import can_access_case
 from app.services.evidence_service import EvidenceService
 
 
@@ -50,7 +52,27 @@ def list_all(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if case_id is not None:
+        case = CaseRepository.get_by_id(db, case_id)
+        if case is None or not can_access_case(db, current_user, case):
+            raise HTTPException(status_code=404, detail="Case not found")
+
     items = EvidenceService.get_all(db, case_id)
+    if case_id is None:
+        access_by_case = {}
+        visible_items = []
+        for item in items:
+            case = item.case
+            if case is None or case.deleted_at is not None:
+                continue
+            allowed = access_by_case.get(case.case_id)
+            if allowed is None:
+                allowed = can_access_case(db, current_user, case)
+                access_by_case[case.case_id] = allowed
+            if allowed:
+                visible_items.append(item)
+        items = visible_items
+
     responses = [EvidenceResponse.model_validate(it) for it in items]
 
     # SHA-256 hash เปิดเผยลายนิ้วมือของไฟล์ — เห็นได้เฉพาะ admin
