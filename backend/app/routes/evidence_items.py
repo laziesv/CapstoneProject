@@ -14,12 +14,22 @@ from app.schemas.evidence import EvidenceCreate, EvidenceResponse
 from app.services.case_authorization import can_access_case
 from app.services.evidence_service import EvidenceService
 from app.services.evidence_access_service import EvidenceAccessService
+from app.services.personalized_watermark_service import remove_personalized_copy
 
 
 router = APIRouter(
     prefix="/evidences",
     tags=["Evidence"]
 )
+
+
+class _TemporaryFileResponse(FileResponse):
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            # ลบสำเนาเฉพาะบุคคลทั้งเมื่อส่งสำเร็จและเมื่อ streaming ล้มเหลว
+            remove_personalized_copy(self.path)
 
 
 @router.post("/{evidence_id}/download")
@@ -36,11 +46,15 @@ def download(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
-    return FileResponse(
-        path=download_file.file_path,
-        filename=download_file.filename,
-        media_type="application/octet-stream",
-    )
+    try:
+        return _TemporaryFileResponse(
+            path=download_file.file_path,
+            filename=download_file.filename,
+            media_type="application/octet-stream",
+        )
+    except Exception:
+        remove_personalized_copy(download_file.file_path)
+        raise
 
 
 @router.post(

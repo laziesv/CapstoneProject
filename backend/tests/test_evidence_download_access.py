@@ -23,11 +23,13 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             assigned_officer=None,
         )
         self.file = SimpleNamespace(file_path="watermarked.png")
+        self.original_file = SimpleNamespace(file_path="original.png")
         self.evidence = SimpleNamespace(
             evidence_id=uuid4(),
             evidence_number="EV-TEST",
             case_id=self.case.case_id,
             original_filename="evidence.png",
+            original_file=self.original_file,
             watermarked_file=self.file,
         )
         self.access_log = SimpleNamespace(log_id=uuid4(), tx_internal_id=None)
@@ -38,6 +40,10 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             "block_number": 7000,
             "contract_address": "0x" + "2" * 40,
         }
+        self.watermark = MagicMock()
+        self.watermark.create_personalized_copy.return_value = SimpleNamespace(
+            file_path="personalized.png",
+        )
 
     def prepare(self):
         with (
@@ -73,6 +79,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                 ip_address="127.0.0.1",
                 user_agent="test-agent",
                 blockchain_service=self.blockchain,
+                watermark_service=self.watermark,
             )
         return result, stage_log, stage_transaction
 
@@ -101,7 +108,9 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         )
         self.assertEqual(self.access_log.tx_internal_id, self.transaction.tx_internal_id)
         self.db.commit.assert_called_once_with()
-        self.assertEqual(result.file_path, self.file.file_path)
+        self.assertEqual(result.file_path, "personalized.png")
+        self.assertNotEqual(result.file_path, self.original_file.file_path)
+        self.assertNotEqual(result.file_path, self.file.file_path)
 
     def test_authorization_happens_before_staging_or_chain_write(self):
         with (
@@ -132,6 +141,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                     ip_address=None,
                     user_agent=None,
                     blockchain_service=self.blockchain,
+                    watermark_service=self.watermark,
                 )
 
         self.assertEqual(raised.exception.status_code, 404)
@@ -163,6 +173,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                     ip_address=None,
                     user_agent=None,
                     blockchain_service=self.blockchain,
+                    watermark_service=self.watermark,
                 )
         self.assertEqual(raised.exception.status_code, 404)
         self.blockchain.record_access.assert_not_called()
@@ -197,6 +208,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                     ip_address=None,
                     user_agent=None,
                     blockchain_service=self.blockchain,
+                    watermark_service=self.watermark,
                 )
         self.assertEqual(raised.exception.status_code, 404)
         stage_log.assert_not_called()
