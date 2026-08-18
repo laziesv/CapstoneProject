@@ -2,7 +2,8 @@ import json
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,12 +13,34 @@ from app.repositories.case_repository import CaseRepository
 from app.schemas.evidence import EvidenceCreate, EvidenceResponse
 from app.services.case_authorization import can_access_case
 from app.services.evidence_service import EvidenceService
+from app.services.evidence_access_service import EvidenceAccessService
 
 
 router = APIRouter(
     prefix="/evidences",
     tags=["Evidence"]
 )
+
+
+@router.post("/{evidence_id}/download")
+def download(
+    evidence_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    download_file = EvidenceAccessService.prepare_download(
+        db,
+        evidence_id=evidence_id,
+        current_user=current_user,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    return FileResponse(
+        path=download_file.file_path,
+        filename=download_file.filename,
+        media_type="application/octet-stream",
+    )
 
 
 @router.post(

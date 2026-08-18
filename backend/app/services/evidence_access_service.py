@@ -1,0 +1,84 @@
+import os
+from dataclasses import dataclass
+from uuid import UUID
+
+from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app.integrations.blockchain import BlockchainIntegrationService
+from app.integrations.blockchain.transaction_repository import (
+    BlockchainTransactionRepository,
+)
+from app.models.users import User
+from app.repositories.access_log_repository import AccessLogRepository
+from app.repositories.case_repository import CaseRepository
+from app.repositories.evidence_items_repository import EvidenceRepository
+from app.services.case_authorization import can_access_case
+
+
+@dataclass(frozen=True)
+class EvidenceDownload:
+    file_path: str
+    filename: str
+
+
+class EvidenceAccessService:
+    @staticmethod
+    def prepare_download(
+        db: Session,
+        *,
+        evidence_id: UUID,
+        current_user: User,
+        ip_address: str | None,
+        user_agent: str | None,
+        blockchain_service: BlockchainIntegrationService | None = None,
+    ) -> EvidenceDownload:
+        evidence = EvidenceRepository.get_by_id(db, evidence_id)
+        case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None
+        if case is None or not can_access_case(db, current_user, case):
+            raise HTTPException(status_code=404, detail="Evidence not found")
+
+        watermarked_file = evidence.watermarked_file
+        if (
+            watermarked_file is None
+            or not watermarked_file.file_path
+            or not os.path.isfile(watermarked_file.file_path)
+        ):
+            raise HTTPException(status_code=404, detail="Evidence not found")
+
+        try:
+            access_log = AccessLogRepository.stage_download(
+                db,
+                user_id=current_user.user_id,
+                evidence_id=evidence.evidence_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+            service = blockchain_service or BlockchainIntegrationService()
+            chain_result = service.record_access(
+                evidence_id=evidence.evidence_id,
+                officer_user_id=current_user.user_id,
+                access_log_id=access_log.log_id,
+            )
+            transaction = BlockchainTransactionRepository.stage_access(
+                db,
+                tx_hash=chain_result["tx_hash"],
+                evidence_id=evidence.evidence_id,
+                initiated_by=current_user.user_id,
+                block_number=chain_result["block_number"],
+                contract_address=chain_result["contract_address"],
+            )
+            access_log.tx_internal_id = transaction.tx_internal_id
+
+            # การเชื่อมต่อ Blockchain: หาก commit ล้มเหลวหลังเชนยืนยัน ห้ามส่งธุรกรรมซ้ำอัตโนมัติ
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            if isinstance(exc, HTTPException):
+                raise
+            raise HTTPException(status_code=503, detail="Evidence download could not be recorded") from exc
+
+        filename = os.path.basename(
+            evidence.original_filename or f"{evidence.evidence_number}.bin"
+        )
+        return EvidenceDownload(file_path=watermarked_file.file_path, filename=filename)

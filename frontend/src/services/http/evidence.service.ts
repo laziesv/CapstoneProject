@@ -62,6 +62,13 @@ export const evidenceService = {
     return requestBlob(`/api/evidence-files/${encodeURIComponent(fileId)}`);
   },
 
+  /** ดาวน์โหลดไฟล์ผ่าน POST เพื่อให้ backend บันทึกเหตุการณ์การเข้าถึงเพียงครั้งเดียว */
+  download(evidenceId: string): Promise<Blob> {
+    return requestBlob(`/api/evidences/${encodeURIComponent(evidenceId)}/download`, {
+      method: "POST",
+    });
+  },
+
   /** รายการหลักฐาน (กรองตามคดีได้ — กรองฝั่ง server) */
   async list(filters: { case_id?: string } = {}): Promise<EvidenceItem[]> {
     const qs = filters.case_id ? `?case_id=${encodeURIComponent(filters.case_id)}` : "";

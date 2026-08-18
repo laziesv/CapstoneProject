@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download } from "lucide-react";
@@ -21,6 +21,8 @@ export default function EvidenceDetailPage() {
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
   const [relatedTx, setRelatedTx] = useState<BlockchainTx[]>([]);
   const [relatedLogs, setRelatedLogs] = useState<AccessLog[]>([]);
+  const [downloading, setDownloading] = useState(false);
+  const downloadInProgress = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -55,6 +57,27 @@ export default function EvidenceDetailPage() {
   // ข้อมูลเชิงลึก (hash/blockchain/logs/watermark) เปิดเผยกลไกภายใน — เฉพาะ admin
   const allowed = isAdmin ? true : caseData ? canSeeCase(user, caseData, supervisorMap) : false;
 
+  const handleDownload = async () => {
+    if (downloadInProgress.current) return;
+    downloadInProgress.current = true;
+    setDownloading(true);
+    try {
+      const blob = await evidenceService.download(evidence.evidence_id);
+      const url = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = evidence.original_filename || `${evidence.evidence_number}.bin`;
+        anchor.click();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } finally {
+      downloadInProgress.current = false;
+      setDownloading(false);
+    }
+  };
+
   if (!allowed) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
@@ -81,12 +104,11 @@ export default function EvidenceDetailPage() {
         </div>
         <div className="flex flex-col items-end gap-2">
           <button
-            disabled
-            title="รอระบบบันทึกการดาวน์โหลดลง Blockchain ในขั้นตอนถัดไป"
+            onClick={handleDownload}
+            disabled={downloading}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
-            {/* ปิดชั่วคราวจนกว่า Step 5C จะใช้ POST download ที่บันทึกเหตุการณ์บนเชน */}
-            <Download className="h-4 w-4" />
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             ดาวน์โหลดภาพ
           </button>
           {isAdmin && (

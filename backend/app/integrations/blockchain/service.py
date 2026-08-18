@@ -100,6 +100,7 @@ class BlockchainIntegrationService:
             "access_session_ref": access_session_ref,
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
+            "contract_address": result.contract_address,
         }
 
     def get_chain_of_custody(
