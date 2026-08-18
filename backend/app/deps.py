@@ -83,3 +83,19 @@ def get_admin_user(
             detail="ต้องมีสิทธิ์ผู้ดูแลระบบ",
         )
     return current_user
+
+
+def require_roles(*roles: str):
+    """สร้าง dependency ที่อนุญาตเฉพาะ role ที่กำหนด (ต้องล็อกอินก่อน)
+    ใช้คุมสิทธิ์รายการที่ไม่ใช่แค่ admin เช่น สร้างคดี (investigator) / อัปโหลด (investigator, officer)"""
+    def dependency(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
+        if current_user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="ไม่มีสิทธิ์ทำรายการนี้",
+            )
+        return current_user
+
+    return dependency

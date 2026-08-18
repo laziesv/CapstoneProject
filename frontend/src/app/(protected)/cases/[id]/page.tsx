@@ -9,6 +9,7 @@ import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import ProtectedImage from "@/components/ProtectedImage";
 import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
+import { canAccess } from "@/config/permissions";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
 
@@ -77,8 +78,8 @@ export default function CaseDetailPage() {
       {/* Evidence in Case */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Evidence ({evidenceList.length})</h2>
-        {/* อัพโหลดได้เฉพาะผู้รับผิดชอบคดี (non-admin ที่ผ่าน guard มาถึงตรงนี้ = รับผิดชอบ) */}
-        {user.role !== "admin" && (
+        {/* อัพโหลดได้เฉพาะ investigator/officer (ตาม canAccess — admin/viewer ไม่ได้) */}
+        {canAccess(user.role, "/evidence/upload") && (
           <Link
             href={`/evidence/upload?case=${caseData.case_id}`}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"

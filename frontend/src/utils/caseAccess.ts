@@ -4,6 +4,7 @@
 //                การกรองฝั่ง client คือ "ซ่อน UI" ไม่ใช่การรักษาความปลอดภัย
 
 import type { Case } from "@/interfaces";
+import { canAccess } from "@/config/permissions";
 
 // ยศตำรวจไทย เรียงจากสูง → ต่ำ (index น้อย = ยศสูง)
 export const POLICE_RANKS = [
@@ -48,10 +49,9 @@ interface AccessUser {
   rank?: string | null;
 }
 
-/** สร้างคดีได้เมื่อ: ไม่ใช่ admin และยศถึงชั้นสัญญาบัตร */
+/** สร้างคดีได้ตามสิทธิ์ role (แหล่งเดียวกับ RouteGuard/backend) — ปัจจุบัน = investigator */
 export function canCreateCase(user?: AccessUser | null): boolean {
-  if (!user || user.role === "admin") return false;
-  return canCreateByRank(user.rank);
+  return !!user?.role && canAccess(user.role, "/cases/new");
 }
 
 /** mapping user_id → user_id ของหัวหน้า (null = ไม่มีหัวหน้า)
