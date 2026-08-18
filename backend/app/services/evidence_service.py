@@ -1,10 +1,11 @@
 import os
 import sys
 import uuid
-import shutil
+from pathlib import Path
 from datetime import datetime
 
 import cv2
+import numpy as np
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
@@ -15,14 +16,20 @@ from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
 from app.models.enums import FileType
 
-# mainyy.py ใช้ implicit import (from clTBwavelet import ...) จึงต้องมีโฟลเดอร์
-# watermark อยู่บน sys.path ก่อน import — ทำที่นี่เพื่อไม่ต้องแก้โค้ดในโฟลเดอร์ watermark
-_WM_DIR = os.path.join(os.path.dirname(__file__), "..", "watermark")
+
+_WM_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "watermark")
+)
+
 if _WM_DIR not in sys.path:
     sys.path.insert(0, _WM_DIR)
+
 from app.watermark.mainyy import DigitalWatermarkingSystem
 
+
 UPLOAD_DIR = "uploads/evidence"
+ORIGINAL_DIR = os.path.join(UPLOAD_DIR, "original")
+WATERMARKED_DIR = os.path.join(UPLOAD_DIR, "watermarked")
 
 
 class EvidenceService:
@@ -31,49 +38,76 @@ class EvidenceService:
     def generate_evidence_number():
         timestamp = datetime.now().strftime("%Y%m%d")
         random_id = uuid.uuid4().hex[:6].upper()
-
         return f"EV-{timestamp}-{random_id}"
 
-
     @staticmethod
-    def get_file(
-        db: Session,
-        file_id
-    ):
-
-        return EvidenceFileRepository.get_by_id(
-            db,
-            file_id
-        )
-
+    def get_file(db: Session, file_id):
+        return EvidenceFileRepository.get_by_id(db, file_id)
 
     @staticmethod
     def get_by_id(db: Session, evidence_id):
-        """หลักฐานตาม id (None ถ้าไม่พบ)"""
         return EvidenceRepository.get_by_id(db, evidence_id)
-
 
     @staticmethod
     def get_all(db: Session, case_id=None):
-        """หลักฐานทั้งหมด กรองตามคดีได้"""
         if case_id:
             return EvidenceRepository.get_by_case(db, case_id)
 
         return EvidenceRepository.get_all(db)
 
-
     @staticmethod
-    def upload(db: Session, data, upload_file: UploadFile, uploaded_by):
-
+    def upload(
+        db: Session,
+        data,
+        upload_file: UploadFile,
+        uploaded_by
+    ):
         try:
-            os.makedirs(UPLOAD_DIR, exist_ok=True)
+            os.makedirs(ORIGINAL_DIR, exist_ok=True)
+            os.makedirs(WATERMARKED_DIR, exist_ok=True)
+
+            original_filename = upload_file.filename
+
+            if not original_filename:
+                raise ValueError("ไม่พบชื่อไฟล์")
+
+            if (
+                not upload_file.content_type
+                or not upload_file.content_type.startswith("image/")
+            ):
+                raise ValueError("รองรับเฉพาะไฟล์ภาพเท่านั้น")
 
             file_id = uuid.uuid4()
-            filename = f"{file_id}_{upload_file.filename}"
-            file_path = os.path.join(UPLOAD_DIR, filename)
+            extension = Path(original_filename).suffix.lower()
+
+            if not extension:
+                raise ValueError("ไม่พบประเภทไฟล์")
+
+            file_path = os.path.join(
+                ORIGINAL_DIR,
+                f"{file_id}{extension}"
+            )
+
+            file_bytes = upload_file.file.read()
+
+            if not file_bytes:
+                raise ValueError("ไฟล์ว่าง")
+
+            image_array = np.frombuffer(
+                file_bytes,
+                dtype=np.uint8
+            )
+
+            bgr = cv2.imdecode(
+                image_array,
+                cv2.IMREAD_COLOR
+            )
+
+            if bgr is None:
+                raise ValueError("อ่านไฟล์ภาพไม่ได้")
 
             with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(upload_file.file, buffer)
+                buffer.write(file_bytes)
 
             file_hash = calculate_sha256(file_path)
 
@@ -84,7 +118,9 @@ class EvidenceService:
                 uploaded_by=uploaded_by,
                 description=data.description,
                 captured_at=data.captured_at,
-                original_filename=upload_file.filename
+                original_filename=original_filename,
+                is_watermarked=False,
+                is_blockchain_verified=False
             )
 
             EvidenceRepository.create(db, evidence)
@@ -98,33 +134,57 @@ class EvidenceService:
                 file_hash=file_hash
             )
 
-            EvidenceFileRepository.create(db, evidence_file)
+            EvidenceFileRepository.create(
+                db,
+                evidence_file
+            )
 
-            # ── ฝังลายน้ำ DWT+QIM ลงสำเนาของภาพ ──
-            # สำคัญ: embed()/extract() บังคับทำงานที่ 1024x1024 เสมอ (mainyy.py)
-            # จึงต้อง resize ภาพเป็น 1024x1024 "ก่อน" แล้วค่อยฝังบนช่องความสว่าง (Y)
-            # ประกบ Cr/Cb (ขนาด 1024x1024 เท่ากัน) กลับเพื่อคงสี
-            # ถ้าฝังที่ขนาดอื่นแล้วอัปสเกลกลับ ลายน้ำจะเพี้ยนจน extract ไม่ออก
-            bgr = cv2.imread(file_path, cv2.IMREAD_COLOR)
-            if bgr is None:
-                raise ValueError("อ่านไฟล์ภาพไม่ได้ ฝังลายน้ำไม่สำเร็จ")
+            bgr = cv2.resize(
+                bgr,
+                (1024, 1024),
+                interpolation=cv2.INTER_CUBIC
+            )
 
-            bgr = cv2.resize(bgr, (1024, 1024), interpolation=cv2.INTER_CUBIC)
-            y, cr, cb = cv2.split(cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb))
+            y, cr, cb = cv2.split(
+                cv2.cvtColor(
+                    bgr,
+                    cv2.COLOR_BGR2YCrCb
+                )
+            )
 
             system = DigitalWatermarkingSystem()
+
             y_wm = system.embed(
                 y,
-                static_data=str(evidence.evidence_id),  # PK → sha256 ข้างใน embed
-                dynamic_hash=file_hash,                  # ตัวเดียวกับที่ verify จะใช้ถอด
+                static_data=str(evidence.evidence_id),
+                dynamic_hash=file_hash
             )
-            # y_wm เป็น 1024x1024 เท่ากับ Cr/Cb แล้ว ประกบกลับเป็นภาพสีได้เลย
-            wm_img = cv2.cvtColor(cv2.merge([y_wm, cr, cb]), cv2.COLOR_YCrCb2BGR)
+
+            if y_wm is None:
+                raise ValueError("ฝังลายน้ำไม่สำเร็จ")
+
+            wm_img = cv2.cvtColor(
+                cv2.merge([y_wm, cr, cb]),
+                cv2.COLOR_YCrCb2BGR
+            )
 
             wm_file_id = uuid.uuid4()
-            wm_filename = f"{wm_file_id}_wm_{upload_file.filename}"
-            wm_path = os.path.join(UPLOAD_DIR, wm_filename)
-            cv2.imwrite(wm_path, wm_img)
+
+            wm_path = os.path.join(
+                WATERMARKED_DIR,
+                f"{wm_file_id}_wm{extension}"
+            )
+
+            success, encoded_image = cv2.imencode(
+                extension,
+                wm_img
+            )
+
+            if not success:
+                raise ValueError("บันทึกภาพลายน้ำไม่สำเร็จ")
+
+            with open(wm_path, "wb") as buffer:
+                buffer.write(encoded_image.tobytes())
 
             wm_hash = calculate_sha256(wm_path)
 
@@ -134,9 +194,13 @@ class EvidenceService:
                 file_type=FileType.WATERMARKED,
                 file_path=wm_path,
                 file_size_bytes=os.path.getsize(wm_path),
-                file_hash=wm_hash,
+                file_hash=wm_hash
             )
-            EvidenceFileRepository.create(db, watermarked_file)
+
+            EvidenceFileRepository.create(
+                db,
+                watermarked_file
+            )
 
             evidence.is_watermarked = True
 
