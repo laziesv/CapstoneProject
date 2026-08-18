@@ -27,6 +27,10 @@ class BlockchainIntegrationService:
         self._settings = settings or BlockchainSettings.from_env()
         self._client_provider = client_provider
 
+    @property
+    def contract_address(self) -> str | None:
+        return self._settings.contract_address
+
     def health_check(self) -> dict[str, Any]:
         """Return non-sensitive connectivity and deployment health."""
 
@@ -170,6 +174,30 @@ class BlockchainIntegrationService:
             "registration": registration,
             "matched_access": matched_access,
             "access_history": access_history,
+        }
+
+    def get_access_by_session(
+        self,
+        access_session_ref: str,
+    ) -> dict[str, Any] | None:
+        """Read one access record directly from contract state."""
+
+        if not self._settings.enabled:
+            raise RuntimeError("blockchain integration is disabled")
+        canonical_ref = normalize_bytes32(
+            access_session_ref,
+            "access_session_ref",
+        )
+        client = self._client_provider()
+        # อ่าน mapping โดยตรงเพื่อไม่ต้องไล่สแกน event history
+        if not client.access_session_exists(canonical_ref):
+            return None
+        record = client.get_access_by_session(canonical_ref)
+        return {
+            "evidence_ref": record["evidence_ref"],
+            "officer_ref": record["officer_ref"],
+            "recorded_at": record["recorded_at"],
+            "writer": record["writer"],
         }
 
     def _require_write_enabled(self) -> None:

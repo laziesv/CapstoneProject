@@ -12,6 +12,17 @@ class BlockchainTransactionRepository:
     """Stage blockchain metadata in the caller-owned database transaction."""
 
     @staticmethod
+    def get_by_id(
+        db: Session,
+        tx_internal_id: UUID,
+    ) -> BlockchainTransaction | None:
+        return (
+            db.query(BlockchainTransaction)
+            .filter(BlockchainTransaction.tx_internal_id == tx_internal_id)
+            .first()
+        )
+
+    @staticmethod
     def stage_evidence_registration(
         db: Session,
         *,
