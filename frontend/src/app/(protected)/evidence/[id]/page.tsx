@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download, X } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download, X, CheckCircle2, XCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import ProtectedImage from "@/components/ProtectedImage";
@@ -11,7 +11,7 @@ import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService, accessLogService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import { getToken } from "@/utils/session";
-import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
+import type { Case, EvidenceItem, BlockchainTx, AccessLog, BlockchainVerification } from "@/interfaces";
 
 
 export default function EvidenceDetailPage() {
@@ -24,6 +24,8 @@ export default function EvidenceDetailPage() {
   const [relatedLogs, setRelatedLogs] = useState<AccessLog[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [showAccess, setShowAccess] = useState(false);
+  const [chainCheck, setChainCheck] = useState<BlockchainVerification | null>(null);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -92,6 +94,17 @@ export default function EvidenceDetailPage() {
       }
     } finally {
       setDownloading(false);
+    }
+  };
+
+  // ตรวจสอบความสมบูรณ์กับบล็อกเชน (mock) — เทียบแฮชไฟล์ + จำนวน access log กับที่บันทึกบนเชน
+  const handleChainCheck = async () => {
+    if (!evidence) return;
+    setChecking(true);
+    try {
+      setChainCheck(await evidenceService.verifyOnChain(evidence, relatedLogs));
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -198,6 +211,121 @@ export default function EvidenceDetailPage() {
                   {relatedTx.length === 0 && <tr><td colSpan={5} className="px-5 py-4 text-center text-muted">No transactions found</td></tr>}
                 </tbody>
               </table>
+            </div>
+          </div>
+          )}
+
+          {/* ตรวจสอบความสมบูรณ์กับบล็อกเชน — admin เท่านั้น */}
+          {isAdmin && (
+          <div className="rounded-xl border border-border bg-surface">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-muted" />
+                <h3 className="text-sm font-semibold">ตรวจสอบความสมบูรณ์กับบล็อกเชน</h3>
+              </div>
+              <button
+                onClick={handleChainCheck}
+                disabled={checking}
+                className="inline-flex items-center gap-2 rounded-lg border border-border px-3.5 py-1.5 text-sm font-medium transition-colors hover:bg-surface-hover disabled:opacity-50"
+              >
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                {chainCheck ? "ตรวจสอบอีกครั้ง" : "ตรวจสอบกับบล็อกเชน"}
+              </button>
+            </div>
+
+            <div className="px-5 py-4">
+              {!chainCheck && !checking && (
+                <p className="py-4 text-center text-sm text-muted">
+                  กดปุ่มเพื่อเทียบแฮชไฟล์และบันทึกการเข้าถึงกับที่บันทึกไว้บนบล็อกเชน
+                </p>
+              )}
+
+              {checking && (
+                <div className="flex flex-col items-center gap-2 py-6 text-muted">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                  <p className="text-sm">กำลังเทียบกับบล็อกเชน...</p>
+                </div>
+              )}
+
+              {chainCheck && !checking && (
+                <div className="space-y-4">
+                  {/* สรุปรวม */}
+                  <div
+                    className={`flex items-center gap-3 rounded-lg px-4 py-3 ${
+                      chainCheck.verified ? "bg-success-light text-success" : "bg-danger-light text-danger"
+                    }`}
+                  >
+                    {chainCheck.verified ? <ShieldCheck className="h-5 w-5 flex-shrink-0" /> : <ShieldAlert className="h-5 w-5 flex-shrink-0" />}
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {chainCheck.verified ? "ข้อมูลตรงกัน หลักฐานไม่ถูกดัดแปลง" : "พบความไม่ตรงกัน — หลักฐานอาจถูกแก้ไข"}
+                      </p>
+                      <p className="text-xs opacity-80">
+                        {chainCheck.verified ? "แฮชไฟล์และบันทึกการเข้าถึงตรงกับบล็อกเชนทั้งหมด" : "มีบางส่วนไม่ตรงกับที่บันทึกบนบล็อกเชน โปรดตรวจสอบ"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* (1) ความสมบูรณ์ของไฟล์ */}
+                  <div className="space-y-2">
+                    <ChainCheckRow label="ความสมบูรณ์ของไฟล์ (SHA-256)" ok={chainCheck.fileMatch} />
+                    <div className="space-y-1.5 rounded-lg bg-slate-900 p-3 font-mono text-[10px] leading-relaxed">
+                      <div>
+                        <span className="text-slate-400">บนเชน&nbsp;&nbsp;&nbsp;: </span>
+                        <span className="break-all text-emerald-300">{chainCheck.recordedHash}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">ปัจจุบัน&nbsp;: </span>
+                        <span className={`break-all ${chainCheck.fileMatch ? "text-emerald-300" : "text-red-400"}`}>{chainCheck.currentHash}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* (2) audit trail — access log (เทียบทีละรายการ) */}
+                  <div className="space-y-2">
+                    <ChainCheckRow label="บันทึกการเข้าถึง (Audit Trail)" ok={chainCheck.logMatch} />
+                    <p className="px-1 text-xs text-muted">
+                      เทียบ <span className="font-medium text-text">{chainCheck.logEntries.length}</span> รายการ
+                      <span className="mx-1.5">·</span>
+                      ตรง <span className="font-medium text-success">{chainCheck.logEntries.filter((e) => e.status === "match").length}</span>
+                      {chainCheck.logEntries.some((e) => e.status !== "match") && (
+                        <>
+                          <span className="mx-1.5">·</span>
+                          ผิดปกติ <span className="font-medium text-danger">{chainCheck.logEntries.filter((e) => e.status !== "match").length}</span>
+                        </>
+                      )}
+                    </p>
+                    {chainCheck.logEntries.length === 0 ? (
+                      <p className="px-1 text-xs text-muted">ยังไม่มีบันทึกการเข้าถึงให้ตรวจสอบ</p>
+                    ) : (
+                      <ul className="max-h-44 space-y-1 overflow-y-auto">
+                        {/* โชว์รายการผิดปกติก่อน แล้วตามด้วยที่ตรง */}
+                        {[...chainCheck.logEntries]
+                          .sort((a, b) => (a.status === "match" ? 1 : 0) - (b.status === "match" ? 1 : 0))
+                          .map((e, i) => (
+                            <li key={i} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-1.5 text-xs">
+                              <span className="flex min-w-0 items-center gap-2">
+                                <LogStatusBadge status={e.status} />
+                                <span className="truncate">{e.label}</span>
+                              </span>
+                              <span className="flex-shrink-0 font-mono text-[10px] text-muted">{e.hash.slice(0, 12)}…</span>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {/* รายละเอียดธุรกรรมบนเชน */}
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
+                    <ChainMeta label="Tx Hash" mono>{chainCheck.txHash.slice(0, 22)}...</ChainMeta>
+                    <ChainMeta label="Block" mono>{chainCheck.blockNumber.toLocaleString()}</ChainMeta>
+                    <ChainMeta label="Network">{chainCheck.network}</ChainMeta>
+                    <ChainMeta label="Confirmations">{chainCheck.confirmations.toLocaleString()}</ChainMeta>
+                    <ChainMeta label="Contract" mono>{chainCheck.contractAddress.slice(0, 22)}...</ChainMeta>
+                    <ChainMeta label="เวลา">{new Date(chainCheck.blockTimestamp).toLocaleString("th-TH")}</ChainMeta>
+                  </dl>
+                </div>
+              )}
             </div>
           </div>
           )}
@@ -389,6 +517,37 @@ function AccessTimelineModal({ logs, evidenceNumber, onClose }: { logs: AccessLo
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ChainCheckRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-2.5">
+      <span className="text-sm">{label}</span>
+      <span className={`flex items-center gap-1.5 text-xs font-medium ${ok ? "text-success" : "text-danger"}`}>
+        {ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
+        {ok ? "ตรงกัน" : "ไม่ตรงกัน"}
+      </span>
+    </div>
+  );
+}
+
+function LogStatusBadge({ status }: { status: "match" | "altered" | "missing" }) {
+  const map = {
+    match: { text: "ตรง", cls: "bg-green-50 text-green-700" },
+    altered: { text: "ถูกแก้", cls: "bg-red-50 text-red-700" },
+    missing: { text: "หาย", cls: "bg-amber-50 text-amber-700" },
+  } as const;
+  const s = map[status];
+  return <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${s.cls}`}>{s.text}</span>;
+}
+
+function ChainMeta({ label, mono, children }: { label: string; mono?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-muted">{label}</dt>
+      <dd className={`truncate ${mono ? "font-mono text-primary" : "font-medium"}`}>{children}</dd>
     </div>
   );
 }

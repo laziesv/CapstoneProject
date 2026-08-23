@@ -178,6 +178,36 @@ export interface VerifyResult {
   dynamicDecoded: string | null;
 }
 
+/** ผลเทียบ access log รายรายการกับที่บันทึกบนเชน
+ *  match=ตรง, altered=มีในระบบแต่แฮชไม่ตรง (ถูกแก้), missing=มีบนเชนแต่หายจากระบบ (ถูกลบ) */
+export interface LogAuditEntry {
+  label: string;   // ใครทำอะไรเมื่อไหร่ (อ่านออก)
+  hash: string;    // แฮชของบันทึกนี้
+  status: "match" | "altered" | "missing";
+}
+
+/** ผลตรวจสอบความสมบูรณ์กับบล็อกเชน — เทียบ 2 ชั้น: แฮชไฟล์ + audit trail (access log)
+ *  TODO(backend): ยัง mock อยู่ (ไม่มี endpoint บล็อกเชน) — สลับเป็นการเทียบจริงเมื่อพร้อม */
+export interface BlockchainVerification {
+  verified: boolean;        // สรุปรวม = fileMatch && logMatch
+  // (1) ความสมบูรณ์ของไฟล์
+  fileMatch: boolean;
+  recordedHash: string;     // แฮชไฟล์ที่บันทึกบนเชนตอน upload
+  currentHash: string;      // แฮชไฟล์ปัจจุบัน
+  // (2) audit trail — access log (เทียบทีละรายการด้วยแฮช)
+  logMatch: boolean;
+  localLogCount: number;    // จำนวน access log ในระบบ (จริง)
+  onChainLogCount: number;  // จำนวนที่บันทึกบนเชน
+  logEntries: LogAuditEntry[]; // ผลเทียบรายรายการ
+  // ธุรกรรมบนเชน
+  txHash: string;
+  blockNumber: number;
+  blockTimestamp: string;
+  contractAddress: string;
+  network: string;
+  confirmations: number;
+}
+
 export interface AccessLog {
   log_id: string;
   user_id: string;
