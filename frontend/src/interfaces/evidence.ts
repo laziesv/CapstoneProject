@@ -228,4 +228,19 @@ export interface AccessLogFilters {
   user_id?: string;
   action?: string;
   result?: string;
+  q?: string;                 // ค้นหา ชื่อผู้ใช้ / เลขหลักฐาน / IP (join ที่ backend)
+  date_from?: string;         // YYYY-MM-DD (รวมทั้งวัน)
+  date_to?: string;           // YYYY-MM-DD (รวมทั้งวัน)
+  only_anomaly?: boolean;     // เฉพาะรายการผล != success
+  exclude_query?: boolean;    // ตัดรายการประเภท "ค้นหา" (QUERY) ออก
+  limit?: number;             // ว่าง = คืนทุกรายการ
+  offset?: number;
+}
+
+/** ผลลัพธ์แบบแบ่งหน้าของ GET /api/access-logs (total = ทั้งหมดก่อนตัดหน้า) */
+export interface AccessLogPage {
+  items: AccessLog[];
+  total: number;
+  limit: number | null;
+  offset: number;
 }

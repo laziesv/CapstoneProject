@@ -11,7 +11,7 @@ export interface BarPoint {
 /** กราฟแท่งตามช่วงเวลา — ซีรีส์เดียว (ไม่ต้องมี legend) */
 export function TimeBarChart({
   data,
-  accent = "#1e3a8a",
+  accent = "#0052ff",
 }: {
   data: BarPoint[];
   accent?: string;

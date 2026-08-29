@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, FileClock, Users, Files, TrendingUp, FolderOpen, ShieldCheck, Link2, BarChart3, PieChart } from "lucide-react";
+import { Loader2, FileClock, Users, Files, TrendingUp, BarChart3, PieChart } from "lucide-react";
 import Link from "next/link";
 import { dashboardService, accessLogService, evidenceService } from "@/services";
 import { useAuth } from "@/hooks/useAuth";
 import type { DashboardData, AccessLog, EvidenceItem } from "@/interfaces";
 import { TimeBarChart, ActionDonut, type BarPoint } from "@/components/DashboardCharts";
+import StatBand from "@/components/ui/StatBand";
+
+// น้ำเงินหลักของธีม (ดีไซน์ 1b) — ใช้เป็น accent กราฟ
+const PRIMARY = "#0052ff";
 
 // สีประเภทการเข้าถึง — ผ่าน validate ด้วย skill dataviz (CVD/คอนทราสต์ ok)
 const ACTION_COLORS: Record<string, string> = {
-  view: "#2563eb",     // น้ำเงิน
+  view: "#0052ff",     // น้ำเงิน (primary)
   download: "#ea580c", // ส้ม
   query: "#0d9488",    // เขียวอมฟ้า
 };
@@ -132,22 +136,31 @@ export default function DashboardPage() {
         <p className="text-sm text-muted mt-1">ภาพรวมระบบคลังหลักฐานดิจิทัล</p>
       </div>
 
-      {/* สรุปภาพรวมระบบ — เห็นได้ทุก role */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <StatCard icon={Files} label="หลักฐานทั้งหมด" value={data.stats.total_evidence} />
-        <StatCard icon={FolderOpen} label="คดีที่ดำเนินอยู่" value={data.stats.active_cases} />
-        <StatCard icon={ShieldCheck} label="ยืนยันบนบล็อกเชนแล้ว" value={data.stats.verified} />
-        <StatCard icon={Link2} label="ธุรกรรมบล็อกเชน" value={data.stats.blockchain_tx} />
-      </div>
+      {/* สรุปภาพรวมระบบ (แถบ KPI ดำ) — เห็นได้ทุก role
+          hint ใช้ค่าจริงเท่านั้น: "ยังไม่ยืนยัน" = total − verified */}
+      <StatBand
+        items={[
+          { label: "หลักฐานทั้งหมด", value: data.stats.total_evidence.toLocaleString() },
+          { label: "คดีที่ดำเนินอยู่", value: data.stats.active_cases.toLocaleString() },
+          {
+            label: "ยืนยันบนบล็อกเชนแล้ว",
+            value: data.stats.verified.toLocaleString(),
+            valueTone: "success",
+            hint: `ยังไม่ยืนยัน ${(data.stats.total_evidence - data.stats.verified).toLocaleString()} ชิ้น`,
+            tone: "warning",
+          },
+          { label: "ธุรกรรมบล็อกเชน", value: data.stats.blockchain_tx.toLocaleString() },
+        ]}
+      />
 
       {/* กราฟการอัปโหลดหลักฐาน — ทุก role */}
       <ChartCard icon={BarChart3} title="การอัปโหลดหลักฐาน" subtitle="14 วันล่าสุด">
-        <TimeBarChart data={uploadsSeries} accent="#1e3a8a" />
+        <TimeBarChart data={uploadsSeries} accent={PRIMARY} />
       </ChartCard>
 
       {/* Admin — ภาพรวมการเข้าถึงหลักฐาน */}
       {isAdmin && (
-        <div className="space-y-4 rounded-xl border border-primary-light bg-primary-light/20 p-5">
+        <div className="space-y-4 rounded-2xl border border-primary-light bg-primary-light/20 p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileClock className="h-5 w-5 text-primary" />
@@ -160,7 +173,7 @@ export default function DashboardPage() {
           {/* กราฟการเข้าถึง + สัดส่วนประเภท */}
           <div className="grid gap-4 lg:grid-cols-2">
             <ChartCard icon={BarChart3} title="กิจกรรมการเข้าถึง" subtitle="14 วันล่าสุด">
-              <TimeBarChart data={accessSeries} accent="#2563eb" />
+              <TimeBarChart data={accessSeries} accent={PRIMARY} />
             </ChartCard>
             <ChartCard icon={PieChart} title="สัดส่วนประเภทการเข้าถึง">
               <div className="py-2">
@@ -197,7 +210,7 @@ function StatCard({
   value: number;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />
@@ -223,7 +236,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
+    <div className="rounded-2xl border border-border bg-surface p-5">
       <div className="mb-4 flex items-center gap-2">
         <Icon className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold">{title}</h3>
@@ -247,7 +260,7 @@ function RankCard({
 }) {
   const max = rows.length ? rows[0].count : 0;
   return (
-    <div className="rounded-xl border border-border bg-surface p-4 shadow-sm">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <div className="mb-3 flex items-center gap-2">
         <TrendingUp className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-semibold">{title}</h3>

@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#e9ebef; font-family:'Sarabun','IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#0052ff; text-decoration:none; }
+  a:hover { color:#003ecc; }
+  * { box-sizing:border-box; }
+</style>
+</helmet>
+
+<section style="padding:56px 48px 96px; display:flex; flex-direction:column; gap:32px;">
+  <div style="display:flex; flex-direction:column; gap:8px; max-width:900px;">
+    <div style="font-size:12px; font-weight:600; letter-spacing:1.4px; text-transform:uppercase; color:#7c828a;">Turn 1 · DEVA redesign</div>
+    <div style="font-size:44px; line-height:1.09; letter-spacing:-1px; color:#0a0b0d;">สองแนวทางการออกแบบใหม่</div>
+    <div style="font-size:16px; line-height:1.5; color:#5b616e;">ฐานสีขาว + แถบดำเฉพาะจุด, สถานะการยืนยันชัดเจน, ไทยเป็นภาษาหลัก — เลือกได้ที่ <a href="#1a">1a</a> หรือ <a href="#1b">1b</a></div>
+  </div>
+
+  <div style="display:flex; flex-wrap:wrap; gap:48px; align-items:flex-start;">
+
+    <!-- ══════════ OPTION 1A ══════════ -->
+    <div id="1a" style="display:flex; flex-direction:column; gap:20px; width:1280px; flex:0 0 1280px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span style="display:inline-flex; align-items:center; justify-content:center; min-width:38px; height:26px; padding:0 10px; border-radius:100px; background:#0a0b0d; color:#fff; font-size:13px; font-weight:600; font-family:'IBM Plex Mono',monospace;">1a</span>
+        <span style="font-size:20px; font-weight:600; color:#0a0b0d;">Vault — แถบสรุปสีดำ, ไซด์บาร์ขาวมีป้ายกำกับ</span>
+        <span style="font-size:14px; color:#7c828a;">อ่านตัวเลขสำคัญได้ใน 1 วินาที ท่าทีเป็นทางการ</span>
+      </div>
+
+      <!-- ── 1A Login ── -->
+      <div data-screen-label="1a Login" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">เข้าสู่ระบบ</span>
+        </div>
+        <div style="display:grid; grid-template-columns:46% 54%; min-height:660px;">
+          <div style="background:#0a0b0d; color:#fff; padding:56px 48px; display:flex; flex-direction:column; justify-content:space-between;">
+            <div style="display:flex; flex-direction:column; gap:28px;">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff;">
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+                </span>
+                <span style="font-size:22px; font-weight:600; letter-spacing:0.5px;">DEVA</span>
+              </div>
+              <div style="font-size:44px; line-height:1.14; letter-spacing:-1px; font-weight:400; max-width:440px;">คลังหลักฐานภาพดิจิทัล<br>รับรองด้วยลายน้ำและบล็อกเชน</div>
+              <div style="width:56px; height:2px; background:#0052ff;"></div>
+              <div style="font-size:14px; line-height:1.6; color:#a8acb3; max-width:400px; font-family:'IBM Plex Sans',sans-serif;">Blockchain &amp; Watermark-based Digital Evidence Authentication</div>
+            </div>
+            <div style="display:flex; gap:12px; align-items:flex-start; padding:18px 20px; border-radius:12px; background:#16181c; border:1px solid #23262b;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f4b000" stroke-width="2" stroke-linecap="round" style="flex-shrink:0; margin-top:2px;"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path></svg>
+              <span style="font-size:13px; line-height:1.6; color:#a8acb3;">ระบบสำหรับเจ้าหน้าที่ผู้ได้รับอนุญาตเท่านั้น การเข้าใช้งานทุกครั้งจะถูกบันทึกเพื่อการตรวจสอบ</span>
+            </div>
+          </div>
+          <div style="padding:72px 88px; display:flex; flex-direction:column; justify-content:center;">
+            <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:36px;">
+              <div style="font-size:32px; line-height:1.13; letter-spacing:-0.4px; color:#0a0b0d;">เข้าสู่ระบบ</div>
+              <div style="font-size:15px; color:#5b616e;">กรุณาลงชื่อเข้าใช้ด้วยบัญชีเจ้าหน้าที่</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:20px;">
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <label style="font-size:13px; font-weight:600; color:#0a0b0d;">ชื่อผู้ใช้</label>
+                <div style="display:flex; align-items:center; gap:12px; height:52px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; background:#fff;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg>
+                  <span style="font-size:16px; color:#a8acb3;">ระบุชื่อผู้ใช้</span>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <label style="font-size:13px; font-weight:600; color:#0a0b0d;">รหัสผ่าน</label>
+                <div style="display:flex; align-items:center; gap:12px; height:52px; padding:0 16px; border:1.5px solid #0052ff; border-radius:12px; background:#fff; box-shadow:0 0 0 4px rgba(0,82,255,0.10);">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0052ff" stroke-width="2" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                  <span style="flex:1; font-size:16px; color:#0a0b0d; letter-spacing:3px;">••••••••••</span>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
+                </div>
+              </div>
+              <button style="height:56px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:16px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:8px;" style-hover="background:#003ecc;">เข้าสู่ระบบ</button>
+              <div style="display:flex; align-items:center; gap:10px; padding:12px 16px; border-radius:12px; background:#fdf1f2; border:1px solid #f6d3d6;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cf202f" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5M12 16.5v.01"></path></svg>
+                <span style="font-size:14px; color:#cf202f;">ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง</span>
+              </div>
+            </div>
+            <div style="margin-top:40px; padding-top:24px; border-top:1px solid #eef0f3; font-size:12px; line-height:1.7; color:#a8acb3;">DEVA Evidence System · สงวนลิขสิทธิ์ © 2569<br>การเข้าถึงโดยไม่ได้รับอนุญาตถือเป็นความผิดตามกฎหมาย</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1A Dashboard ── -->
+      <div data-screen-label="1a Dashboard" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">แดชบอร์ด · ผู้ดูแลระบบ</span>
+        </div>
+        <div style="display:grid; grid-template-columns:240px 1fr;">
+          <!-- sidebar -->
+          <div style="border-right:1px solid #eef0f3; background:#fff; display:flex; flex-direction:column; padding:20px 12px; gap:24px; min-height:1080px;">
+            <div style="display:flex; align-items:center; gap:10px; padding:4px 10px 0;">
+              <span style="display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px; background:#0052ff;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+              </span>
+              <span style="font-size:17px; font-weight:600; letter-spacing:0.4px; color:#0a0b0d;">DEVA</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div style="font-size:11px; font-weight:600; letter-spacing:1.1px; text-transform:uppercase; color:#a8acb3; padding:0 10px 8px;">ทั่วไป</div>
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; background:#eef2ff; color:#0052ff; font-size:14px; font-weight:600;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg>
+                แดชบอร์ด
+              </div>
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; color:#5b616e; font-size:14px; font-weight:500;" style-hover="background:#f7f7f7; color:#0a0b0d;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                คดี
+                <span style="margin-left:auto; font-size:12px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">24</span>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div style="font-size:11px; font-weight:600; letter-spacing:1.1px; text-transform:uppercase; color:#a8acb3; padding:0 10px 8px;">ผู้ดูแลระบบ</div>
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; color:#5b616e; font-size:14px; font-weight:500;" style-hover="background:#f7f7f7; color:#0a0b0d;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+                ตรวจลายน้ำ
+              </div>
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; color:#5b616e; font-size:14px; font-weight:500;" style-hover="background:#f7f7f7; color:#0a0b0d;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6M9 16h3"></path></svg>
+                บันทึกการเข้าถึง
+              </div>
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; color:#5b616e; font-size:14px; font-weight:500;" style-hover="background:#f7f7f7; color:#0a0b0d;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3"></circle><path d="M3 19a6 6 0 0 1 12 0M17 11h4M19 9v4"></path></svg>
+                จัดการผู้ใช้
+              </div>
+            </div>
+            <div style="margin-top:auto; display:flex; flex-direction:column; gap:4px; padding-top:16px; border-top:1px solid #eef0f3;">
+              <div style="display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; background:#f7f7f7;">
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9999px; background:#0a0b0d; color:#fff; font-size:13px; font-weight:600;">ส</span>
+                <div style="display:flex; flex-direction:column; min-width:0;">
+                  <span style="font-size:13px; font-weight:600; color:#0a0b0d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">พ.ต.ท. สมชาย ก.</span>
+                  <span style="font-size:11px; color:#7c828a;">ผู้ดูแลระบบ</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- main -->
+          <div style="display:flex; flex-direction:column; background:#fff;">
+            <div style="height:64px; display:flex; align-items:center; gap:16px; padding:0 32px; border-bottom:1px solid #eef0f3;">
+              <div style="display:flex; align-items:center; gap:10px; height:40px; padding:0 18px; border-radius:100px; background:#eef0f3; min-width:340px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4-4"></path></svg>
+                <span style="font-size:14px; color:#7c828a;">ค้นหาหมายเลขหลักฐาน คดี หรือแฮช</span>
+              </div>
+              <div style="margin-left:auto; display:flex; align-items:center; gap:12px;">
+                <div style="display:flex; align-items:center; gap:8px; height:36px; padding:0 14px; border-radius:100px; border:1px solid #dee1e6; font-size:13px; font-weight:500; color:#0a0b0d;">
+                  <span style="width:7px; height:7px; border-radius:9999px; background:#05b169;"></span>
+                  โหนดบล็อกเชนออนไลน์
+                </div>
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#eef0f3;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0a0b0d" stroke-width="2" stroke-linecap="round"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"></path><path d="M10.5 20a2 2 0 0 0 3 0"></path></svg>
+                </span>
+              </div>
+            </div>
+
+            <div style="padding:32px; display:flex; flex-direction:column; gap:24px;">
+              <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:24px;">
+                <div style="display:flex; flex-direction:column; gap:6px;">
+                  <div style="font-size:32px; line-height:1.13; letter-spacing:-0.4px; color:#0a0b0d;">ภาพรวมระบบ</div>
+                  <div style="font-size:14px; color:#5b616e;">ข้อมูล ณ 26 ส.ค. 2569 · 14:32 น.</div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                  <button style="height:44px; padding:0 20px; border:0; border-radius:100px; background:#eef0f3; color:#0a0b0d; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#dee1e6;">ส่งออกรายงาน</button>
+                  <button style="height:44px; padding:0 20px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">อัปโหลดหลักฐาน</button>
+                </div>
+              </div>
+
+              <!-- dark KPI band -->
+              <div style="background:#0a0b0d; border-radius:20px; padding:32px 36px; display:grid; grid-template-columns:repeat(4,1fr); gap:24px;">
+                <div style="display:flex; flex-direction:column; gap:8px; padding-right:24px; border-right:1px solid #23262b;">
+                  <span style="font-size:13px; color:#a8acb3;">หลักฐานทั้งหมด</span>
+                  <span style="font-size:44px; line-height:1; letter-spacing:-1px; color:#fff; font-family:'IBM Plex Sans',sans-serif;">1,284</span>
+                  <span style="font-size:13px; color:#05b169;">+38 ในสัปดาห์นี้</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; padding-right:24px; border-right:1px solid #23262b;">
+                  <span style="font-size:13px; color:#a8acb3;">คดีที่ดำเนินอยู่</span>
+                  <span style="font-size:44px; line-height:1; letter-spacing:-1px; color:#fff; font-family:'IBM Plex Sans',sans-serif;">24</span>
+                  <span style="font-size:13px; color:#a8acb3;">จาก 61 คดีทั้งหมด</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; padding-right:24px; border-right:1px solid #23262b;">
+                  <span style="font-size:13px; color:#a8acb3;">ยืนยันบนบล็อกเชนแล้ว</span>
+                  <span style="font-size:44px; line-height:1; letter-spacing:-1px; color:#05b169; font-family:'IBM Plex Sans',sans-serif;">1,271</span>
+                  <span style="font-size:13px; color:#f4b000;">รอยืนยัน 13 ชิ้น</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <span style="font-size:13px; color:#a8acb3;">ธุรกรรมบล็อกเชน</span>
+                  <span style="font-size:44px; line-height:1; letter-spacing:-1px; color:#fff; font-family:'IBM Plex Sans',sans-serif;">3,902</span>
+                  <span style="font-size:13px; color:#a8acb3;">บล็อกล่าสุด #874,193</span>
+                </div>
+              </div>
+
+              <!-- charts row -->
+              <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:20px;">
+                <div style="border:1px solid #dee1e6; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:20px;">
+                  <div style="display:flex; align-items:baseline; justify-content:space-between;">
+                    <div style="display:flex; align-items:baseline; gap:10px;">
+                      <span style="font-size:16px; font-weight:600; color:#0a0b0d;">การอัปโหลดหลักฐาน</span>
+                      <span style="font-size:13px; color:#7c828a;">14 วันล่าสุด</span>
+                    </div>
+                    <span style="font-size:13px; font-weight:600; color:#0052ff;">ดูรายละเอียด</span>
+                  </div>
+                  <div style="display:flex; align-items:flex-end; gap:10px; height:172px;">
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:38%; border-radius:6px 6px 0 0; background:#c7d7ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">13/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:52%; border-radius:6px 6px 0 0; background:#c7d7ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">14/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:30%; border-radius:6px 6px 0 0; background:#c7d7ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">15/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:64%; border-radius:6px 6px 0 0; background:#c7d7ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">16/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:46%; border-radius:6px 6px 0 0; background:#c7d7ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">17/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:22%; border-radius:6px 6px 0 0; background:#c7d7ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">18/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:58%; border-radius:6px 6px 0 0; background:#c7d7ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">19/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:71%; border-radius:6px 6px 0 0; background:#7fa4ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">20/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:44%; border-radius:6px 6px 0 0; background:#7fa4ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">21/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:80%; border-radius:6px 6px 0 0; background:#7fa4ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">22/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:56%; border-radius:6px 6px 0 0; background:#7fa4ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">23/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:34%; border-radius:6px 6px 0 0; background:#7fa4ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">24/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:68%; border-radius:6px 6px 0 0; background:#0052ff;"></div><span style="font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">25/8</span></div>
+                    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px;"><div style="width:100%; height:100%; border-radius:6px 6px 0 0; background:#0052ff;"></div><span style="font-size:11px; color:#0a0b0d; font-weight:600; font-family:'IBM Plex Mono',monospace;">26/8</span></div>
+                  </div>
+                </div>
+
+                <div style="border:1px solid #dee1e6; border-radius:16px; padding:24px; display:flex; flex-direction:column; gap:20px;">
+                  <div style="font-size:16px; font-weight:600; color:#0a0b0d;">สัดส่วนประเภทการเข้าถึง</div>
+                  <div style="display:flex; align-items:center; gap:24px;">
+                    <div style="width:132px; height:132px; border-radius:9999px; background:conic-gradient(#0052ff 0 62%, #f4b000 62% 84%, #05b169 84% 100%); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                      <div style="width:88px; height:88px; border-radius:9999px; background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                        <span style="font-size:22px; font-weight:600; color:#0a0b0d; font-family:'IBM Plex Sans',sans-serif;">862</span>
+                        <span style="font-size:11px; color:#7c828a;">ครั้ง</span>
+                      </div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                      <div style="display:flex; align-items:center; gap:10px;"><span style="width:10px; height:10px; border-radius:3px; background:#0052ff;"></span><span style="font-size:14px; color:#0a0b0d;">เปิดดู</span><span style="font-size:14px; color:#7c828a; font-family:'IBM Plex Mono',monospace;">534</span></div>
+                      <div style="display:flex; align-items:center; gap:10px;"><span style="width:10px; height:10px; border-radius:3px; background:#f4b000;"></span><span style="font-size:14px; color:#0a0b0d;">ดาวน์โหลด</span><span style="font-size:14px; color:#7c828a; font-family:'IBM Plex Mono',monospace;">190</span></div>
+                      <div style="display:flex; align-items:center; gap:10px;"><span style="width:10px; height:10px; border-radius:3px; background:#05b169;"></span><span style="font-size:14px; color:#0a0b0d;">ค้นหา</span><span style="font-size:14px; color:#7c828a; font-family:'IBM Plex Mono',monospace;">138</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- recent evidence table -->
+              <div style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 24px; border-bottom:1px solid #eef0f3;">
+                  <span style="font-size:16px; font-weight:600; color:#0a0b0d;">หลักฐานล่าสุด</span>
+                  <span style="font-size:13px; font-weight:600; color:#0052ff;">ดูทั้งหมด</span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.1fr 1.4fr 1fr 1.2fr 0.9fr; padding:12px 24px; background:#f7f7f7; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">
+                  <span>หมายเลขหลักฐาน</span><span>คดี</span><span>ผู้อัปโหลด</span><span>แฮชบนเชน</span><span style="text-align:right;">สถานะ</span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.1fr 1.4fr 1fr 1.2fr 0.9fr; align-items:center; padding:16px 24px; border-top:1px solid #eef0f3; font-size:14px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="font-family:'IBM Plex Mono',monospace; color:#0052ff;">EV-2569-0412</span><span>ลักทรัพย์ในเคหสถาน</span><span style="color:#5b616e;">ร.ต.อ. ธนกฤต</span><span style="font-family:'IBM Plex Mono',monospace; color:#7c828a; font-size:13px;">0x8f3a…c21b</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ยืนยันแล้ว</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.1fr 1.4fr 1fr 1.2fr 0.9fr; align-items:center; padding:16px 24px; border-top:1px solid #eef0f3; font-size:14px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="font-family:'IBM Plex Mono',monospace; color:#0052ff;">EV-2569-0411</span><span>ฉ้อโกงประชาชน</span><span style="color:#5b616e;">ส.ต.ท. ปิยะ</span><span style="font-family:'IBM Plex Mono',monospace; color:#7c828a; font-size:13px;">รอบันทึก</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:100px; background:#fdf4e0; color:#8a6300; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#f4b000;"></span>รอยืนยัน</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.1fr 1.4fr 1fr 1.2fr 0.9fr; align-items:center; padding:16px 24px; border-top:1px solid #eef0f3; font-size:14px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="font-family:'IBM Plex Mono',monospace; color:#0052ff;">EV-2569-0409</span><span>ทำร้ายร่างกาย</span><span style="color:#5b616e;">พ.ต.ต. อรุณ</span><span style="font-family:'IBM Plex Mono',monospace; color:#7c828a; font-size:13px;">0x21de…9f04</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:100px; background:#fdf1f2; color:#cf202f; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#cf202f;"></span>ลายน้ำไม่ตรง</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.1fr 1.4fr 1fr 1.2fr 0.9fr; align-items:center; padding:16px 24px; border-top:1px solid #eef0f3; font-size:14px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="font-family:'IBM Plex Mono',monospace; color:#0052ff;">EV-2569-0407</span><span>ยาเสพติดประเภท 1</span><span style="color:#5b616e;">ร.ต.ท. วิชัย</span><span style="font-family:'IBM Plex Mono',monospace; color:#7c828a; font-size:13px;">0x77b1…a3e8</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ยืนยันแล้ว</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1A Profile ── -->
+      <div data-screen-label="1a Profile" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">โปรไฟล์เจ้าหน้าที่</span>
+        </div>
+        <div style="display:grid; grid-template-columns:240px 1fr;">
+          <div style="border-right:1px solid #eef0f3; padding:20px 12px; display:flex; flex-direction:column; gap:24px; min-height:760px;">
+            <div style="display:flex; align-items:center; gap:10px; padding:4px 10px 0;">
+              <span style="display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px; background:#0052ff;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+              </span>
+              <span style="font-size:17px; font-weight:600; letter-spacing:0.4px; color:#0a0b0d;">DEVA</span>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; color:#5b616e; font-size:14px; font-weight:500;">แดชบอร์ด</div>
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; color:#5b616e; font-size:14px; font-weight:500;">คดี</div>
+              <div style="display:flex; align-items:center; gap:12px; height:42px; padding:0 12px; border-radius:10px; background:#eef2ff; color:#0052ff; font-size:14px; font-weight:600;">โปรไฟล์</div>
+            </div>
+          </div>
+          <div style="padding:32px 40px; display:flex; flex-direction:column; gap:24px; max-width:900px;">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="font-size:32px; line-height:1.13; letter-spacing:-0.4px; color:#0a0b0d;">โปรไฟล์</div>
+              <div style="font-size:14px; color:#5b616e;">ข้อมูลเจ้าหน้าที่และการตั้งค่าความปลอดภัย</div>
+            </div>
+
+            <div style="background:#0a0b0d; border-radius:20px; padding:28px 32px; display:flex; align-items:center; gap:24px;">
+              <span style="display:inline-flex; align-items:center; justify-content:center; width:76px; height:76px; border-radius:9999px; background:#16181c; border:1px solid #23262b; color:#fff; font-size:30px; font-weight:600;">ส</span>
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <span style="font-size:24px; font-weight:600; color:#fff;">พ.ต.ท. สมชาย กิตติวัฒน์</span>
+                <span style="font-size:14px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">@somchai.k</span>
+              </div>
+              <div style="margin-left:auto; display:flex; gap:10px;">
+                <span style="padding:6px 14px; border-radius:100px; background:#16181c; border:1px solid #23262b; color:#fff; font-size:12px; font-weight:600;">ผู้ดูแลระบบ</span>
+                <span style="display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:100px; background:rgba(5,177,105,0.14); color:#05b169; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ยืนยันตัวตนแล้ว</span>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px;">
+              <div style="border:1px solid #dee1e6; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">เลขประจำตัว</span>
+                <span style="font-size:16px; font-weight:600; color:#0a0b0d; font-family:'IBM Plex Mono',monospace;">BDG-004718</span>
+              </div>
+              <div style="border:1px solid #dee1e6; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">ยศ</span>
+                <span style="font-size:16px; font-weight:600; color:#0a0b0d;">พันตำรวจโท</span>
+              </div>
+              <div style="border:1px solid #dee1e6; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">หน่วยงาน</span>
+                <span style="font-size:16px; font-weight:600; color:#0a0b0d;">กองพิสูจน์หลักฐานกลาง</span>
+              </div>
+              <div style="border:1px solid #dee1e6; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">อีเมล</span>
+                <span style="font-size:16px; font-weight:600; color:#0a0b0d;">somchai.k@deva.go.th</span>
+              </div>
+            </div>
+
+            <div style="border:1px solid #dee1e6; border-radius:16px; padding:28px;">
+              <div style="font-size:18px; font-weight:600; color:#0a0b0d; margin-bottom:6px;">เปลี่ยนรหัสผ่าน</div>
+              <div style="font-size:14px; color:#5b616e; margin-bottom:22px;">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร และไม่ซ้ำกับ 3 รหัสล่าสุด</div>
+              <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:16px; max-width:620px;">
+                <div style="display:flex; flex-direction:column; gap:8px; grid-column:span 2;">
+                  <label style="font-size:13px; font-weight:600; color:#0a0b0d;">รหัสผ่านปัจจุบัน</label>
+                  <div style="display:flex; align-items:center; height:48px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; font-size:15px; color:#a8acb3;">••••••••</div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <label style="font-size:13px; font-weight:600; color:#0a0b0d;">รหัสผ่านใหม่</label>
+                  <div style="display:flex; align-items:center; height:48px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; font-size:15px; color:#a8acb3;">••••••••••</div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <label style="font-size:13px; font-weight:600; color:#0a0b0d;">ยืนยันรหัสผ่านใหม่</label>
+                  <div style="display:flex; align-items:center; height:48px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; font-size:15px; color:#a8acb3;">••••••••••</div>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:16px; margin-top:24px;">
+                <button style="height:48px; padding:0 24px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">บันทึกรหัสผ่านใหม่</button>
+                <span style="display:inline-flex; align-items:center; gap:8px; font-size:14px; color:#05b169;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#05b169" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M8.5 12.3l2.3 2.3 4.7-4.9"></path></svg>
+                  เปลี่ยนรหัสผ่านสำเร็จ
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ OPTION 1B ══════════ -->
+    <div id="1b" style="display:flex; flex-direction:column; gap:20px; width:1280px; flex:0 0 1280px;">
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span style="display:inline-flex; align-items:center; justify-content:center; min-width:38px; height:26px; padding:0 10px; border-radius:100px; background:#0052ff; color:#fff; font-size:13px; font-weight:600; font-family:'IBM Plex Mono',monospace;">1b</span>
+        <span style="font-size:20px; font-weight:600; color:#0a0b0d;">Console — รางไอคอนดำ, พื้นเทาอ่อน, เน้นความเร็ว</span>
+        <span style="font-size:14px; color:#7c828a;">พื้นที่ทำงานกว้างขึ้น มีทางลัดและตัวกรองเสมอ</span>
+      </div>
+
+      <!-- ── 1B Login ── -->
+      <div data-screen-label="1b Login" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">เข้าสู่ระบบ</span>
+        </div>
+        <div style="background:#f7f7f7; min-height:660px; display:flex; flex-direction:column;">
+          <div style="height:64px; display:flex; align-items:center; justify-content:space-between; padding:0 40px; background:#fff; border-bottom:1px solid #eef0f3;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#0a0b0d;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+              </span>
+              <span style="font-size:16px; font-weight:600; letter-spacing:0.4px; color:#0a0b0d;">DEVA</span>
+              <span style="font-size:13px; color:#7c828a; margin-left:8px;">ระบบคลังหลักฐานดิจิทัล</span>
+            </div>
+            <span style="font-size:14px; font-weight:500; color:#5b616e;">ต้องการความช่วยเหลือ?</span>
+          </div>
+          <div style="flex:1; display:flex; align-items:center; justify-content:center; padding:48px;">
+            <div style="width:460px; background:#fff; border:1px solid #dee1e6; border-radius:24px; padding:44px; display:flex; flex-direction:column; gap:24px;">
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <div style="font-size:28px; line-height:1.2; letter-spacing:-0.4px; color:#0a0b0d;">ลงชื่อเข้าใช้</div>
+                <div style="font-size:15px; color:#5b616e;">สำหรับเจ้าหน้าที่ผู้ได้รับอนุญาตเท่านั้น</div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <label style="font-size:13px; font-weight:600; color:#0a0b0d;">ชื่อผู้ใช้</label>
+                  <div style="display:flex; align-items:center; height:52px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; background:#fff; font-size:16px; color:#0a0b0d;">somchai.k</div>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <label style="font-size:13px; font-weight:600; color:#0a0b0d;">รหัสผ่าน</label>
+                    <span style="font-size:13px; font-weight:600; color:#0052ff;">ลืมรหัสผ่าน</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px; height:52px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; background:#fff;">
+                    <span style="flex:1; font-size:16px; color:#0a0b0d; letter-spacing:3px;">••••••••</span>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6z"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
+                  </div>
+                </div>
+                <button style="height:56px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:16px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:4px;" style-hover="background:#003ecc;">เข้าสู่ระบบ</button>
+              </div>
+              <div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:12px; background:#f7f7f7;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0052ff" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;"><rect x="4" y="10" width="16" height="10" rx="2"></rect><path d="M8 10V7a4 4 0 0 1 8 0v3"></path></svg>
+                <span style="font-size:13px; line-height:1.5; color:#5b616e;">การเข้าใช้งานทุกครั้งจะถูกบันทึกเพื่อการตรวจสอบย้อนหลัง</span>
+              </div>
+            </div>
+          </div>
+          <div style="background:#0a0b0d; padding:28px 40px; display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-size:13px; color:#a8acb3;">Blockchain &amp; Watermark-based Digital Evidence Authentication</span>
+            <span style="font-size:12px; color:#7c828a;">DEVA Evidence System · สงวนลิขสิทธิ์ © 2569</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Dashboard ── -->
+      <div data-screen-label="1b Dashboard" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">แดชบอร์ด · ผู้ดูแลระบบ</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <!-- icon rail -->
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:1080px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+            </span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg>
+            </span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;" style-hover="background:#16181c; color:#fff;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            </span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;" style-hover="background:#16181c; color:#fff;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+            </span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;" style-hover="background:#16181c; color:#fff;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6M9 16h3"></path></svg>
+            </span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;" style-hover="background:#16181c; color:#fff;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3"></circle><path d="M3 19a6 6 0 0 1 12 0M17 11h4M19 9v4"></path></svg>
+            </span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+
+          <div style="display:flex; flex-direction:column; background:#f7f7f7;">
+            <div style="height:64px; display:flex; align-items:center; gap:20px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d;">แดชบอร์ด</span>
+              <div style="display:flex; align-items:center; gap:10px; height:40px; padding:0 18px; border-radius:100px; background:#eef0f3; flex:1; max-width:420px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4-4"></path></svg>
+                <span style="font-size:14px; color:#7c828a;">ค้นหา…</span>
+                <span style="margin-left:auto; font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace; padding:2px 7px; border-radius:6px; background:#fff;">⌘K</span>
+              </div>
+              <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
+                <button style="height:40px; padding:0 18px; border:1px solid #dee1e6; border-radius:100px; background:#fff; color:#0a0b0d; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#f7f7f7;">ตรวจลายน้ำ</button>
+                <button style="height:40px; padding:0 18px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">+ อัปโหลด</button>
+              </div>
+            </div>
+
+            <div style="padding:24px 28px; display:flex; flex-direction:column; gap:20px;">
+              <!-- KPI cards -->
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:10px;">
+                  <span style="font-size:13px; color:#5b616e;">หลักฐานทั้งหมด</span>
+                  <span style="font-size:36px; line-height:1; letter-spacing:-0.8px; color:#0a0b0d; font-family:'IBM Plex Sans',sans-serif;">1,284</span>
+                  <span style="font-size:12px; color:#05b169; font-weight:600;">▲ 38 สัปดาห์นี้</span>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:10px;">
+                  <span style="font-size:13px; color:#5b616e;">คดีที่ดำเนินอยู่</span>
+                  <span style="font-size:36px; line-height:1; letter-spacing:-0.8px; color:#0a0b0d; font-family:'IBM Plex Sans',sans-serif;">24</span>
+                  <span style="font-size:12px; color:#7c828a;">จาก 61 คดี</span>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:10px;">
+                  <span style="font-size:13px; color:#5b616e;">ยืนยันบนบล็อกเชน</span>
+                  <span style="font-size:36px; line-height:1; letter-spacing:-0.8px; color:#05b169; font-family:'IBM Plex Sans',sans-serif;">99.0%</span>
+                  <div style="height:6px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:99%; height:100%; background:#05b169;"></div></div>
+                </div>
+                <div style="background:#0a0b0d; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:10px;">
+                  <span style="font-size:13px; color:#a8acb3;">รอดำเนินการ</span>
+                  <span style="font-size:36px; line-height:1; letter-spacing:-0.8px; color:#f4b000; font-family:'IBM Plex Sans',sans-serif;">13</span>
+                  <span style="font-size:12px; color:#fff; font-weight:600;">ตรวจสอบทันที →</span>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1.55fr 1fr; gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:18px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">กิจกรรมการเข้าถึง</span>
+                    <div style="display:flex; gap:4px; padding:3px; border-radius:100px; background:#eef0f3;">
+                      <span style="padding:5px 14px; border-radius:100px; background:#fff; font-size:12px; font-weight:600; color:#0a0b0d;">14 วัน</span>
+                      <span style="padding:5px 14px; border-radius:100px; font-size:12px; font-weight:500; color:#7c828a;">30 วัน</span>
+                      <span style="padding:5px 14px; border-radius:100px; font-size:12px; font-weight:500; color:#7c828a;">90 วัน</span>
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:flex-end; gap:8px; height:150px;">
+                    <div style="flex:1; height:44%; border-radius:5px 5px 0 0; background:#dee1e6;"></div>
+                    <div style="flex:1; height:60%; border-radius:5px 5px 0 0; background:#dee1e6;"></div>
+                    <div style="flex:1; height:36%; border-radius:5px 5px 0 0; background:#dee1e6;"></div>
+                    <div style="flex:1; height:72%; border-radius:5px 5px 0 0; background:#dee1e6;"></div>
+                    <div style="flex:1; height:52%; border-radius:5px 5px 0 0; background:#dee1e6;"></div>
+                    <div style="flex:1; height:28%; border-radius:5px 5px 0 0; background:#dee1e6;"></div>
+                    <div style="flex:1; height:66%; border-radius:5px 5px 0 0; background:#0a0b0d;"></div>
+                    <div style="flex:1; height:80%; border-radius:5px 5px 0 0; background:#0a0b0d;"></div>
+                    <div style="flex:1; height:50%; border-radius:5px 5px 0 0; background:#0a0b0d;"></div>
+                    <div style="flex:1; height:88%; border-radius:5px 5px 0 0; background:#0a0b0d;"></div>
+                    <div style="flex:1; height:62%; border-radius:5px 5px 0 0; background:#0a0b0d;"></div>
+                    <div style="flex:1; height:40%; border-radius:5px 5px 0 0; background:#0052ff;"></div>
+                    <div style="flex:1; height:74%; border-radius:5px 5px 0 0; background:#0052ff;"></div>
+                    <div style="flex:1; height:100%; border-radius:5px 5px 0 0; background:#0052ff;"></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:11px; color:#a8acb3; font-family:'IBM Plex Mono',monospace;">
+                    <span>13 ส.ค.</span><span>19 ส.ค.</span><span>26 ส.ค.</span>
+                  </div>
+                </div>
+
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:22px; display:flex; flex-direction:column; gap:16px;">
+                  <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ผู้เข้าถึงมากที่สุด</span>
+                  <div style="display:flex; flex-direction:column; gap:14px;">
+                    <div style="display:flex; flex-direction:column; gap:7px;">
+                      <div style="display:flex; justify-content:space-between; font-size:13px; color:#0a0b0d;"><span>ร.ต.อ. ธนกฤต ศรีสุข</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">184</span></div>
+                      <div style="height:6px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:100%; height:100%; background:#0052ff;"></div></div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:7px;">
+                      <div style="display:flex; justify-content:space-between; font-size:13px; color:#0a0b0d;"><span>พ.ต.ต. อรุณ พลเดช</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">142</span></div>
+                      <div style="height:6px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:77%; height:100%; background:#0052ff;"></div></div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:7px;">
+                      <div style="display:flex; justify-content:space-between; font-size:13px; color:#0a0b0d;"><span>ส.ต.ท. ปิยะ วงศ์ทอง</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">98</span></div>
+                      <div style="height:6px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:53%; height:100%; background:#0052ff;"></div></div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:7px;">
+                      <div style="display:flex; justify-content:space-between; font-size:13px; color:#0a0b0d;"><span>ร.ต.ท. วิชัย มั่นคง</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">71</span></div>
+                      <div style="height:6px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:39%; height:100%; background:#0052ff;"></div></div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:7px;">
+                      <div style="display:flex; justify-content:space-between; font-size:13px; color:#0a0b0d;"><span>พ.ต.ท. สมชาย กิตติวัฒน์</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">55</span></div>
+                      <div style="height:6px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:30%; height:100%; background:#0052ff;"></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- queue -->
+              <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:12px; padding:18px 22px; border-bottom:1px solid #eef0f3;">
+                  <span style="font-size:15px; font-weight:600; color:#0a0b0d;">คิวตรวจสอบหลักฐาน</span>
+                  <div style="display:flex; gap:6px; margin-left:8px;">
+                    <span style="padding:5px 13px; border-radius:100px; background:#0a0b0d; color:#fff; font-size:12px; font-weight:600;">ทั้งหมด 13</span>
+                    <span style="padding:5px 13px; border-radius:100px; background:#fdf4e0; color:#8a6300; font-size:12px; font-weight:600;">รอยืนยัน 9</span>
+                    <span style="padding:5px 13px; border-radius:100px; background:#fdf1f2; color:#cf202f; font-size:12px; font-weight:600;">ผิดปกติ 4</span>
+                  </div>
+                  <span style="margin-left:auto; font-size:13px; font-weight:600; color:#0052ff;">เปิดคิวเต็ม</span>
+                </div>
+                <div style="display:grid; grid-template-columns:44px 1.1fr 1.3fr 1fr 1.1fr 0.9fr; align-items:center; padding:14px 22px; background:#f7f7f7; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">
+                  <span></span><span>หมายเลข</span><span>คดี</span><span>เวลาอัปโหลด</span><span>สถานะลายน้ำ</span><span style="text-align:right;">บล็อกเชน</span>
+                </div>
+                <div style="display:grid; grid-template-columns:44px 1.1fr 1.3fr 1fr 1.1fr 0.9fr; align-items:center; padding:15px 22px; border-top:1px solid #eef0f3; font-size:14px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#eef2ff;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0052ff" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M4 17l5-4 4 3 3-2 4 3"></path></svg></span>
+                  <span style="font-family:'IBM Plex Mono',monospace; color:#0052ff;">EV-2569-0411</span><span>ฉ้อโกงประชาชน</span><span style="color:#5b616e; font-size:13px;">26 ส.ค. 13:58</span>
+                  <span><span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ลายน้ำตรงกัน</span></span>
+                  <span style="text-align:right;"><span style="padding:5px 12px; border-radius:100px; background:#fdf4e0; color:#8a6300; font-size:12px; font-weight:600;">รอบันทึก</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:44px 1.1fr 1.3fr 1fr 1.1fr 0.9fr; align-items:center; padding:15px 22px; border-top:1px solid #eef0f3; font-size:14px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#fdf1f2;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#cf202f" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M9 10l6 6M15 10l-6 6"></path></svg></span>
+                  <span style="font-family:'IBM Plex Mono',monospace; color:#0052ff;">EV-2569-0409</span><span>ทำร้ายร่างกาย</span><span style="color:#5b616e; font-size:13px;">26 ส.ค. 11:20</span>
+                  <span><span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:100px; background:#fdf1f2; color:#cf202f; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#cf202f;"></span>ไม่ตรงกัน</span></span>
+                  <span style="text-align:right;"><span style="padding:5px 12px; border-radius:100px; background:#eef0f3; color:#5b616e; font-size:12px; font-weight:600;">ระงับไว้</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:44px 1.1fr 1.3fr 1fr 1.1fr 0.9fr; align-items:center; padding:15px 22px; border-top:1px solid #eef0f3; font-size:14px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:8px; background:#eef2ff;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0052ff" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="10" r="1.6"></circle><path d="M4 17l5-4 4 3 3-2 4 3"></path></svg></span>
+                  <span style="font-family:'IBM Plex Mono',monospace; color:#0052ff;">EV-2569-0405</span><span>ลักทรัพย์ในเคหสถาน</span><span style="color:#5b616e; font-size:13px;">25 ส.ค. 16:41</span>
+                  <span><span style="display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:100px; background:#eef2ff; color:#0052ff; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#0052ff;"></span>กำลังตรวจ</span></span>
+                  <span style="text-align:right;"><span style="padding:5px 12px; border-radius:100px; background:#fdf4e0; color:#8a6300; font-size:12px; font-weight:600;">รอบันทึก</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Profile ── -->
+      <div data-screen-label="1b Profile" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">โปรไฟล์เจ้าหน้าที่</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:820px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg>
+            </span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg>
+            </span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+            </span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#0052ff; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:10px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:14px; color:#7c828a;">บัญชี</span>
+              <span style="font-size:14px; color:#a8acb3;">/</span>
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d;">โปรไฟล์</span>
+              <button style="margin-left:auto; height:40px; padding:0 18px; border:1px solid #dee1e6; border-radius:100px; background:#fff; color:#cf202f; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#fdf1f2;">ออกจากระบบ</button>
+            </div>
+            <div style="padding:24px 28px; display:grid; grid-template-columns:340px 1fr; gap:20px; align-items:start;">
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:20px; padding:28px; display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:88px; height:88px; border-radius:9999px; background:#0a0b0d; color:#fff; font-size:34px; font-weight:600;">ส</span>
+                  <div style="display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:20px; font-weight:600; color:#0a0b0d;">พ.ต.ท. สมชาย กิตติวัฒน์</span>
+                    <span style="font-size:14px; color:#7c828a; font-family:'IBM Plex Mono',monospace;">@somchai.k</span>
+                  </div>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
+                    <span style="padding:5px 13px; border-radius:100px; background:#eef2ff; color:#0052ff; font-size:12px; font-weight:600;">ผู้ดูแลระบบ</span>
+                    <span style="display:inline-flex; align-items:center; gap:6px; padding:5px 13px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ยืนยันตัวตนแล้ว</span>
+                  </div>
+                  <button style="width:100%; height:44px; margin-top:6px; border:0; border-radius:100px; background:#eef0f3; color:#0a0b0d; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#dee1e6;">เปลี่ยนรูปประจำตัว</button>
+                </div>
+                <div style="background:#0a0b0d; border-radius:20px; padding:24px; display:flex; flex-direction:column; gap:16px;">
+                  <span style="font-size:15px; font-weight:600; color:#fff;">กิจกรรมของฉัน</span>
+                  <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                    <span style="font-size:13px; color:#a8acb3;">หลักฐานที่อัปโหลด</span>
+                    <span style="font-size:22px; color:#fff; font-family:'IBM Plex Sans',sans-serif;">146</span>
+                  </div>
+                  <div style="height:1px; background:#23262b;"></div>
+                  <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                    <span style="font-size:13px; color:#a8acb3;">การเข้าถึง 30 วัน</span>
+                    <span style="font-size:22px; color:#fff; font-family:'IBM Plex Sans',sans-serif;">55</span>
+                  </div>
+                  <div style="height:1px; background:#23262b;"></div>
+                  <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                    <span style="font-size:13px; color:#a8acb3;">เข้าใช้ล่าสุด</span>
+                    <span style="font-size:14px; color:#fff;">26 ส.ค. 08:12</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:20px; overflow:hidden;">
+                  <div style="padding:20px 24px; border-bottom:1px solid #eef0f3; font-size:16px; font-weight:600; color:#0a0b0d;">ข้อมูลเจ้าหน้าที่</div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-bottom:1px solid #eef0f3;">
+                    <span style="font-size:14px; color:#5b616e;">เลขประจำตัว</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d; font-family:'IBM Plex Mono',monospace;">BDG-004718</span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-bottom:1px solid #eef0f3;">
+                    <span style="font-size:14px; color:#5b616e;">ยศ</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">พันตำรวจโท</span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-bottom:1px solid #eef0f3;">
+                    <span style="font-size:14px; color:#5b616e;">หน่วยงาน</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">กองพิสูจน์หลักฐานกลาง</span>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 24px;">
+                    <span style="font-size:14px; color:#5b616e;">อีเมล</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">somchai.k@deva.go.th</span>
+                  </div>
+                </div>
+
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:20px; padding:24px; display:flex; flex-direction:column; gap:18px;">
+                  <div style="display:flex; flex-direction:column; gap:4px;">
+                    <span style="font-size:16px; font-weight:600; color:#0a0b0d;">ความปลอดภัย</span>
+                    <span style="font-size:13px; color:#5b616e;">รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร</span>
+                  </div>
+                  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:14px;">
+                    <div style="display:flex; flex-direction:column; gap:7px; grid-column:span 2;">
+                      <label style="font-size:13px; font-weight:600; color:#0a0b0d;">รหัสผ่านปัจจุบัน</label>
+                      <div style="display:flex; align-items:center; height:48px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; font-size:15px; color:#a8acb3;">••••••••</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:7px;">
+                      <label style="font-size:13px; font-weight:600; color:#0a0b0d;">รหัสผ่านใหม่</label>
+                      <div style="display:flex; align-items:center; height:48px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; font-size:15px; color:#a8acb3;">••••••••••</div>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:7px;">
+                      <label style="font-size:13px; font-weight:600; color:#0a0b0d;">ยืนยันรหัสผ่านใหม่</label>
+                      <div style="display:flex; align-items:center; height:48px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; font-size:15px; color:#a8acb3;">••••••••••</div>
+                    </div>
+                  </div>
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-radius:14px; background:#f7f7f7;">
+                    <div style="display:flex; flex-direction:column; gap:2px;">
+                      <span style="font-size:14px; font-weight:600; color:#0a0b0d;">ยืนยันตัวตนสองชั้น (2FA)</span>
+                      <span style="font-size:13px; color:#5b616e;">แนะนำสำหรับบัญชีผู้ดูแลระบบ</span>
+                    </div>
+                    <span style="width:48px; height:28px; border-radius:100px; background:#05b169; display:inline-flex; align-items:center; justify-content:flex-end; padding:3px;"><span style="width:22px; height:22px; border-radius:9999px; background:#fff;"></span></span>
+                  </div>
+                  <button style="align-self:flex-start; height:48px; padding:0 24px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">บันทึกการเปลี่ยนแปลง</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- ── 1B Cases ── -->
+      <div data-screen-label="1b Cases" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">รายการคดี</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:900px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6M9 16h3"></path></svg></span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:20px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d;">คดี</span>
+              <div style="display:flex; align-items:center; gap:10px; height:40px; padding:0 18px; border-radius:100px; background:#eef0f3; flex:1; max-width:400px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4-4"></path></svg>
+                <span style="font-size:14px; color:#7c828a;">ค้นหาเลขคดี / ชื่อคดี…</span>
+              </div>
+              <button style="margin-left:auto; height:40px; padding:0 18px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">+ สร้างคดีใหม่</button>
+            </div>
+            <div style="padding:24px 28px; display:flex; flex-direction:column; gap:18px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="padding:7px 15px; border-radius:100px; background:#0a0b0d; color:#fff; font-size:13px; font-weight:600;">ทั้งหมด 24</span>
+                <span style="padding:7px 15px; border-radius:100px; background:#fff; border:1px solid #dee1e6; color:#5b616e; font-size:13px; font-weight:500;">ดำเนินอยู่ 18</span>
+                <span style="padding:7px 15px; border-radius:100px; background:#fff; border:1px solid #dee1e6; color:#5b616e; font-size:13px; font-weight:500;">ปิดคดี 6</span>
+                <span style="margin-left:auto; font-size:13px; color:#7c828a;">เรียงตาม: อัปเดตล่าสุด</span>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;" style-hover="border-color:#0052ff;">
+                  <div style="aspect-ratio:16/9; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                    <span style="font-size:12px; color:#a8acb3;">ภาพปกหลักฐาน</span>
+                    <span style="position:absolute; top:12px; left:12px; padding:4px 11px; border-radius:100px; background:rgba(10,11,13,0.78); color:#fff; font-size:11px; font-weight:600;">12 หลักฐาน</span>
+                  </div>
+                  <div style="padding:16px; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">CS-2569-0087</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ลักทรัพย์ในเคหสถาน</span>
+                    <div style="display:flex; align-items:center; gap:14px; font-size:12px; color:#7c828a;">
+                      <span>สน.ทองหล่อ</span><span>22 ส.ค. 2569</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;" style-hover="border-color:#0052ff;">
+                  <div style="aspect-ratio:16/9; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                    <span style="font-size:12px; color:#a8acb3;">ภาพปกหลักฐาน</span>
+                    <span style="position:absolute; top:12px; left:12px; padding:4px 11px; border-radius:100px; background:rgba(10,11,13,0.78); color:#fff; font-size:11px; font-weight:600;">8 หลักฐาน</span>
+                  </div>
+                  <div style="padding:16px; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">CS-2569-0086</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ฉ้อโกงประชาชน</span>
+                    <div style="display:flex; align-items:center; gap:14px; font-size:12px; color:#7c828a;">
+                      <span>สน.บางรัก</span><span>19 ส.ค. 2569</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;" style-hover="border-color:#0052ff;">
+                  <div style="aspect-ratio:16/9; background:#f7f7f7; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border-bottom:1px solid #eef0f3;">
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#a8acb3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+                    <span style="font-size:12px; color:#a8acb3;">ยังไม่มีหลักฐาน</span>
+                  </div>
+                  <div style="padding:16px; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">CS-2569-0085</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ทำร้ายร่างกาย</span>
+                    <div style="display:flex; align-items:center; gap:14px; font-size:12px; color:#7c828a;">
+                      <span>สน.ห้วยขวาง</span><span>18 ส.ค. 2569</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;" style-hover="border-color:#0052ff;">
+                  <div style="aspect-ratio:16/9; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                    <span style="font-size:12px; color:#a8acb3;">ภาพปกหลักฐาน</span>
+                    <span style="position:absolute; top:12px; left:12px; padding:4px 11px; border-radius:100px; background:rgba(10,11,13,0.78); color:#fff; font-size:11px; font-weight:600;">31 หลักฐาน</span>
+                  </div>
+                  <div style="padding:16px; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">CS-2569-0081</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ยาเสพติดประเภท 1</span>
+                    <div style="display:flex; align-items:center; gap:14px; font-size:12px; color:#7c828a;">
+                      <span>สน.ลาดพร้าว</span><span>11 ส.ค. 2569</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;" style-hover="border-color:#0052ff;">
+                  <div style="aspect-ratio:16/9; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                    <span style="font-size:12px; color:#a8acb3;">ภาพปกหลักฐาน</span>
+                    <span style="position:absolute; top:12px; left:12px; padding:4px 11px; border-radius:100px; background:rgba(10,11,13,0.78); color:#fff; font-size:11px; font-weight:600;">5 หลักฐาน</span>
+                  </div>
+                  <div style="padding:16px; display:flex; flex-direction:column; gap:7px;">
+                    <span style="font-size:12px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">CS-2569-0078</span>
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ทำลายทรัพย์สินราชการ</span>
+                    <div style="display:flex; align-items:center; gap:14px; font-size:12px; color:#7c828a;">
+                      <span>สน.ดินแดง</span><span>04 ส.ค. 2569</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px dashed #dee1e6; border-radius:16px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; min-height:260px;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:9999px; background:#eef2ff;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0052ff" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg></span>
+                  <span style="font-size:14px; font-weight:600; color:#0052ff;">สร้างคดีใหม่</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Case detail ── -->
+      <div data-screen-label="1b Case detail" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">รายละเอียดคดี</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:940px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:10px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:14px; color:#7c828a;">คดี</span>
+              <span style="font-size:14px; color:#a8acb3;">/</span>
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d; font-family:'IBM Plex Mono',monospace;">CS-2569-0087</span>
+              <div style="margin-left:auto; display:flex; gap:10px;">
+                <button style="height:40px; padding:0 18px; border:1px solid #dee1e6; border-radius:100px; background:#fff; color:#0a0b0d; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#f7f7f7;">ส่งออกสำนวน</button>
+                <button style="height:40px; padding:0 18px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">+ เพิ่มหลักฐาน</button>
+              </div>
+            </div>
+            <div style="padding:24px 28px; display:flex; flex-direction:column; gap:18px;">
+              <div style="background:#0a0b0d; border-radius:20px; padding:28px 32px; display:flex; align-items:flex-start; gap:36px;">
+                <div style="display:flex; flex-direction:column; gap:10px; flex:1;">
+                  <span style="font-size:12px; color:#a8acb3; font-family:'IBM Plex Mono',monospace; letter-spacing:0.6px;">CS-2569-0087</span>
+                  <span style="font-size:30px; line-height:1.2; letter-spacing:-0.5px; color:#fff;">ลักทรัพย์ในเคหสถาน</span>
+                  <div style="display:flex; align-items:center; gap:10px; margin-top:4px;">
+                    <span style="display:inline-flex; align-items:center; gap:6px; padding:5px 13px; border-radius:100px; background:rgba(5,177,105,0.14); color:#05b169; font-size:12px; font-weight:600;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>กำลังดำเนินการ</span>
+                    <span style="padding:5px 13px; border-radius:100px; background:#16181c; border:1px solid #23262b; color:#fff; font-size:12px; font-weight:600;">สน.ทองหล่อ</span>
+                  </div>
+                </div>
+                <div style="display:flex; gap:40px; padding-top:6px;">
+                  <div style="display:flex; flex-direction:column; gap:6px;">
+                    <span style="font-size:12px; color:#a8acb3;">หลักฐาน</span>
+                    <span style="font-size:28px; line-height:1; color:#fff; font-family:'IBM Plex Mono',monospace;">12</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:6px;">
+                    <span style="font-size:12px; color:#a8acb3;">ยืนยันแล้ว</span>
+                    <span style="font-size:28px; line-height:1; color:#05b169; font-family:'IBM Plex Mono',monospace;">11</span>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:6px;">
+                    <span style="font-size:12px; color:#a8acb3;">วันเกิดเหตุ</span>
+                    <span style="font-size:15px; color:#fff; padding-top:8px;">22 ส.ค. 2569</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 320px; gap:16px; align-items:start;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                  <div style="display:flex; align-items:center; gap:12px; padding:18px 22px; border-bottom:1px solid #eef0f3;">
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">หลักฐานในคดี</span>
+                    <div style="display:flex; gap:6px; margin-left:8px;">
+                      <span style="padding:5px 13px; border-radius:100px; background:#0a0b0d; color:#fff; font-size:12px; font-weight:600;">ทั้งหมด</span>
+                      <span style="padding:5px 13px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px; font-weight:500;">ยืนยันแล้ว</span>
+                      <span style="padding:5px 13px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px; font-weight:500;">รอยืนยัน</span>
+                    </div>
+                  </div>
+                  <div style="padding:20px 22px; display:grid; grid-template-columns:repeat(4,1fr); gap:14px;">
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                        <span style="font-size:11px; color:#a8acb3;">ภาพหลักฐาน</span>
+                        <span style="position:absolute; bottom:8px; left:8px; width:8px; height:8px; border-radius:9999px; background:#05b169; box-shadow:0 0 0 2px #fff;"></span>
+                      </div>
+                      <span style="font-size:11px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0412</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                        <span style="font-size:11px; color:#a8acb3;">ภาพหลักฐาน</span>
+                        <span style="position:absolute; bottom:8px; left:8px; width:8px; height:8px; border-radius:9999px; background:#05b169; box-shadow:0 0 0 2px #fff;"></span>
+                      </div>
+                      <span style="font-size:11px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0410</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative; outline:2px solid #0052ff; outline-offset:1px;">
+                        <span style="font-size:11px; color:#a8acb3;">ภาพหลักฐาน</span>
+                        <span style="position:absolute; bottom:8px; left:8px; width:8px; height:8px; border-radius:9999px; background:#f4b000; box-shadow:0 0 0 2px #fff;"></span>
+                      </div>
+                      <span style="font-size:11px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0405</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                        <span style="font-size:11px; color:#a8acb3;">ภาพหลักฐาน</span>
+                        <span style="position:absolute; bottom:8px; left:8px; width:8px; height:8px; border-radius:9999px; background:#05b169; box-shadow:0 0 0 2px #fff;"></span>
+                      </div>
+                      <span style="font-size:11px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0401</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                        <span style="font-size:11px; color:#a8acb3;">ภาพหลักฐาน</span>
+                        <span style="position:absolute; bottom:8px; left:8px; width:8px; height:8px; border-radius:9999px; background:#05b169; box-shadow:0 0 0 2px #fff;"></span>
+                      </div>
+                      <span style="font-size:11px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0397</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                        <span style="font-size:11px; color:#a8acb3;">ภาพหลักฐาน</span>
+                        <span style="position:absolute; bottom:8px; left:8px; width:8px; height:8px; border-radius:9999px; background:#cf202f; box-shadow:0 0 0 2px #fff;"></span>
+                      </div>
+                      <span style="font-size:11px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0392</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative;">
+                        <span style="font-size:11px; color:#a8acb3;">ภาพหลักฐาน</span>
+                        <span style="position:absolute; bottom:8px; left:8px; width:8px; height:8px; border-radius:9999px; background:#05b169; box-shadow:0 0 0 2px #fff;"></span>
+                      </div>
+                      <span style="font-size:11px; color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0388</span>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      <div style="aspect-ratio:1; border-radius:12px; border:1px dashed #dee1e6; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0052ff" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+                        <span style="font-size:11px; font-weight:600; color:#0052ff;">อัปโหลด</span>
+                      </div>
+                      <span style="font-size:11px; color:transparent;">·</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                  <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                    <div style="padding:16px 20px; border-bottom:1px solid #eef0f3; font-size:15px; font-weight:600; color:#0a0b0d;">ข้อมูลคดี</div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid #eef0f3;"><span style="font-size:13px; color:#5b616e;">ผู้รับผิดชอบ</span><span style="font-size:13px; font-weight:600; color:#0a0b0d;">ร.ต.อ. ธนกฤต</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid #eef0f3;"><span style="font-size:13px; color:#5b616e;">สถานที่</span><span style="font-size:13px; font-weight:600; color:#0a0b0d;">สน.ทองหล่อ</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px; border-bottom:1px solid #eef0f3;"><span style="font-size:13px; color:#5b616e;">วันเกิดเหตุ</span><span style="font-size:13px; font-weight:600; color:#0a0b0d;">22 ส.ค. 2569</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; padding:13px 20px;"><span style="font-size:13px; color:#5b616e;">สร้างเมื่อ</span><span style="font-size:13px; font-weight:600; color:#0a0b0d;">22 ส.ค. 2569</span></div>
+                  </div>
+                  <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:16px;">
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ไทม์ไลน์การดูแลรักษา</span>
+                    <div style="display:flex; flex-direction:column; gap:14px;">
+                      <div style="display:flex; gap:12px;">
+                        <span style="width:8px; height:8px; margin-top:6px; border-radius:9999px; background:#0052ff; flex-shrink:0;"></span>
+                        <div style="display:flex; flex-direction:column; gap:2px;"><span style="font-size:13px; font-weight:600; color:#0a0b0d;">อัปโหลดหลักฐาน 3 ชิ้น</span><span style="font-size:12px; color:#7c828a;">ร.ต.อ. ธนกฤต · 26 ส.ค. 13:58</span></div>
+                      </div>
+                      <div style="display:flex; gap:12px;">
+                        <span style="width:8px; height:8px; margin-top:6px; border-radius:9999px; background:#05b169; flex-shrink:0;"></span>
+                        <div style="display:flex; flex-direction:column; gap:2px;"><span style="font-size:13px; font-weight:600; color:#0a0b0d;">บันทึกลงบล็อกเชน</span><span style="font-size:12px; color:#7c828a;">ระบบ · 26 ส.ค. 13:59</span></div>
+                      </div>
+                      <div style="display:flex; gap:12px;">
+                        <span style="width:8px; height:8px; margin-top:6px; border-radius:9999px; background:#dee1e6; flex-shrink:0;"></span>
+                        <div style="display:flex; flex-direction:column; gap:2px;"><span style="font-size:13px; font-weight:600; color:#0a0b0d;">เปิดดูหลักฐาน</span><span style="font-size:12px; color:#7c828a;">พ.ต.ต. อรุณ · 25 ส.ค. 09:04</span></div>
+                      </div>
+                      <div style="display:flex; gap:12px;">
+                        <span style="width:8px; height:8px; margin-top:6px; border-radius:9999px; background:#dee1e6; flex-shrink:0;"></span>
+                        <div style="display:flex; flex-direction:column; gap:2px;"><span style="font-size:13px; font-weight:600; color:#0a0b0d;">สร้างคดี</span><span style="font-size:12px; color:#7c828a;">ร.ต.อ. ธนกฤต · 22 ส.ค. 16:20</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Evidence detail ── -->
+      <div data-screen-label="1b Evidence detail" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">รายละเอียดหลักฐาน</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:880px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:10px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:14px; color:#7c828a;">คดี</span>
+              <span style="font-size:14px; color:#a8acb3;">/</span>
+              <span style="font-size:14px; color:#7c828a; font-family:'IBM Plex Mono',monospace;">CS-2569-0087</span>
+              <span style="font-size:14px; color:#a8acb3;">/</span>
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d; font-family:'IBM Plex Mono',monospace;">EV-2569-0412</span>
+              <div style="margin-left:auto; display:flex; gap:10px;">
+                <button style="height:40px; padding:0 18px; border:1px solid #dee1e6; border-radius:100px; background:#fff; color:#0a0b0d; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#f7f7f7;">ดาวน์โหลด</button>
+                <button style="height:40px; padding:0 18px; border:0; border-radius:100px; background:#0a0b0d; color:#fff; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;">ตรวจลายน้ำอีกครั้ง</button>
+              </div>
+            </div>
+            <div style="padding:24px 28px; display:grid; grid-template-columns:1fr 380px; gap:16px; align-items:start;">
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <div style="display:flex; align-items:center; justify-content:space-between;">
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ภาพหลักฐาน</span>
+                    <div style="display:flex; gap:4px; padding:3px; border-radius:100px; background:#eef0f3;">
+                      <span style="padding:5px 14px; border-radius:100px; background:#fff; font-size:12px; font-weight:600; color:#0a0b0d;">ต้นฉบับ</span>
+                      <span style="padding:5px 14px; border-radius:100px; font-size:12px; font-weight:500; color:#7c828a;">ลายน้ำ</span>
+                      <span style="padding:5px 14px; border-radius:100px; font-size:12px; font-weight:500; color:#7c828a;">เทียบภาพ</span>
+                    </div>
+                  </div>
+                  <div style="aspect-ratio:16/10; border-radius:12px; background:#eef0f3; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden;">
+                    <span style="font-size:13px; color:#a8acb3;">ภาพหลักฐาน (ป้องกันการคัดลอก)</span>
+                    <span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:44px; font-weight:700; color:rgba(10,11,13,0.055); letter-spacing:6px; transform:rotate(-24deg);">DEVA · BDG-004718</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:16px; font-size:12px; color:#7c828a; font-family:'IBM Plex Mono',monospace;">
+                    <span>4032 × 3024</span><span>3.8 MB</span><span>image/jpeg</span>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                  <div style="padding:16px 20px; border-bottom:1px solid #eef0f3; font-size:15px; font-weight:600; color:#0a0b0d;">ประวัติการเข้าถึงหลักฐานนี้</div>
+                  <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr; padding:12px 20px; background:#f7f7f7; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;"><span>เจ้าหน้าที่</span><span>การกระทำ</span><span>IP</span><span style="text-align:right;">เวลา</span></div>
+                  <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr; padding:14px 20px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;"><span>พ.ต.ท. สมชาย</span><span style="color:#5b616e;">เปิดดู</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.2.18</span><span style="text-align:right; color:#5b616e;">26 ส.ค. 14:02</span></div>
+                  <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr; padding:14px 20px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;"><span>พ.ต.ต. อรุณ</span><span style="color:#5b616e;">ดาวน์โหลด</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.7.91</span><span style="text-align:right; color:#5b616e;">25 ส.ค. 09:04</span></div>
+                  <div style="display:grid; grid-template-columns:1.2fr 1fr 1fr 1fr; padding:14px 20px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;"><span>ร.ต.อ. ธนกฤต</span><span style="color:#5b616e;">อัปโหลด</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.2.44</span><span style="text-align:right; color:#5b616e;">22 ส.ค. 16:31</span></div>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#0a0b0d; border-radius:20px; padding:24px; display:flex; flex-direction:column; gap:18px;">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:9999px; background:rgba(5,177,105,0.16);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#05b169" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+                    <div style="display:flex; flex-direction:column; gap:2px;">
+                      <span style="font-size:17px; font-weight:600; color:#fff;">หลักฐานถูกต้อง</span>
+                      <span style="font-size:12px; color:#a8acb3;">ลายน้ำตรงกัน · แฮชตรงกับบล็อกเชน</span>
+                    </div>
+                  </div>
+                  <div style="height:1px; background:#23262b;"></div>
+                  <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">ลายน้ำฝัง</span><span style="font-size:13px; font-weight:600; color:#05b169;">ตรวจพบ (98.4%)</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">แฮช SHA-256</span><span style="font-size:13px; font-weight:600; color:#05b169;">ตรงกัน</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">บล็อกที่บันทึก</span><span style="font-size:13px; color:#fff; font-family:'IBM Plex Mono',monospace;">#874,193</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">ตรวจล่าสุด</span><span style="font-size:13px; color:#fff;">26 ส.ค. 14:02</span></div>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ข้อมูลทางเทคนิค</span>
+                  <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; color:#7c828a;">แฮชไฟล์ (SHA-256)</span><span style="font-size:12px; color:#0a0b0d; font-family:'IBM Plex Mono',monospace; word-break:break-all; line-height:1.6;">8f3a17c94be02d5a6f81c0b3ee7a4192d55c0fa7b3e91d48a2c60ff3d9a1c21b</span></div>
+                    <div style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; color:#7c828a;">รหัสธุรกรรม</span><span style="font-size:12px; color:#0052ff; font-family:'IBM Plex Mono',monospace; word-break:break-all; line-height:1.6;">0x21de4b09f7a3c8e1b5049f04</span></div>
+                    <div style="display:flex; flex-direction:column; gap:4px;"><span style="font-size:12px; color:#7c828a;">อุปกรณ์ที่บันทึก</span><span style="font-size:13px; color:#0a0b0d;">Canon EOS R6 · หน่วยพิสูจน์หลักฐาน 3</span></div>
+                  </div>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:10px;">
+                  <span style="font-size:15px; font-weight:600; color:#0a0b0d;">บันทึกของเจ้าหน้าที่</span>
+                  <span style="font-size:13px; line-height:1.65; color:#5b616e;">ถ่ายบริเวณประตูหลังบ้าน พบร่องรอยการงัดแงะที่บานพับ เก็บภาพเวลา 16:20 ก่อนเคลื่อนย้ายวัตถุพยาน</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Upload evidence ── -->
+      <div data-screen-label="1b Upload" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">อัปโหลดหลักฐาน</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:760px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg></span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:10px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:14px; color:#7c828a;">CS-2569-0087</span>
+              <span style="font-size:14px; color:#a8acb3;">/</span>
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d;">อัปโหลดหลักฐาน</span>
+            </div>
+            <div style="padding:24px 28px; display:grid; grid-template-columns:1fr 360px; gap:16px; align-items:start;">
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#fff; border:1.5px dashed #0052ff; border-radius:20px; padding:52px; display:flex; flex-direction:column; align-items:center; gap:14px; background:#f5f8ff;">
+                  <span style="display:inline-flex; align-items:center; justify-content:center; width:60px; height:60px; border-radius:9999px; background:#e2ebff;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#0052ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"></path><path d="M8 9l4-4 4 4"></path><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg></span>
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:6px;">
+                    <span style="font-size:18px; font-weight:600; color:#0a0b0d;">ลากไฟล์ภาพมาวางที่นี่</span>
+                    <span style="font-size:14px; color:#5b616e;">รองรับ JPG, PNG, HEIC · สูงสุด 25 MB ต่อไฟล์</span>
+                  </div>
+                  <button style="height:48px; padding:0 24px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer; margin-top:4px;" style-hover="background:#003ecc;">เลือกไฟล์จากเครื่อง</button>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 20px; border-bottom:1px solid #eef0f3;">
+                    <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ไฟล์ที่เลือก (3)</span>
+                    <span style="font-size:13px; font-weight:600; color:#cf202f;">ล้างทั้งหมด</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid #eef0f3;">
+                    <span style="width:44px; height:44px; border-radius:10px; background:#eef0f3; flex-shrink:0;"></span>
+                    <div style="display:flex; flex-direction:column; gap:5px; flex:1;">
+                      <span style="font-size:14px; font-weight:600; color:#0a0b0d;">IMG_4821.jpg</span>
+                      <div style="height:5px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:100%; height:100%; background:#05b169;"></div></div>
+                    </div>
+                    <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#05b169;">ฝังลายน้ำแล้ว</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:14px; padding:14px 20px; border-bottom:1px solid #eef0f3;">
+                    <span style="width:44px; height:44px; border-radius:10px; background:#eef0f3; flex-shrink:0;"></span>
+                    <div style="display:flex; flex-direction:column; gap:5px; flex:1;">
+                      <span style="font-size:14px; font-weight:600; color:#0a0b0d;">IMG_4822.jpg</span>
+                      <div style="height:5px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:64%; height:100%; background:#0052ff;"></div></div>
+                    </div>
+                    <span style="font-size:12px; font-weight:600; color:#0052ff;">กำลังฝังลายน้ำ 64%</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:14px; padding:14px 20px;">
+                    <span style="width:44px; height:44px; border-radius:10px; background:#eef0f3; flex-shrink:0;"></span>
+                    <div style="display:flex; flex-direction:column; gap:5px; flex:1;">
+                      <span style="font-size:14px; font-weight:600; color:#0a0b0d;">IMG_4823.heic</span>
+                      <div style="height:5px; border-radius:9999px; background:#eef0f3; overflow:hidden;"><div style="width:12%; height:100%; background:#dee1e6;"></div></div>
+                    </div>
+                    <span style="font-size:12px; font-weight:600; color:#7c828a;">รอคิว</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:16px;">
+                  <span style="font-size:15px; font-weight:600; color:#0a0b0d;">รายละเอียดหลักฐาน</span>
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <label style="font-size:13px; font-weight:600; color:#0a0b0d;">คดีที่เกี่ยวข้อง</label>
+                    <div style="display:flex; align-items:center; justify-content:space-between; height:48px; padding:0 16px; border:1px solid #dee1e6; border-radius:12px; font-size:14px; color:#0a0b0d;">
+                      <span>CS-2569-0087 · ลักทรัพย์ฯ</span>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"></path></svg>
+                    </div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <label style="font-size:13px; font-weight:600; color:#0a0b0d;">ประเภทหลักฐาน</label>
+                    <div style="display:flex; gap:8px;">
+                      <span style="padding:9px 16px; border-radius:100px; background:#0a0b0d; color:#fff; font-size:13px; font-weight:600;">ภาพถ่าย</span>
+                      <span style="padding:9px 16px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:13px; font-weight:500;">ภาพสแกน</span>
+                      <span style="padding:9px 16px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:13px; font-weight:500;">อื่น ๆ</span>
+                    </div>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <label style="font-size:13px; font-weight:600; color:#0a0b0d;">คำอธิบาย</label>
+                    <div style="min-height:96px; padding:14px 16px; border:1px solid #dee1e6; border-radius:12px; font-size:14px; line-height:1.6; color:#a8acb3;">ระบุสถานที่ เวลา และบริบทของภาพ…</div>
+                  </div>
+                </div>
+                <div style="background:#0a0b0d; border-radius:20px; padding:22px; display:flex; flex-direction:column; gap:14px;">
+                  <span style="font-size:15px; font-weight:600; color:#fff;">ระบบจะทำอัตโนมัติ</span>
+                  <div style="display:flex; gap:11px; align-items:flex-start;"><span style="width:6px; height:6px; margin-top:7px; border-radius:9999px; background:#0052ff; flex-shrink:0;"></span><span style="font-size:13px; line-height:1.55; color:#a8acb3;">ฝังลายน้ำระบุตัวเจ้าหน้าที่และเวลาลงในภาพ</span></div>
+                  <div style="display:flex; gap:11px; align-items:flex-start;"><span style="width:6px; height:6px; margin-top:7px; border-radius:9999px; background:#0052ff; flex-shrink:0;"></span><span style="font-size:13px; line-height:1.55; color:#a8acb3;">คำนวณแฮช SHA-256 ของไฟล์ต้นฉบับ</span></div>
+                  <div style="display:flex; gap:11px; align-items:flex-start;"><span style="width:6px; height:6px; margin-top:7px; border-radius:9999px; background:#0052ff; flex-shrink:0;"></span><span style="font-size:13px; line-height:1.55; color:#a8acb3;">บันทึกแฮชลงบล็อกเชนเพื่อยืนยันความถูกต้อง</span></div>
+                </div>
+                <button style="height:56px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:16px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">อัปโหลดและบันทึกลงบล็อกเชน</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Watermark verify ── -->
+      <div data-screen-label="1b Verify" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">ตรวจสอบลายน้ำ</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:800px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:10px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d;">ตรวจสอบลายน้ำ</span>
+              <span style="font-size:13px; color:#7c828a; margin-left:6px;">อัปโหลดภาพเพื่อตรวจว่ามาจากระบบ DEVA จริงหรือไม่</span>
+            </div>
+            <div style="padding:24px 28px; display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start;">
+              <div style="background:#fff; border:1px solid #dee1e6; border-radius:20px; padding:24px; display:flex; flex-direction:column; gap:18px;">
+                <span style="font-size:16px; font-weight:600; color:#0a0b0d;">ภาพที่ต้องการตรวจ</span>
+                <div style="aspect-ratio:4/3; border-radius:14px; background:#eef0f3; display:flex; align-items:center; justify-content:center;">
+                  <span style="font-size:13px; color:#a8acb3;">ภาพที่อัปโหลดเพื่อตรวจสอบ</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:14px; font-size:12px; color:#7c828a; font-family:'IBM Plex Mono',monospace;">
+                  <span>evidence_copy.jpg</span><span>3.8 MB</span>
+                </div>
+                <div style="display:flex; gap:10px;">
+                  <button style="flex:1; height:48px; border:1px solid #dee1e6; border-radius:100px; background:#fff; color:#0a0b0d; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#f7f7f7;">เปลี่ยนภาพ</button>
+                  <button style="flex:1; height:48px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">ตรวจสอบ</button>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:16px;">
+                <div style="background:#0a0b0d; border-radius:20px; padding:28px; display:flex; flex-direction:column; gap:20px;">
+                  <div style="display:flex; align-items:center; gap:14px;">
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:52px; height:52px; border-radius:9999px; background:rgba(5,177,105,0.16);"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#05b169" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+                    <div style="display:flex; flex-direction:column; gap:3px;">
+                      <span style="font-size:24px; line-height:1.2; color:#fff;">พบลายน้ำของระบบ</span>
+                      <span style="font-size:13px; color:#a8acb3;">ความมั่นใจ 98.4% · ภาพนี้มาจากระบบ DEVA</span>
+                    </div>
+                  </div>
+                  <div style="height:1px; background:#23262b;"></div>
+                  <div style="display:flex; flex-direction:column; gap:14px;">
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">หมายเลขหลักฐาน</span><span style="font-size:14px; font-weight:600; color:#fff; font-family:'IBM Plex Mono',monospace;">EV-2569-0412</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">คดี</span><span style="font-size:14px; color:#fff;">CS-2569-0087 · ลักทรัพย์ฯ</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">ผู้อัปโหลดต้นฉบับ</span><span style="font-size:14px; color:#fff;">ร.ต.อ. ธนกฤต ศรีสุข</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">เวลาบันทึกต้นฉบับ</span><span style="font-size:14px; color:#fff;">22 ส.ค. 2569 16:31</span></div>
+                    <div style="display:flex; align-items:center; justify-content:space-between;"><span style="font-size:13px; color:#a8acb3;">แฮชบนบล็อกเชน</span><span style="font-size:13px; color:#05b169; font-family:'IBM Plex Mono',monospace;">ตรงกัน · #874,193</span></div>
+                  </div>
+                  <button style="height:48px; border:0; border-radius:100px; background:#fff; color:#0a0b0d; font-size:15px; font-weight:600; font-family:inherit; cursor:pointer;">ดาวน์โหลดใบรับรองผลตรวจ</button>
+                </div>
+
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:14px;">
+                  <span style="font-size:15px; font-weight:600; color:#0a0b0d;">ผลตรวจล่าสุด</span>
+                  <div style="display:flex; align-items:center; gap:12px; padding-bottom:12px; border-bottom:1px solid #eef0f3;">
+                    <span style="width:8px; height:8px; border-radius:9999px; background:#05b169;"></span>
+                    <span style="font-size:13px; color:#0a0b0d; flex:1;">evidence_copy.jpg</span>
+                    <span style="font-size:12px; color:#7c828a;">14:31</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px; padding-bottom:12px; border-bottom:1px solid #eef0f3;">
+                    <span style="width:8px; height:8px; border-radius:9999px; background:#cf202f;"></span>
+                    <span style="font-size:13px; color:#0a0b0d; flex:1;">line_forward_002.jpg</span>
+                    <span style="font-size:12px; color:#7c828a;">11:08</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="width:8px; height:8px; border-radius:9999px; background:#05b169;"></span>
+                    <span style="font-size:13px; color:#0a0b0d; flex:1;">scan_doc_77.png</span>
+                    <span style="font-size:12px; color:#7c828a;">เมื่อวาน</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Access logs ── -->
+      <div data-screen-label="1b Logs" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">บันทึกการเข้าถึง</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:820px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6M9 16h3"></path></svg></span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:20px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d;">บันทึกการเข้าถึง</span>
+              <div style="display:flex; align-items:center; gap:10px; height:40px; padding:0 18px; border-radius:100px; background:#eef0f3; flex:1; max-width:360px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4-4"></path></svg>
+                <span style="font-size:14px; color:#7c828a;">ค้นหาเจ้าหน้าที่ / หลักฐาน…</span>
+              </div>
+              <button style="margin-left:auto; height:40px; padding:0 18px; border:1px solid #dee1e6; border-radius:100px; background:#fff; color:#0a0b0d; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#f7f7f7;">ส่งออก CSV</button>
+            </div>
+            <div style="padding:24px 28px; display:flex; flex-direction:column; gap:16px;">
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="padding:8px 15px; border-radius:100px; background:#0a0b0d; color:#fff; font-size:13px; font-weight:600;">ทั้งหมด</span>
+                <span style="padding:8px 15px; border-radius:100px; background:#fff; border:1px solid #dee1e6; color:#5b616e; font-size:13px;">เปิดดู</span>
+                <span style="padding:8px 15px; border-radius:100px; background:#fff; border:1px solid #dee1e6; color:#5b616e; font-size:13px;">ดาวน์โหลด</span>
+                <span style="padding:8px 15px; border-radius:100px; background:#fff; border:1px solid #dee1e6; color:#5b616e; font-size:13px;">อัปโหลด</span>
+                <span style="padding:8px 15px; border-radius:100px; background:#fdf1f2; border:1px solid #f6d3d6; color:#cf202f; font-size:13px; font-weight:600;">ผิดปกติ 3</span>
+                <div style="margin-left:auto; display:flex; align-items:center; gap:10px; height:38px; padding:0 16px; border-radius:100px; background:#fff; border:1px solid #dee1e6;">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><rect x="4" y="5" width="16" height="16" rx="2"></rect><path d="M4 10h16M9 3v3M15 3v3"></path></svg>
+                  <span style="font-size:13px; color:#0a0b0d;">1 – 26 ส.ค. 2569</span>
+                </div>
+              </div>
+
+              <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; padding:13px 22px; background:#f7f7f7; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">
+                  <span>เวลา</span><span>เจ้าหน้าที่</span><span>การกระทำ</span><span>หลักฐาน / คดี</span><span>IP</span><span style="text-align:right;">ผล</span>
+                </div>
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">26/08 14:02</span><span>พ.ต.ท. สมชาย</span><span style="color:#5b616e;">เปิดดู</span><span style="color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0412</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.2.18</span>
+                  <span style="text-align:right;"><span style="padding:4px 11px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;">สำเร็จ</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">26/08 13:58</span><span>ร.ต.อ. ธนกฤต</span><span style="color:#5b616e;">อัปโหลด</span><span style="color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0411</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.2.44</span>
+                  <span style="text-align:right;"><span style="padding:4px 11px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;">สำเร็จ</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d; background:#fefafa;" style-hover="background:#fdf1f2;">
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">26/08 12:44</span><span>ไม่ระบุตัวตน</span><span style="color:#cf202f; font-weight:600;">เข้าสู่ระบบล้มเหลว</span><span style="color:#7c828a;">—</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">203.150.7.22</span>
+                  <span style="text-align:right;"><span style="padding:4px 11px; border-radius:100px; background:#fdf1f2; color:#cf202f; font-size:12px; font-weight:600;">ปฏิเสธ</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">26/08 11:20</span><span>พ.ต.ต. อรุณ</span><span style="color:#5b616e;">ดาวน์โหลด</span><span style="color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0409</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.7.91</span>
+                  <span style="text-align:right;"><span style="padding:4px 11px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;">สำเร็จ</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">26/08 10:11</span><span>ส.ต.ท. ปิยะ</span><span style="color:#5b616e;">ค้นหา</span><span style="color:#7c828a;">"ลักทรัพย์"</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.5.30</span>
+                  <span style="text-align:right;"><span style="padding:4px 11px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;">สำเร็จ</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d; background:#fefafa;" style-hover="background:#fdf1f2;">
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">26/08 09:37</span><span>ร.ต.ท. วิชัย</span><span style="color:#cf202f; font-weight:600;">เข้าถึงคดีที่ไม่มีสิทธิ์</span><span style="color:#0052ff; font-family:'IBM Plex Mono',monospace;">CS-2569-0081</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.9.12</span>
+                  <span style="text-align:right;"><span style="padding:4px 11px; border-radius:100px; background:#fdf1f2; color:#cf202f; font-size:12px; font-weight:600;">ปฏิเสธ</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:150px 1.3fr 1fr 1.1fr 1fr 110px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">25/08 16:41</span><span>พ.ต.ท. สมชาย</span><span style="color:#5b616e;">ตรวจลายน้ำ</span><span style="color:#0052ff; font-family:'IBM Plex Mono',monospace;">EV-2569-0405</span><span style="color:#7c828a; font-family:'IBM Plex Mono',monospace;">10.4.2.18</span>
+                  <span style="text-align:right;"><span style="padding:4px 11px; border-radius:100px; background:#e6f7ef; color:#05b169; font-size:12px; font-weight:600;">สำเร็จ</span></span>
+                </div>
+                <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 22px; border-top:1px solid #eef0f3;">
+                  <span style="font-size:13px; color:#7c828a;">แสดง 1–7 จาก 862 รายการ</span>
+                  <div style="display:flex; gap:6px;">
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9999px; border:1px solid #dee1e6; font-size:13px; color:#a8acb3;">‹</span>
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9999px; background:#0a0b0d; color:#fff; font-size:13px; font-weight:600;">1</span>
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9999px; border:1px solid #dee1e6; font-size:13px; color:#0a0b0d;">2</span>
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9999px; border:1px solid #dee1e6; font-size:13px; color:#0a0b0d;">3</span>
+                    <span style="display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:9999px; border:1px solid #dee1e6; font-size:13px; color:#0a0b0d;">›</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 1B Manage users ── -->
+      <div data-screen-label="1b Users" style="border:1px solid #dee1e6; border-radius:16px; overflow:hidden; background:#fff;">
+        <div style="display:flex; align-items:center; gap:8px; padding:10px 16px; background:#f7f7f7; border-bottom:1px solid #eef0f3;">
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="width:10px; height:10px; border-radius:9999px; background:#dee1e6;"></span>
+          <span style="font-size:12px; font-weight:600; color:#7c828a; margin-left:8px; letter-spacing:0.4px;">จัดการผู้ใช้</span>
+        </div>
+        <div style="display:grid; grid-template-columns:76px 1fr;">
+          <div style="background:#0a0b0d; display:flex; flex-direction:column; align-items:center; gap:8px; padding:18px 0; min-height:760px;">
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:12px; background:#0052ff; margin-bottom:12px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.7-7 9-4-1.3-7-4.5-7-9V6z"></path><path d="M9 12l2 2 4-4"></path></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; color:#7c828a;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="8" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="11" width="7" height="10" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect></svg></span>
+            <span style="display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; border-radius:12px; background:#16181c; color:#fff;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3"></circle><path d="M3 19a6 6 0 0 1 12 0M17 11h4M19 9v4"></path></svg></span>
+            <span style="margin-top:auto; display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:9999px; background:#16181c; color:#fff; font-size:13px; font-weight:600;">ส</span>
+          </div>
+          <div style="background:#f7f7f7; display:flex; flex-direction:column;">
+            <div style="height:64px; display:flex; align-items:center; gap:20px; padding:0 28px; background:#fff; border-bottom:1px solid #eef0f3;">
+              <span style="font-size:16px; font-weight:600; color:#0a0b0d;">จัดการผู้ใช้</span>
+              <div style="display:flex; align-items:center; gap:10px; height:40px; padding:0 18px; border-radius:100px; background:#eef0f3; flex:1; max-width:340px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c828a" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4-4"></path></svg>
+                <span style="font-size:14px; color:#7c828a;">ค้นหาชื่อ / เลขประจำตัว…</span>
+              </div>
+              <button style="margin-left:auto; height:40px; padding:0 18px; border:0; border-radius:100px; background:#0052ff; color:#fff; font-size:14px; font-weight:600; font-family:inherit; cursor:pointer;" style-hover="background:#003ecc;">+ เพิ่มผู้ใช้</button>
+            </div>
+            <div style="padding:24px 28px; display:flex; flex-direction:column; gap:16px;">
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:8px;">
+                  <span style="font-size:13px; color:#5b616e;">ผู้ใช้ทั้งหมด</span>
+                  <span style="font-size:30px; line-height:1; color:#0a0b0d; font-family:'IBM Plex Mono',monospace;">48</span>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:8px;">
+                  <span style="font-size:13px; color:#5b616e;">ใช้งานอยู่วันนี้</span>
+                  <span style="font-size:30px; line-height:1; color:#05b169; font-family:'IBM Plex Mono',monospace;">21</span>
+                </div>
+                <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:8px;">
+                  <span style="font-size:13px; color:#5b616e;">รอยืนยันบัญชี</span>
+                  <span style="font-size:30px; line-height:1; color:#f4b000; font-family:'IBM Plex Mono',monospace;">4</span>
+                </div>
+                <div style="background:#0a0b0d; border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:8px;">
+                  <span style="font-size:13px; color:#a8acb3;">ระงับการใช้งาน</span>
+                  <span style="font-size:30px; line-height:1; color:#fff; font-family:'IBM Plex Mono',monospace;">2</span>
+                </div>
+              </div>
+
+              <div style="background:#fff; border:1px solid #dee1e6; border-radius:16px; overflow:hidden;">
+                <div style="display:flex; align-items:center; gap:8px; padding:16px 22px; border-bottom:1px solid #eef0f3;">
+                  <span style="padding:6px 14px; border-radius:100px; background:#0a0b0d; color:#fff; font-size:12px; font-weight:600;">ทั้งหมด</span>
+                  <span style="padding:6px 14px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px;">ผู้ดูแลระบบ 3</span>
+                  <span style="padding:6px 14px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px;">หัวหน้า 9</span>
+                  <span style="padding:6px 14px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px;">เจ้าหน้าที่ 36</span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr 1.1fr 130px 90px; padding:13px 22px; background:#f7f7f7; font-size:11px; font-weight:600; letter-spacing:1px; text-transform:uppercase; color:#7c828a;">
+                  <span>ชื่อ</span><span>เลขประจำตัว</span><span>สิทธิ์</span><span>หน่วยงาน</span><span>เข้าใช้ล่าสุด</span><span style="text-align:right;">สถานะ</span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr 1.1fr 130px 90px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <div style="display:flex; align-items:center; gap:11px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9999px; background:#0a0b0d; color:#fff; font-size:12px; font-weight:600;">ส</span><div style="display:flex; flex-direction:column;"><span style="font-weight:600;">พ.ต.ท. สมชาย กิตติวัฒน์</span><span style="font-size:12px; color:#7c828a;">somchai.k@deva.go.th</span></div></div>
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">BDG-004718</span>
+                  <span><span style="padding:4px 11px; border-radius:100px; background:#eef2ff; color:#0052ff; font-size:12px; font-weight:600;">ผู้ดูแลระบบ</span></span>
+                  <span style="color:#5b616e;">กองพิสูจน์หลักฐาน</span><span style="color:#5b616e;">26/08 14:02</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#05b169;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ใช้งาน</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr 1.1fr 130px 90px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <div style="display:flex; align-items:center; gap:11px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9999px; background:#eef0f3; color:#0a0b0d; font-size:12px; font-weight:600;">ธ</span><div style="display:flex; flex-direction:column;"><span style="font-weight:600;">ร.ต.อ. ธนกฤต ศรีสุข</span><span style="font-size:12px; color:#7c828a;">thanakrit.s@deva.go.th</span></div></div>
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">BDG-005102</span>
+                  <span><span style="padding:4px 11px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px; font-weight:600;">หัวหน้า</span></span>
+                  <span style="color:#5b616e;">สน.ทองหล่อ</span><span style="color:#5b616e;">26/08 13:58</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#05b169;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ใช้งาน</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr 1.1fr 130px 90px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <div style="display:flex; align-items:center; gap:11px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9999px; background:#eef0f3; color:#0a0b0d; font-size:12px; font-weight:600;">อ</span><div style="display:flex; flex-direction:column;"><span style="font-weight:600;">พ.ต.ต. อรุณ พลเดช</span><span style="font-size:12px; color:#7c828a;">arun.p@deva.go.th</span></div></div>
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">BDG-004990</span>
+                  <span><span style="padding:4px 11px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px; font-weight:600;">หัวหน้า</span></span>
+                  <span style="color:#5b616e;">สน.บางรัก</span><span style="color:#5b616e;">26/08 11:20</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#05b169;"><span style="width:6px; height:6px; border-radius:9999px; background:#05b169;"></span>ใช้งาน</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr 1.1fr 130px 90px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <div style="display:flex; align-items:center; gap:11px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9999px; background:#eef0f3; color:#0a0b0d; font-size:12px; font-weight:600;">ป</span><div style="display:flex; flex-direction:column;"><span style="font-weight:600;">ส.ต.ท. ปิยะ วงศ์ทอง</span><span style="font-size:12px; color:#7c828a;">piya.w@deva.go.th</span></div></div>
+                  <span style="color:#5b616e; font-family:'IBM Plex Mono',monospace;">BDG-006233</span>
+                  <span><span style="padding:4px 11px; border-radius:100px; background:#f7f7f7; color:#5b616e; font-size:12px; font-weight:600;">เจ้าหน้าที่</span></span>
+                  <span style="color:#5b616e;">สน.บางรัก</span><span style="color:#5b616e;">26/08 10:11</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#f4b000;"><span style="width:6px; height:6px; border-radius:9999px; background:#f4b000;"></span>รอยืนยัน</span></span>
+                </div>
+                <div style="display:grid; grid-template-columns:1.6fr 1fr 1fr 1.1fr 130px 90px; align-items:center; padding:14px 22px; border-top:1px solid #eef0f3; font-size:13px; color:#0a0b0d;" style-hover="background:#f7f7f7;">
+                  <div style="display:flex; align-items:center; gap:11px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:9999px; background:#eef0f3; color:#a8acb3; font-size:12px; font-weight:600;">ว</span><div style="display:flex; flex-direction:column;"><span style="font-weight:600; color:#7c828a;">ร.ต.ท. วิชัย มั่นคง</span><span style="font-size:12px; color:#a8acb3;">wichai.m@deva.go.th</span></div></div>
+                  <span style="color:#a8acb3; font-family:'IBM Plex Mono',monospace;">BDG-005871</span>
+                  <span><span style="padding:4px 11px; border-radius:100px; background:#f7f7f7; color:#a8acb3; font-size:12px; font-weight:600;">เจ้าหน้าที่</span></span>
+                  <span style="color:#a8acb3;">สน.ลาดพร้าว</span><span style="color:#a8acb3;">26/08 09:37</span>
+                  <span style="text-align:right;"><span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:600; color:#cf202f;"><span style="width:6px; height:6px; border-radius:9999px; background:#cf202f;"></span>ระงับ</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</x-dc>
+</body>
+</html>

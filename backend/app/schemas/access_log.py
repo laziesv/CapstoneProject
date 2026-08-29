@@ -28,3 +28,12 @@ class AccessLogResponse(BaseModel):
         if hasattr(v, "value"):
             v = v.value
         return str(v).lower()
+
+
+class AccessLogPage(BaseModel):
+    """ผลลัพธ์แบบแบ่งหน้า — total = จำนวนทั้งหมดที่ตรงตัวกรอง (ก่อนตัดหน้า)
+    limit=None แปลว่าคืนทุกรายการ (ไม่แบ่งหน้า)"""
+    items: list[AccessLogResponse]
+    total: int
+    limit: int | None = None
+    offset: int = 0

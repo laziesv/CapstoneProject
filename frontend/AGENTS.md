@@ -89,15 +89,20 @@ component → hooks/contexts → services → services/http → utils/session + 
 
 ## Design system
 
-โทนสี navy (กรมท่า) แบบทางการ กำหนดใน `globals.css`:
+ธีม "1B" — พื้นเทาอ่อน + หมึกดำ + น้ำเงิน Coinbase กำหนดเป็น token ใน `globals.css` (`@theme inline`)
+ดู ADR `docs/adr/0001-ui-redesign-1b.md` ประกอบ:
 
 | ชื่อ | ค่า | ใช้งาน |
 |------|-----|---------|
-| Primary | `#1e3a8a` | ปุ่มหลัก, accent |
-| Success | `#047857` | สถานะ verified/confirmed |
-| Warning | amber | สถานะ pending |
-| Danger | red | สถานะ rejected/failed |
-| Sidebar bg | `#0f1c33` | layout sidebar |
+| Primary | `#0052ff` | ปุ่มหลัก, accent, ลิงก์ |
+| Ink / Sidebar | `#0a0b0d` | แถบดำ KPI/hero, รางนำทาง |
+| Ink raised | `#16181c` | พื้นยกใน card ดำ |
+| Success | `#05b169` | สถานะ verified/confirmed |
+| Warning dot | `#f4b000` | จุดสถานะ pending |
+| Danger | `#cf202f` | สถานะ rejected/failed |
+| พื้น / เส้นขอบ | `#f7f7f7` / `#dee1e6` | background / border |
+
+ฟอนต์: Sarabun (sans) + IBM Plex Mono (เลข/แฮช/ID). ไอคอน: lucide-react เท่านั้น
 
 ## Auth & data patterns
 

@@ -1,3 +1,5 @@
+from datetime import datetime, time
+
 from fastapi import Request
 from sqlalchemy.orm import Session
 
@@ -56,11 +58,25 @@ class AccessLogService:
         return log
 
     @staticmethod
-    def list(db: Session, filters: dict):
+    def list(db: Session, filters: dict) -> tuple[list[AccessLog], int]:
+        """คืน (รายการหน้านี้, จำนวนทั้งหมด) — รองรับ q/ช่วงวันที่/เฉพาะผิดปกติ + แบ่งหน้า"""
+        # ช่วงวันที่รับเป็น date (YYYY-MM-DD) → ครอบทั้งวันตามเวลาท้องถิ่นของเซิร์ฟเวอร์
+        df = filters.get("date_from")
+        dt = filters.get("date_to")
+        date_from = datetime.combine(df, time.min) if df else None
+        date_to = datetime.combine(dt, time.max) if dt else None
+
         return AccessLogRepository.list(
             db,
             evidence_id=filters.get("evidence_id"),
             user_id=filters.get("user_id"),
             action=_to_enum(AuditAction, filters.get("action")),
             result=_to_enum(AuditResult, filters.get("result")),
+            q=(filters.get("q") or None),
+            date_from=date_from,
+            date_to=date_to,
+            only_anomaly=bool(filters.get("only_anomaly")),
+            exclude_query=bool(filters.get("exclude_query")),
+            limit=filters.get("limit"),
+            offset=filters.get("offset") or 0,
         )

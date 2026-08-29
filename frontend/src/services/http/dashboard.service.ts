@@ -2,7 +2,7 @@
 // เชื่อมกับ API จริง: GET /api/dashboard → stats + recent evidence/activity (ต้อง auth)
 
 import { request } from "./client";
-import { API_BASE } from "@/config";
+import { evidenceFileUrl } from "@/config";
 import type { DashboardData, DashboardApiResponse } from "@/interfaces";
 
 export const dashboardService = {
@@ -19,9 +19,7 @@ export const dashboardService = {
         description: e.description,
         is_watermarked: e.is_watermarked,
         is_blockchain_verified: e.is_blockchain_verified,
-        thumbnail_url: e.display_file_id
-          ? `${API_BASE}/api/evidence-files/${e.display_file_id}`
-          : null,
+        thumbnail_url: e.display_file_id ? evidenceFileUrl(e.display_file_id) : null,
       })),
     };
   },
