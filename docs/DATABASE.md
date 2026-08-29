@@ -27,7 +27,7 @@
 | 👤 **คน** | `users` | เจ้าหน้าที่ที่ใช้ระบบ (ตำรวจ) |
 | 📁 **เนื้อหาหลัก** | `cases` → `evidence_items` → `evidence_files` | คดี → หลักฐาน → ไฟล์จริง |
 | 🔐 **ความน่าเชื่อถือ** | `watermark_records`, `blockchain_transactions` | พิสูจน์ว่าหลักฐานไม่ถูกปลอม/แก้ |
-| 📝 **ประวัติ** | `access_logs`, `audit_trails` | บันทึกว่าใครเข้าถึง/แก้ไขอะไรเมื่อไหร่ |
+| 📝 **ประวัติ** | `access_logs` | บันทึกว่าใครเข้าถึงหลักฐานเมื่อไหร่ |
 
 ## โครงสร้างแบบลำดับชั้น (เนื้อหาหลัก)
 
@@ -53,10 +53,9 @@
 | 3 | ฝังลายน้ำกันปลอม | `watermark_records` | อัลกอริทึม DWT, ความเข้ม, คะแนนตรวจสอบ |
 | 4 | บันทึกลง blockchain | `blockchain_transactions` | tx_hash ที่**แก้ไม่ได้** เป็นหลักฐานว่ามีไฟล์นี้ ณ เวลานี้ |
 | 5 | เพื่อนร่วมงานมาเปิดดู/ดาวน์โหลด | `access_logs` | user=สมศักดิ์, action=view, result=success, IP, เวลา |
-| 6 | แก้ไขรายละเอียดคดี | `audit_trails` | เก็บค่า**ก่อน**→**หลัง** (JSONB) ว่าใครแก้อะไร |
 
-> 💡 สังเกตว่า **กลุ่มประวัติ** (`access_logs` / `audit_trails`) ถูกเขียนเรื่อยๆ ทุกครั้งที่มีการกระทำ —
-> โดยเฉพาะ `access_logs` ที่ตอบคำถามหลัก **"ใครเข้าถึงหลักฐานบ้าง"**
+> 💡 สังเกตว่า **`access_logs`** ถูกเขียนเรื่อยๆ ทุกครั้งที่มีการเข้าถึง —
+> ตอบคำถามหลัก **"ใครเข้าถึงหลักฐานบ้าง"** ส่วนการพิสูจน์ว่าข้อมูลไม่ถูกแก้ ใช้ `blockchain_transactions`
 
 ## เสาหลักของความน่าเชื่อถือ
 
@@ -90,11 +89,11 @@ users ──┐
         │                  ├─< watermark_records
         │                  ├─< blockchain_transactions
         │                  └─< access_logs >── (FK) blockchain_transactions
-        └─< audit_trails
+        └─< access_logs (ระดับ user/คดี)
 ```
 
 - หลักฐาน 1 ชิ้น (`evidence_items`) อยู่ใน 1 คดี (`cases`) และมีได้หลายไฟล์ (`evidence_files`)
-- ใครเข้าถึงหลักฐานถูกบันทึกใน `access_logs` · การแก้ไขข้อมูลบันทึกใน `audit_trails`
+- ใครเข้าถึงหลักฐานถูกบันทึกใน `access_logs` · การพิสูจน์ว่าข้อมูลไม่ถูกแก้ใช้ `blockchain_transactions`
 
 ## ข้อตกลงการออกแบบ (Conventions)
 
@@ -288,39 +287,22 @@ users ──┐
 |--------|------|---------|
 | `log_id` | UUID PK | |
 | `user_id` | UUID → users | **not null**, RESTRICT, index |
+| `case_id` | UUID → cases | RESTRICT, index |
 | `evidence_id` | UUID → evidence_items | RESTRICT, index |
-| `action` | enum AuditAction | **not null** — CREATE/UPDATE/DELETE/VIEW |
-| `action_type` | varchar(50) | รายละเอียด เช่น view/download/print |
+| `action` | enum AuditAction | **not null** — VIEW/DOWNLOAD/QUERY |
 | `ip_address` | varchar(45) | รองรับ IPv6 |
 | `user_agent` | text | |
 | `tx_internal_id` | UUID → blockchain_transactions | **FK จริง** (เดิมเป็น text), ON DELETE SET NULL |
 | `result` | enum AuditResult | **not null** default SUCCESS — SUCCESS/FAILED |
-| `reason` | text | เหตุผลกรณีถูกปฏิเสธ |
 | `accessed_at` | timestamptz | **not null** default now(), index |
-
----
-
-## 8. `audit_trails` — บันทึกการเปลี่ยนแปลงข้อมูลทั้งระบบ
-
-ติดตามการ CREATE/UPDATE/DELETE ทุก entity พร้อมค่าก่อน-หลัง
-
-| คอลัมน์ | ชนิด | หมายเหตุ |
-|--------|------|---------|
-| `audit_id` | UUID PK | |
-| `user_id` | UUID → users | RESTRICT, index |
-| `entity_type` | varchar(50) | **not null**, index — ชื่อตาราง/entity |
-| `entity_id` | UUID | index — id ของ record ที่ถูกแก้ |
-| `action_type` | enum AuditAction | **not null** |
-| `old_values` | JSONB | ค่าก่อนแก้ |
-| `new_values` | JSONB | ค่าหลังแก้ |
-| `ip_address` | varchar(45) | |
-| `result` | enum AuditResult | **not null** default SUCCESS |
-| `reason` | text | |
-| `created_at` | timestamptz | **not null** default now(), index |
 
 > 📌 **หมายเหตุเรื่อง scope:** ระบบนี้จัดเก็บ**หลักฐานดิจิทัล** (ไฟล์ภาพ) การติดตาม "ใครเข้าถึง"
 > จึงใช้ `access_logs` เป็นหลัก — ไม่ได้ใช้ตาราง chain-of-custody แบบกายภาพ (เบิก/ส่งมอบของจริง)
 > และไม่มีตารางประวัติ hash แยก (เก็บ hash ไว้ที่ `evidence_files.file_hash` พอ)
+>
+> เดิมมีตาราง `audit_trails` (บันทึกการแก้ไขข้อมูล ก่อน→หลัง) แต่ถูก**ยกเลิก**แล้ว
+> (migration `d2f4a6b8c1e3`) เพราะไม่มีโค้ดใช้จริง และการพิสูจน์ว่าข้อมูล/หลักฐานไม่ถูกแก้
+> อาศัย `blockchain_transactions` เป็นหลักอยู่แล้ว
 
 ---
 
