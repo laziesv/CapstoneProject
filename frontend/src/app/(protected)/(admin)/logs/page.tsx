@@ -34,7 +34,8 @@ function toFilters(opts: {
   if (opts.dateFrom) f.date_from = opts.dateFrom;
   if (opts.dateTo) f.date_to = opts.dateTo;
   // ซ่อนรายการประเภท "ค้นหา" (QUERY) เว้นแต่ผู้ใช้เลือกให้แสดง
-  if (!opts.showQuery) f.exclude_query = true;
+  // ยกเว้นโหมด "ผิดปกติ" — ต้องเห็นทุกรายการผิดปกติ (รวม QUERY) ให้ตรงกับตัวเลขบนชิป
+  if (!opts.showQuery && opts.quick !== "anomaly") f.exclude_query = true;
   return f;
 }
 

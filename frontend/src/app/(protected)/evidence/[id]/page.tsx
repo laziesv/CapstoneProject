@@ -33,6 +33,12 @@ export default function EvidenceDetailPage() {
 
   useEffect(() => {
     (async () => {
+      // เปลี่ยนหลักฐาน — ล้างผลตรวจ/สถานะของชิ้นก่อนหน้า กันแสดงผลผิดชิ้น
+      setChainCheck(null);
+      setCheckedAt(null);
+      setShowChainDetail(false);
+      setLogPage(1);
+      setRelatedLogs([]);
       const ev = await evidenceService.get(id);
       if (!ev) {
         setEvidence(null);
@@ -105,7 +111,10 @@ export default function EvidenceDetailPage() {
     setChecking(true);
     setShowChainDetail(false); // ตรวจใหม่ = พับรายละเอียดกลับ
     try {
-      setChainCheck(await evidenceService.verifyOnChain(evidence, relatedLogs));
+      // ดึง log สดตอนตรวจ (แทนที่จะพึ่ง state ที่อาจยังโหลดไม่เสร็จ) — กันตรวจกับชุดว่าง/ไม่ครบ
+      const logs = isAdmin ? await accessLogService.list({ evidence_id: id }) : relatedLogs;
+      if (isAdmin) setRelatedLogs(logs);
+      setChainCheck(await evidenceService.verifyOnChain(evidence, logs));
       setCheckedAt(new Date());
     } finally {
       setChecking(false);
