@@ -4,6 +4,10 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.environment import load_backend_environment
+
+
+load_backend_environment()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 # Blockchain integration:

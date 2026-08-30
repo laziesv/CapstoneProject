@@ -1,6 +1,10 @@
 import enum
 
 class FileType(str, enum.Enum):
+    IMAGE = "IMAGE"
+    VIDEO = "VIDEO"
+    AUDIO = "AUDIO"
+    DOCUMENT = "DOCUMENT"
     ORIGINAL = "ORIGINAL"
     WATERMARKED = "WATERMARKED"
 
@@ -15,6 +19,9 @@ class BlockchainAction(str, enum.Enum):
 
 
 class AuditAction(str, enum.Enum):
+    CREATE = "CREATE"
+    UPDATE = "UPDATE"
+    DELETE = "DELETE"
     VIEW = "VIEW"
     DOWNLOAD = "DOWNLOAD"
 
