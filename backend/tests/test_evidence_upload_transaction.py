@@ -5,12 +5,16 @@ from types import ModuleType, SimpleNamespace
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, mock_open, patch
 
+from fastapi import HTTPException
+
 
 cv2_stub = ModuleType("cv2")
 cv2_stub.IMREAD_COLOR = 1
 cv2_stub.COLOR_BGR2YCrCb = 2
 cv2_stub.COLOR_YCrCb2BGR = 3
+cv2_stub.INTER_CUBIC = 4
 cv2_stub.imread = Mock()
+cv2_stub.resize = Mock()
 cv2_stub.cvtColor = Mock()
 cv2_stub.split = Mock()
 cv2_stub.merge = Mock()
@@ -26,7 +30,8 @@ from app.integrations.blockchain.transaction_repository import (
 )
 from app.models.enums import BlockchainAction, FileType
 from app.repositories.evidence_files_repository import EvidenceFileRepository
-from app.services.evidence_service import EvidenceService
+import app.services.evidence_service as evidence_service_module
+from app.services.evidence_service import EvidenceBlockchainWriteError, EvidenceService
 
 
 class EvidenceFileRepositoryTests(TestCase):
@@ -110,6 +115,10 @@ class EvidenceUploadTransactionTests(TestCase):
             ),
             patch("app.services.evidence_service.cv2.imread", return_value=image),
             patch(
+                "app.services.evidence_service.cv2.resize",
+                return_value=image,
+            ) as resize_image,
+            patch(
                 "app.services.evidence_service.cv2.cvtColor",
                 side_effect=["ycrcb", "watermarked-image"],
             ),
@@ -142,6 +151,11 @@ class EvidenceUploadTransactionTests(TestCase):
             )
 
         self.assertEqual(events, ["file:ORIGINAL", "file:WATERMARKED", "commit"])
+        resize_image.assert_called_once_with(
+            image,
+            (1024, 1024),
+            interpolation=evidence_service_module.cv2.INTER_CUBIC,
+        )
         self.assertEqual(db.commit.call_count, 1)
         self.assertTrue(evidence.is_watermarked)
         staged_files = [call.args[1] for call in create_file.call_args_list]
@@ -219,6 +233,10 @@ class EvidenceUploadTransactionTests(TestCase):
             ),
             patch("app.services.evidence_service.os.path.getsize", return_value=100),
             patch("app.services.evidence_service.cv2.imread", return_value=image),
+            patch(
+                "app.services.evidence_service.cv2.resize",
+                return_value=image,
+            ),
             patch(
                 "app.services.evidence_service.cv2.cvtColor",
                 side_effect=["ycrcb", "watermarked-image"],
@@ -319,6 +337,10 @@ class EvidenceUploadTransactionTests(TestCase):
             ),
             patch("app.services.evidence_service.cv2.imread", return_value=image),
             patch(
+                "app.services.evidence_service.cv2.resize",
+                return_value=image,
+            ),
+            patch(
                 "app.services.evidence_service.cv2.cvtColor",
                 side_effect=["ycrcb", "watermarked-image"],
             ),
@@ -344,7 +366,10 @@ class EvidenceUploadTransactionTests(TestCase):
             ) as stage_transaction,
         ):
             system.return_value.embed.return_value = channel
-            with self.assertRaisesRegex(RuntimeError, "disabled"):
+            with self.assertRaisesRegex(
+                EvidenceBlockchainWriteError,
+                "Blockchain evidence registration failed",
+            ):
                 EvidenceService.upload(
                     db,
                     data,
@@ -364,6 +389,36 @@ class EvidenceUploadTransactionTests(TestCase):
         db.commit.assert_not_called()
         db.rollback.assert_called_once_with()
         self.assertEqual(remove_file.call_count, 2)
+
+    def test_upload_route_returns_503_for_blockchain_write_failure(self) -> None:
+        from app.routes.evidence_items import upload
+
+        current_user = SimpleNamespace(
+            user_id="22222222-2222-4222-8222-222222222222"
+        )
+        upload_file = SimpleNamespace(filename="synthetic.png", file=Mock())
+
+        with patch.object(
+            EvidenceService,
+            "upload",
+            side_effect=EvidenceBlockchainWriteError("chain write failed"),
+        ):
+            with self.assertRaises(HTTPException) as raised:
+                upload(
+                    evidence=(
+                        '{"case_id":"11111111-1111-4111-8111-111111111111",'
+                        '"description":null,"captured_at":null}'
+                    ),
+                    file=upload_file,
+                    db=Mock(),
+                    current_user=current_user,
+                )
+
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertEqual(
+            raised.exception.detail,
+            "Evidence upload could not be recorded",
+        )
 
     def test_commit_failure_does_not_retry_confirmed_chain_write(self) -> None:
         db = Mock()
@@ -398,6 +453,10 @@ class EvidenceUploadTransactionTests(TestCase):
                 side_effect=[100, 90],
             ),
             patch("app.services.evidence_service.cv2.imread", return_value=image),
+            patch(
+                "app.services.evidence_service.cv2.resize",
+                return_value=image,
+            ),
             patch(
                 "app.services.evidence_service.cv2.cvtColor",
                 side_effect=["ycrcb", "watermarked-image"],

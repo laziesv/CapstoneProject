@@ -29,6 +29,10 @@ from app.watermark.mainyy import DigitalWatermarkingSystem
 UPLOAD_DIR = "uploads/evidence"
 
 
+class EvidenceBlockchainWriteError(RuntimeError):
+    """Raised when evidence registration cannot be confirmed on chain."""
+
+
 class EvidenceService:
 
     @staticmethod
@@ -118,6 +122,13 @@ class EvidenceService:
             if bgr is None:
                 raise ValueError("อ่านไฟล์ภาพไม่ได้ ฝังลายน้ำไม่สำเร็จ")
 
+            # ปรับทุกช่องสีเป็นขนาดเดียวกับที่ embed()/extract() ใช้งาน
+            # เพื่อให้ประกอบภาพกลับได้โดยลายน้ำไม่เสียตำแหน่ง
+            bgr = cv2.resize(
+                bgr,
+                (1024, 1024),
+                interpolation=cv2.INTER_CUBIC,
+            )
             y, cr, cb = cv2.split(cv2.cvtColor(bgr, cv2.COLOR_BGR2YCrCb))
 
             system = DigitalWatermarkingSystem()
@@ -126,8 +137,9 @@ class EvidenceService:
                 static_data=str(evidence.evidence_id),  # PK → sha256 ข้างใน embed
                 dynamic_hash=file_hash,                  # ตัวเดียวกับที่ verify จะใช้ถอด
             )
-            # embed pad ขนาดเป็นทวีคูณของ 8 — ตัดกลับให้เท่าเดิมเพื่อประกบกับ Cr/Cb
-            y_wm = y_wm[: y.shape[0], : y.shape[1]]
+            if y_wm is None:
+                raise ValueError("ฝังลายน้ำไม่สำเร็จ")
+
             wm_img = cv2.cvtColor(cv2.merge([y_wm, cr, cb]), cv2.COLOR_YCrCb2BGR)
 
             wm_file_id = uuid.uuid4()
@@ -135,7 +147,9 @@ class EvidenceService:
             wm_path = os.path.join(UPLOAD_DIR, wm_filename)
             watermarked_file_existed = os.path.exists(wm_path)
             watermarked_file_written = cv2.imwrite(wm_path, wm_img)
-            if watermarked_file_written and not watermarked_file_existed:
+            if not watermarked_file_written:
+                raise ValueError("บันทึกภาพลายน้ำไม่สำเร็จ")
+            if not watermarked_file_existed:
                 created_file_paths.append(wm_path)
 
             wm_hash = calculate_sha256(wm_path)
@@ -152,11 +166,17 @@ class EvidenceService:
 
             # ── บันทึกหลักฐานลง blockchain ──
             service = blockchain_service or BlockchainIntegrationService()
-            blockchain_result = service.record_evidence(
-                evidence_id=evidence.evidence_id,
-                evidence_hash=file_hash,
-                uploader_user_id=uploaded_by,
-            )
+            try:
+                blockchain_result = service.record_evidence(
+                    evidence_id=evidence.evidence_id,
+                    evidence_hash=file_hash,
+                    uploader_user_id=uploaded_by,
+                )
+            except Exception as exc:
+                # แจ้งข้อผิดพลาดแบบควบคุมได้ โดยยังให้ transaction หลัก rollback
+                raise EvidenceBlockchainWriteError(
+                    "Blockchain evidence registration failed"
+                ) from exc
             BlockchainTransactionRepository.stage_evidence_registration(
                 db,
                 tx_hash=blockchain_result["tx_hash"],

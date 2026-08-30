@@ -20,7 +20,7 @@ from app.services.chain_of_custody_service import (
     ChainOfCustodyMalformedChainDataError,
     ChainOfCustodyService,
 )
-from app.services.evidence_service import EvidenceService
+from app.services.evidence_service import EvidenceBlockchainWriteError, EvidenceService
 from app.services.evidence_access_service import EvidenceAccessService
 from app.services.personalized_watermark_service import remove_personalized_copy
 
@@ -108,12 +108,19 @@ def upload(
     )
 
     # uploaded_by มาจาก token เสมอ ไม่รับจาก body — กันปลอมเป็นคนอื่นอัพโหลด
-    return EvidenceService.upload(
-        db,
-        data,
-        file,
-        uploaded_by=current_user.user_id,
-    )
+    try:
+        return EvidenceService.upload(
+            db,
+            data,
+            file,
+            uploaded_by=current_user.user_id,
+        )
+    except EvidenceBlockchainWriteError as exc:
+        # ตอบกลับแบบชัดเจนเมื่อบันทึก Blockchain ไม่สำเร็จ แทนข้อผิดพลาด 500
+        raise HTTPException(
+            status_code=503,
+            detail="Evidence upload could not be recorded",
+        ) from exc
 
 
 @router.get(
