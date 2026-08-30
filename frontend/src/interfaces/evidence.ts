@@ -151,13 +151,38 @@ export interface WatermarkVerifyApiResponse {
   evidence_number: string | null;
   officer_name: string | null;
   uploaded_at: string | null;
+  original_filename: string | null;
+  original_file_hash: string | null;
+  blockchain_verified: boolean;
+  uploader: WatermarkVerificationUser | null;
   match_percent: number;
   static_ok: boolean;
   dynamic_ok: boolean;
+  dynamic_mode: "canonical" | "personalized" | "unresolved" | null;
   static_qr_png: string | null;
   dynamic_qr_png: string | null;
   static_decoded: string | null;
   dynamic_decoded: string | null;
+  access_session_ref: string | null;
+  matched_access_log_id: string | null;
+  matched_user_id: string | null;
+  access_tx_hash: string | null;
+  access_block_number: number | null;
+  matched_access_user: WatermarkVerificationUser | null;
+  matched_access_action: string | null;
+  matched_accessed_at: string | null;
+  blockchain_recorded_at: number | null;
+  access_tx_status: string | null;
+  matched_evidence_id: string | null;
+}
+
+export interface WatermarkVerificationUser {
+  user_id: string;
+  badge_number: string | null;
+  username: string | null;
+  email: string | null;
+  full_name: string | null;
+  rank: string | null;
 }
 
 /** ผลถอดลายน้ำที่ frontend ใช้ — อัปโหลดภาพแล้วระบบเดาว่าเป็นหลักฐานชิ้นไหน
@@ -169,13 +194,29 @@ export interface VerifyResult {
   evidenceNumber: string | null;
   officerName: string | null;
   uploadedAt: string | null;
+  originalFilename: string | null;
+  originalFileHash: string | null;
+  blockchainVerified: boolean;
+  uploader: WatermarkVerificationUser | null;
   matchPercent: number;
   staticOk: boolean;   // static QR = sha256(evidence_id) ไหม (ยืนยันตัวตน)
-  dynamicOk: boolean;  // dynamic QR = file_hash ไหม (ผูกกับเนื้อไฟล์)
+  dynamicOk: boolean;
+  dynamicMode: "canonical" | "personalized" | "unresolved" | null;
   staticQrPng: string | null;   // QR ที่แกะได้ (data URI) เอาไว้โชว์
   dynamicQrPng: string | null;
   staticDecoded: string | null;
   dynamicDecoded: string | null;
+  accessSessionRef: string | null;
+  matchedAccessLogId: string | null;
+  matchedUserId: string | null;
+  accessTxHash: string | null;
+  accessBlockNumber: number | null;
+  matchedAccessUser: WatermarkVerificationUser | null;
+  matchedAccessAction: string | null;
+  matchedAccessedAt: string | null;
+  blockchainRecordedAt: number | null;
+  accessTxStatus: string | null;
+  matchedEvidenceId: string | null;
 }
 
 export interface AccessLog {
