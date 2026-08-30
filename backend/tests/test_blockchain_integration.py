@@ -5,6 +5,8 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from blockchain_client import (
+    BlockchainClient,
+    BlockchainClientSettings,
     BlockchainHealth,
     EvidenceAccessEvent,
     EvidenceRecordedEvent,
@@ -64,6 +66,35 @@ class BlockchainIntegrationTests(TestCase):
             settings.artifact_path,
             Path("blockchain/tests/fixtures/EvidenceRegistry.json"),
         )
+
+    def test_default_artifact_exposes_client_existence_functions(self) -> None:
+        settings = _settings()
+        client = BlockchainClient(
+            BlockchainClientSettings(
+                provider_uri=settings.rpc_url,
+                chain_id=settings.chain_id,
+                contract_address=settings.contract_address or "",
+                artifact_path=blockchain_provider._resolve_artifact_path(
+                    settings.artifact_path
+                ),
+            )
+        )
+
+        function_names = {
+            function.fn_name for function in client.contract.all_functions()
+        }
+        self.assertIn("evidenceExists", function_names)
+        self.assertIn("accessSessionExists", function_names)
+
+        read_call = Mock()
+        read_call.call.return_value = True
+        client.validate_connection = Mock()
+        client.contract = Mock()
+        client.contract.functions.accessSessionExists.return_value = read_call
+
+        self.assertTrue(client.access_session_exists("0x" + "12" * 32))
+        client.contract.functions.accessSessionExists.assert_called_once()
+        read_call.call.assert_called_once_with()
 
     def test_artifact_path_environment_override_is_preserved(self) -> None:
         override = "custom/EvidenceRegistry.json"
@@ -224,6 +255,8 @@ class BlockchainIntegrationTests(TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "BLOCKCHAIN_WRITER_PRIVATE_KEY"):
             service.record_evidence(EVIDENCE_ID, EVIDENCE_HASH, UPLOADER_ID)
+        with self.assertRaisesRegex(RuntimeError, "BLOCKCHAIN_WRITER_PRIVATE_KEY"):
+            service.record_access(EVIDENCE_ID, OFFICER_ID, ACCESS_LOG_ID)
 
         provider.assert_not_called()
 
