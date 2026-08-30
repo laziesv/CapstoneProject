@@ -38,7 +38,11 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
         cv2.rectangle(image, (100, 120), (410, 360), (20, 210, 80), -1)
         return image
 
-    def _round_trip(self, suffix: str) -> str:
+    def _round_trip(
+        self,
+        suffix: str,
+        source_size: tuple[int, int] = (1024, 1024),
+    ) -> str:
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             original_path = base / f"original{suffix}"
@@ -48,10 +52,13 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
                 if suffix == ".jpg"
                 else []
             )
+            source = self._textured_image()
+            if source_size != (1024, 1024):
+                source = cv2.resize(source, source_size)
             self.assertTrue(
                 cv2.imwrite(
                     str(original_path),
-                    self._textured_image(),
+                    source,
                     params,
                 )
             )
@@ -79,6 +86,12 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
 
     def test_real_codec_recovers_unknown_session_ref_from_jpeg_quality_95(self):
         self.assertEqual(self._round_trip(".jpg"), self.ACCESS_SESSION_REF)
+
+    def test_real_codec_normalizes_non_target_source_before_extraction(self):
+        self.assertEqual(
+            self._round_trip(".png", source_size=(1080, 1080)),
+            self.ACCESS_SESSION_REF,
+        )
 
     def test_malformed_and_empty_decoded_payloads_raise_controlled_error(self):
         malformed_values = (

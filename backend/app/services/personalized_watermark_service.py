@@ -67,8 +67,18 @@ class PersonalizedWatermarkService:
                 static_data=str(evidence_id),
                 dynamic_hash=canonical_session_ref,
             )
-            watermarked_y = watermarked_y[: y.shape[0], : y.shape[1]]
-            if watermarked_y.shape != y.shape:
+            target_height, target_width = watermarked_y.shape[:2]
+            if (target_height, target_width) != y.shape[:2]:
+                # ปรับเฉพาะสำเนาในหน่วยความจำให้ตรงกับขนาดผลลัพธ์ของ codec
+                original = cv2.resize(
+                    original,
+                    (target_width, target_height),
+                    interpolation=cv2.INTER_CUBIC,
+                )
+                _, cr, cb = cv2.split(
+                    cv2.cvtColor(original, cv2.COLOR_BGR2YCrCb)
+                )
+            if watermarked_y.shape != cr.shape:
                 raise ValueError("Watermarked image dimensions do not match source")
 
             personalized = cv2.cvtColor(
