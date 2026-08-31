@@ -64,6 +64,7 @@ class EvidenceAccessService:
                 evidence_id=evidence.evidence_id,
                 ip_address=ip_address,
                 user_agent=user_agent,
+                case_id=evidence.case_id,
             )
             access_session_ref = derive_access_session_ref(access_log.log_id)
             personalizer = watermark_service or PersonalizedWatermarkService()

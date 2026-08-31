@@ -92,6 +92,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             evidence_id=self.evidence.evidence_id,
             ip_address="127.0.0.1",
             user_agent="test-agent",
+            case_id=self.evidence.case_id,
         )
         self.blockchain.record_access.assert_called_once_with(
             evidence_id=self.evidence.evidence_id,
@@ -244,6 +245,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.assertEqual(log.result, AuditResult.SUCCESS)
         self.assertEqual(log.user_id, self.user.user_id)
         self.assertEqual(log.evidence_id, self.evidence.evidence_id)
+        self.assertIsNone(log.case_id)
         self.assertEqual(log.ip_address, "192.0.2.1")
         self.assertEqual(log.user_agent, "browser-agent")
         self.assertIsNone(log.tx_internal_id)

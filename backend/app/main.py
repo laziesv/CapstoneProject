@@ -8,6 +8,7 @@ from app.routes.case import router as cases_router
 from app.routes.evidence_items import router as evidence_items_router
 from app.routes.evidence_files import router as evidence_files_router
 from app.routes.watermark import router as watermark_router
+from app.routes.access_logs import router as access_logs_router
 from app.core.startup import startup
 
 
@@ -36,6 +37,7 @@ app.include_router(cases_router, prefix="/api")
 app.include_router(evidence_items_router, prefix="/api")
 app.include_router(evidence_files_router, prefix="/api")
 app.include_router(watermark_router, prefix="/api")
+app.include_router(access_logs_router, prefix="/api")
 
 
 

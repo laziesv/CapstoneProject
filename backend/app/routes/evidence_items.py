@@ -22,6 +22,7 @@ from app.services.chain_of_custody_service import (
 )
 from app.services.evidence_service import EvidenceBlockchainWriteError, EvidenceService
 from app.services.evidence_access_service import EvidenceAccessService
+from app.services.access_log_service import AccessLogService, client_info
 from app.services.personalized_watermark_service import remove_personalized_copy
 
 
@@ -131,6 +132,7 @@ def list_all(
     case_id: UUID | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    request: Request = None,
 ):
     if case_id is not None:
         case = CaseRepository.get_by_id(db, case_id)
@@ -154,6 +156,16 @@ def list_all(
         items = visible_items
 
     responses = [EvidenceResponse.model_validate(it) for it in items]
+
+    if request is not None:
+        ip_address, user_agent = client_info(request)
+        AccessLogService.record_query(
+            db,
+            user_id=current_user.user_id,
+            case_id=case_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
 
     # SHA-256 hash เปิดเผยลายนิ้วมือของไฟล์ — เห็นได้เฉพาะ admin
     # (front กรองในหน้าเว็บแล้ว แต่ต้องกันที่นี่ด้วย ไม่งั้นเปิด DevTools ก็เห็น)

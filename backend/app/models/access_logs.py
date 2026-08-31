@@ -11,6 +11,7 @@ from sqlalchemy import (
 )
 
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.models.enums import AuditAction, AuditResult
@@ -39,3 +40,16 @@ class AccessLog(Base):
     result = Column(Enum(AuditResult), nullable=False, server_default=AuditResult.SUCCESS.value)
 
     accessed_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), index=True)
+
+    user = relationship("User", lazy="selectin")
+    evidence = relationship("EvidenceItem", lazy="selectin")
+
+    @property
+    def user_name(self):
+        if not self.user:
+            return None
+        return self.user.full_name or self.user.username
+
+    @property
+    def evidence_number(self):
+        return self.evidence.evidence_number if self.evidence else None
