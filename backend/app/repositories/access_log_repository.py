@@ -103,6 +103,23 @@ class AccessLogRepository:
         )
 
     @staticmethod
+    def list_successful_accesses_by_evidence(
+        db: Session,
+        *,
+        evidence_id: UUID,
+    ) -> List[AccessLog]:
+        return (
+            db.query(AccessLog)
+            .filter(
+                AccessLog.evidence_id == evidence_id,
+                AccessLog.action.in_((AuditAction.VIEW, AuditAction.DOWNLOAD)),
+                AccessLog.result == AuditResult.SUCCESS,
+            )
+            .order_by(AccessLog.accessed_at.asc(), AccessLog.log_id.asc())
+            .all()
+        )
+
+    @staticmethod
     def stage_download(
         db: Session,
         *,
@@ -111,6 +128,7 @@ class AccessLogRepository:
         ip_address: str | None,
         user_agent: str | None,
         case_id: UUID | None = None,
+        accessed_at: datetime,
     ) -> AccessLog:
         access_log = AccessLog(
             log_id=uuid4(),
@@ -118,6 +136,7 @@ class AccessLogRepository:
             case_id=case_id,
             evidence_id=evidence_id,
             action=AuditAction.DOWNLOAD,
+            accessed_at=accessed_at,
             ip_address=ip_address,
             user_agent=user_agent,
             result=AuditResult.SUCCESS,

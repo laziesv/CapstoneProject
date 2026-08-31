@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, call, patch
 from uuid import uuid4
 
 import numpy as np
-from blockchain_client import derive_access_session_ref, derive_evidence_ref
+from blockchain_client import AccessAction, derive_access_session_ref, derive_evidence_ref
 from fastapi import HTTPException, Request
 
 from app.routes.evidence_items import download
@@ -228,6 +228,13 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
 
     @contextmanager
     def common_patches(self, access_logs):
+        access_log_iterator = iter(access_logs)
+
+        def stage_download(*_args, **kwargs):
+            access_log = next(access_log_iterator)
+            access_log.accessed_at = kwargs["accessed_at"]
+            return access_log
+
         patchers = (
             patch(
                 "app.services.evidence_access_service.EvidenceRepository.get_by_id",
@@ -247,7 +254,7 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             ),
             patch(
                 "app.services.evidence_access_service.AccessLogRepository.stage_download",
-                side_effect=access_logs,
+                side_effect=stage_download,
             ),
             patch(
                 "app.services.evidence_access_service.BlockchainTransactionRepository.stage_access",
@@ -288,6 +295,8 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             evidence_id=self.evidence.evidence_id,
             officer_user_id=self.user.user_id,
             access_log_id=log.log_id,
+            action=AccessAction.DOWNLOAD,
+            occurred_at=int(log.accessed_at.timestamp()),
         )
         self.assertEqual(result.file_path, "personalized.png")
         self.assertNotIn(self.user.user_id.hex, str(self.watermark.mock_calls))

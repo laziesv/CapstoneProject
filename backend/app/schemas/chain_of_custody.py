@@ -1,7 +1,18 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
+
+
+IntegrityState = Literal[
+    "VERIFIED",
+    "MISSING_ON_CHAIN",
+    "ORPHANED_ON_CHAIN",
+    "INTEGRITY_MISMATCH",
+    "LEGACY_PARTIAL_VERIFICATION",
+    "BLOCKCHAIN_UNAVAILABLE",
+]
 
 
 class ChainUserIdentity(BaseModel):
@@ -30,6 +41,8 @@ class ChainEvidenceMetadata(BaseModel):
 
 class ChainAccessMetadata(BaseModel):
     officer_ref: str
+    action: str
+    occurred_at: int
     recorded_at: int
     writer: str
 
@@ -38,6 +51,8 @@ class ChainAccessVerification(BaseModel):
     session_exists: bool
     evidence_ref_matches: bool
     officer_ref_matches: bool
+    action_matches: bool
+    occurred_at_matches: bool
     transaction_matches: bool
 
 
@@ -50,6 +65,7 @@ class ChainAccessHistoryItem(BaseModel):
     blockchain: ChainAccessMetadata | None
     transaction: ChainTransactionMetadata | None
     verified: bool
+    integrity_state: IntegrityState
     verification: ChainAccessVerification
 
 
@@ -64,6 +80,7 @@ class ChainOfCustodyVerification(BaseModel):
 
 class ChainOfCustodyResponse(BaseModel):
     verified: bool
+    integrity_state: IntegrityState
     evidence: ChainEvidenceMetadata
     uploader: ChainUserIdentity | None
     registration_transaction: ChainTransactionMetadata | None

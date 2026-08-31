@@ -1,12 +1,14 @@
 import unittest
 from contextlib import contextmanager
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from uuid import UUID
 
 from blockchain_client import (
+    AccessAction,
     derive_access_session_ref,
     derive_actor_ref,
     derive_evidence_ref,
@@ -41,6 +43,7 @@ SESSION_REF = derive_access_session_ref(ACCESS_LOG_ID)
 EVIDENCE_REF = derive_evidence_ref(EVIDENCE_ID)
 OFFICER_REF = derive_actor_ref(USER_ID)
 TX_HASH = "0x" + "ab" * 32
+OCCURRED_AT = 1787047200
 
 
 class LeakAttributionServiceTests(unittest.TestCase):
@@ -51,7 +54,7 @@ class LeakAttributionServiceTests(unittest.TestCase):
             user_id=USER_ID,
             evidence_id=EVIDENCE_ID,
             action=AuditAction.DOWNLOAD,
-            accessed_at="2026-08-18T10:00:00Z",
+            accessed_at=datetime.fromtimestamp(OCCURRED_AT, tz=timezone.utc),
             tx_internal_id=TX_INTERNAL_ID,
             ip_address="192.0.2.10",
             user_agent="secret-test-agent",
@@ -80,6 +83,8 @@ class LeakAttributionServiceTests(unittest.TestCase):
         self.chain.get_access_by_session.return_value = {
             "evidence_ref": EVIDENCE_REF,
             "officer_ref": OFFICER_REF,
+            "action": AccessAction.DOWNLOAD,
+            "occurred_at": OCCURRED_AT,
             "recorded_at": 1787018400,
             "writer": "0x" + "22" * 20,
         }
@@ -127,6 +132,8 @@ class LeakAttributionServiceTests(unittest.TestCase):
         self.assertEqual(result.access_session_ref, SESSION_REF)
         self.assertEqual(result.blockchain.evidence_ref, EVIDENCE_REF)
         self.assertEqual(result.blockchain.officer_ref, OFFICER_REF)
+        self.assertEqual(result.blockchain.action, AuditAction.DOWNLOAD.value)
+        self.assertEqual(result.blockchain.occurred_at, OCCURRED_AT)
         self.assertEqual(result.evidence.evidence_id, EVIDENCE_ID)
         self.assertEqual(result.matched_user.user_id, USER_ID)
         self.assertEqual(result.matched_access.access_log_id, ACCESS_LOG_ID)
@@ -214,6 +221,8 @@ class LeakAttributionServiceTests(unittest.TestCase):
                 self.chain.get_access_by_session.return_value = {
                     "evidence_ref": EVIDENCE_REF,
                     "officer_ref": OFFICER_REF,
+                    "action": AccessAction.DOWNLOAD,
+                    "occurred_at": OCCURRED_AT,
                     "recorded_at": 1787018400,
                     "writer": "0x" + "22" * 20,
                 }
@@ -234,6 +243,18 @@ class LeakAttributionServiceTests(unittest.TestCase):
                             self.db,
                             SESSION_REF,
                         )
+
+    def test_view_session_is_not_download_attribution(self):
+        self.chain.get_access_by_session.return_value["action"] = AccessAction.VIEW
+
+        with self.assertRaisesRegex(AttributionIntegrityError, "not DOWNLOAD"):
+            self.resolve()
+
+    def test_occurred_at_must_match_access_log_timestamp(self):
+        self.chain.get_access_by_session.return_value["occurred_at"] += 1
+
+        with self.assertRaisesRegex(AttributionIntegrityError, "does not match"):
+            self.resolve()
 
     def test_image_composition_extracts_then_resolves_matching_session(self):
         self.watermark.extract_access_session_ref.return_value = SESSION_REF
@@ -259,6 +280,8 @@ class BlockchainSessionReadTests(unittest.TestCase):
         client.get_access_by_session.return_value = {
             "evidence_ref": EVIDENCE_REF,
             "officer_ref": OFFICER_REF,
+            "action": AccessAction.DOWNLOAD,
+            "occurred_at": OCCURRED_AT,
             "recorded_at": 1787018400,
             "writer": "0x" + "22" * 20,
         }
@@ -266,7 +289,7 @@ class BlockchainSessionReadTests(unittest.TestCase):
             enabled=True,
             contract_address=CONTRACT_ADDRESS,
             artifact_path=Path(
-                "blockchain/tests/fixtures/EvidenceRegistry.json"
+                "blockchain/tests/fixtures/EvidenceRegistryV3.json"
             ),
         )
         service = BlockchainIntegrationService(

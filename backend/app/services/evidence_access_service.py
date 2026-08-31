@@ -1,10 +1,11 @@
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from blockchain_client import derive_access_session_ref
+from blockchain_client import AccessAction, derive_access_session_ref
 
 from app.integrations.blockchain import BlockchainIntegrationService
 from app.integrations.blockchain.transaction_repository import (
@@ -58,6 +59,8 @@ class EvidenceAccessService:
 
         personalized_path = None
         try:
+            # การเชื่อมต่อ Blockchain: ใช้เวลาเดียวกันในฐานข้อมูลและ occurredAt บน V3
+            occurred_at = datetime.now(timezone.utc).replace(microsecond=0)
             access_log = AccessLogRepository.stage_download(
                 db,
                 user_id=current_user.user_id,
@@ -65,6 +68,7 @@ class EvidenceAccessService:
                 ip_address=ip_address,
                 user_agent=user_agent,
                 case_id=evidence.case_id,
+                accessed_at=occurred_at,
             )
             access_session_ref = derive_access_session_ref(access_log.log_id)
             personalizer = watermark_service or PersonalizedWatermarkService()
@@ -80,6 +84,8 @@ class EvidenceAccessService:
                 evidence_id=evidence.evidence_id,
                 officer_user_id=current_user.user_id,
                 access_log_id=access_log.log_id,
+                action=AccessAction.DOWNLOAD,
+                occurred_at=int(occurred_at.timestamp()),
             )
             transaction = BlockchainTransactionRepository.stage_access(
                 db,

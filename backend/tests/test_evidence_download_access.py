@@ -1,9 +1,11 @@
 import unittest
+from datetime import datetime, timezone
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
+from blockchain_client import AccessAction
 
 from app.integrations.blockchain.transaction_repository import (
     BlockchainTransactionRepository,
@@ -93,11 +95,15 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             ip_address="127.0.0.1",
             user_agent="test-agent",
             case_id=self.evidence.case_id,
+            accessed_at=ANY,
         )
+        accessed_at = stage_log.call_args.kwargs["accessed_at"]
         self.blockchain.record_access.assert_called_once_with(
             evidence_id=self.evidence.evidence_id,
             officer_user_id=self.user.user_id,
             access_log_id=self.access_log.log_id,
+            action=AccessAction.DOWNLOAD,
+            occurred_at=int(accessed_at.timestamp()),
         )
         stage_transaction.assert_called_once_with(
             self.db,
@@ -239,6 +245,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             evidence_id=self.evidence.evidence_id,
             ip_address="192.0.2.1",
             user_agent="browser-agent",
+            accessed_at=datetime(2026, 8, 31, 10, 0, tzinfo=timezone.utc),
         )
         self.assertIsInstance(log.log_id, UUID)
         self.assertEqual(log.action, AuditAction.DOWNLOAD)

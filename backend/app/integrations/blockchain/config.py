@@ -13,7 +13,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 # Blockchain integration:
 # Use the version-pinned ABI fixture by default so a fresh submodule checkout
 # does not require a local Foundry build just to start the backend.
-DEFAULT_ARTIFACT_PATH = Path("blockchain/tests/fixtures/EvidenceRegistry.json")
+DEFAULT_ARTIFACT_PATH = Path("blockchain/tests/fixtures/EvidenceRegistryV3.json")
+DEFAULT_DEPLOYMENT_BLOCK = 18079
 
 
 def _read_bool(name: str, default: bool) -> bool:
@@ -54,7 +55,7 @@ class BlockchainSettings:
     contract_address: str | None = None
     artifact_path: Path = DEFAULT_ARTIFACT_PATH
     writer_private_key: str | None = None
-    deployment_block: int = 0
+    deployment_block: int = DEFAULT_DEPLOYMENT_BLOCK
     confirmations: int = 0
     request_timeout_seconds: int = 30
     confirmation_timeout_seconds: int = 120
@@ -72,7 +73,9 @@ class BlockchainSettings:
                 os.getenv("BLOCKCHAIN_ARTIFACT_PATH", str(DEFAULT_ARTIFACT_PATH))
             ),
             writer_private_key=os.getenv("BLOCKCHAIN_WRITER_PRIVATE_KEY") or None,
-            deployment_block=_read_int("BLOCKCHAIN_DEPLOYMENT_BLOCK", 0),
+            deployment_block=_read_int(
+                "BLOCKCHAIN_DEPLOYMENT_BLOCK", DEFAULT_DEPLOYMENT_BLOCK
+            ),
             confirmations=_read_int("BLOCKCHAIN_CONFIRMATIONS", 0),
             request_timeout_seconds=_read_int(
                 "BLOCKCHAIN_REQUEST_TIMEOUT_SECONDS", 30

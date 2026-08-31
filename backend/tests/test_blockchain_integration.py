@@ -5,6 +5,7 @@ from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from blockchain_client import (
+    AccessAction,
     BlockchainClient,
     BlockchainClientSettings,
     BlockchainHealth,
@@ -34,7 +35,7 @@ def _settings(**overrides: object) -> BlockchainSettings:
     values = {
         "enabled": True,
         "contract_address": CONTRACT_ADDRESS,
-        "artifact_path": Path("blockchain/tests/fixtures/EvidenceRegistry.json"),
+        "artifact_path": Path("blockchain/tests/fixtures/EvidenceRegistryV3.json"),
     }
     values.update(overrides)
     return BlockchainSettings(**values)
@@ -64,7 +65,7 @@ class BlockchainIntegrationTests(TestCase):
 
         self.assertEqual(
             settings.artifact_path,
-            Path("blockchain/tests/fixtures/EvidenceRegistry.json"),
+            Path("blockchain/tests/fixtures/EvidenceRegistryV3.json"),
         )
 
     def test_default_artifact_exposes_client_existence_functions(self) -> None:
@@ -177,7 +178,7 @@ class BlockchainIntegrationTests(TestCase):
             with self.assertRaisesRegex(ValueError, "BLOCKCHAIN_CONTRACT_ADDRESS"):
                 BlockchainSettings.from_env()
 
-    def test_record_evidence_derives_v2_arguments(self) -> None:
+    def test_record_evidence_derives_v3_arguments(self) -> None:
         client = Mock()
         client.record_evidence.return_value = _transaction_result()
         secret = "writer-key-not-returned"
@@ -202,7 +203,7 @@ class BlockchainIntegrationTests(TestCase):
         self.assertEqual(result["contract_address"], CONTRACT_ADDRESS)
         self.assertNotIn(secret, repr(result))
 
-    def test_record_access_derives_v2_arguments(self) -> None:
+    def test_record_access_derives_v3_arguments(self) -> None:
         client = Mock()
         client.record_access.return_value = _transaction_result()
         service = BlockchainIntegrationService(
@@ -210,17 +211,27 @@ class BlockchainIntegrationTests(TestCase):
             client_provider=lambda: client,
         )
 
-        result = service.record_access(EVIDENCE_ID, OFFICER_ID, ACCESS_LOG_ID)
+        result = service.record_access(
+            EVIDENCE_ID,
+            OFFICER_ID,
+            ACCESS_LOG_ID,
+            AccessAction.DOWNLOAD,
+            1_700_000_001,
+        )
 
         client.record_access.assert_called_once_with(
             derive_evidence_ref(EVIDENCE_ID),
             derive_actor_ref(OFFICER_ID),
             derive_access_session_ref(ACCESS_LOG_ID),
+            AccessAction.DOWNLOAD,
+            1_700_000_001,
         )
         self.assertEqual(result["officer_ref"], derive_actor_ref(OFFICER_ID))
         self.assertEqual(
             result["access_session_ref"], derive_access_session_ref(ACCESS_LOG_ID)
         )
+        self.assertEqual(result["action"], AccessAction.DOWNLOAD)
+        self.assertEqual(result["occurred_at"], 1_700_000_001)
 
     def test_record_evidence_rejects_malformed_hash(self) -> None:
         client = Mock()
@@ -243,7 +254,13 @@ class BlockchainIntegrationTests(TestCase):
         with self.assertRaisesRegex(RuntimeError, "disabled"):
             service.record_evidence(EVIDENCE_ID, EVIDENCE_HASH, UPLOADER_ID)
         with self.assertRaisesRegex(RuntimeError, "disabled"):
-            service.record_access(EVIDENCE_ID, OFFICER_ID, ACCESS_LOG_ID)
+            service.record_access(
+                EVIDENCE_ID,
+                OFFICER_ID,
+                ACCESS_LOG_ID,
+                AccessAction.DOWNLOAD,
+                1_700_000_001,
+            )
 
         provider.assert_not_called()
 
@@ -256,7 +273,13 @@ class BlockchainIntegrationTests(TestCase):
         with self.assertRaisesRegex(RuntimeError, "BLOCKCHAIN_WRITER_PRIVATE_KEY"):
             service.record_evidence(EVIDENCE_ID, EVIDENCE_HASH, UPLOADER_ID)
         with self.assertRaisesRegex(RuntimeError, "BLOCKCHAIN_WRITER_PRIVATE_KEY"):
-            service.record_access(EVIDENCE_ID, OFFICER_ID, ACCESS_LOG_ID)
+            service.record_access(
+                EVIDENCE_ID,
+                OFFICER_ID,
+                ACCESS_LOG_ID,
+                AccessAction.DOWNLOAD,
+                1_700_000_001,
+            )
 
         provider.assert_not_called()
 
@@ -364,6 +387,8 @@ def _access_event(
         evidence_ref=derive_evidence_ref(EVIDENCE_ID),
         officer_ref=derive_actor_ref(OFFICER_ID),
         access_session_ref=derive_access_session_ref(access_log_id),
+        action=AccessAction.DOWNLOAD,
+        occurred_at=recorded_at,
         recorded_at=recorded_at,
         writer=CONTRACT_ADDRESS,
         tx_hash=TX_HASH,

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from uuid import UUID
 
 from blockchain_client import (
+    AccessAction,
     derive_access_session_ref,
     derive_actor_ref,
     derive_evidence_ref,
@@ -123,6 +124,8 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
             derive_access_session_ref(log.log_id): {
                 "evidence_ref": derive_evidence_ref(EVIDENCE_ID),
                 "officer_ref": derive_actor_ref(log.user_id),
+                "action": AccessAction.DOWNLOAD,
+                "occurred_at": int(log.accessed_at.timestamp()),
                 "recorded_at": 1787049100 + index,
                 "writer": "0x" + "44" * 20,
             }
@@ -174,7 +177,7 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
             ),
             patch.object(
                 AccessLogRepository,
-                "list_successful_downloads_by_evidence",
+                "list_successful_accesses_by_evidence",
                 return_value=self.access_logs,
             ),
             patch.object(
@@ -206,6 +209,7 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
         result = self.get_result()
 
         self.assertTrue(result.verified)
+        self.assertEqual(result.integrity_state, "VERIFIED")
         self.assertEqual(result.evidence.original_sha256, ORIGINAL_HASH)
         self.assertEqual(result.evidence.evidence_hash, "0x" + ORIGINAL_HASH)
         self.assertNotEqual(result.evidence.original_sha256, WATERMARKED_HASH)
@@ -271,12 +275,16 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
             derive_access_session_ref(ACCESS_A_ID): {
                 "evidence_ref": derive_evidence_ref(EVIDENCE_ID),
                 "officer_ref": derive_actor_ref(OFFICER_A_ID),
+                "action": AccessAction.DOWNLOAD,
+                "occurred_at": int(self.access_logs[0].accessed_at.timestamp()),
                 "recorded_at": 1787049100,
                 "writer": "0x" + "44" * 20,
             },
             corrupt_session: {
                 "evidence_ref": derive_evidence_ref(EVIDENCE_ID),
                 "officer_ref": derive_actor_ref(UPLOADER_ID),
+                "action": AccessAction.DOWNLOAD,
+                "occurred_at": int(self.access_logs[1].accessed_at.timestamp()),
                 "recorded_at": 1787049101,
                 "writer": "0x" + "44" * 20,
             },
@@ -317,23 +325,98 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
         self.assertEqual(result.verification.access_records_total, 0)
         self.chain.get_access_by_session.assert_not_called()
 
-    def test_preview_records_are_not_included_as_blockchain_access(self):
-        preview = self._access_log(
+    def test_view_records_are_included_as_blockchain_access(self):
+        view = self._access_log(
             UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
             OFFICER_A_ID,
-            None,
+            UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
             self.evidence.uploaded_at,
         )
-        preview.action = AuditAction.VIEW
-        self.access_logs.append(preview)
+        view.action = AuditAction.VIEW
+        view_transaction = self._transaction(
+            view.tx_internal_id,
+            OFFICER_A_ID,
+            BlockchainAction.ACCESS,
+            "0x" + "40" * 32,
+            7004,
+        )
+        self.access_logs.append(view)
+        self.access_transactions.append(view_transaction)
+        access_records = {
+            derive_access_session_ref(log.log_id): {
+                "evidence_ref": derive_evidence_ref(EVIDENCE_ID),
+                "officer_ref": derive_actor_ref(log.user_id),
+                "action": (
+                    AccessAction.VIEW
+                    if log.action == AuditAction.VIEW
+                    else AccessAction.DOWNLOAD
+                ),
+                "occurred_at": int(log.accessed_at.timestamp()),
+                "recorded_at": 1787049100 + index,
+                "writer": "0x" + "44" * 20,
+            }
+            for index, log in enumerate(self.access_logs)
+        }
+        self.chain.get_access_by_session.side_effect = access_records.get
 
         result = self.get_result()
 
-        self.assertEqual(len(result.access_history), 2)
-        self.assertTrue(
-            all(item.action == AuditAction.DOWNLOAD.value for item in result.access_history)
+        self.assertEqual(len(result.access_history), 3)
+        self.assertEqual(result.access_history[-1].action, AuditAction.VIEW.value)
+        self.assertTrue(result.access_history[-1].verified)
+        self.assertEqual(self.chain.get_access_by_session.call_count, 3)
+
+    def test_action_and_occurred_at_mismatches_fail_integrity(self):
+        session = derive_access_session_ref(ACCESS_A_ID)
+        matching = self.chain.get_access_by_session.side_effect(session)
+        for field, value, verification_field in (
+            ("action", AccessAction.VIEW, "action_matches"),
+            ("occurred_at", int(self.access_logs[0].accessed_at.timestamp()) + 1, "occurred_at_matches"),
+        ):
+            with self.subTest(field=field):
+                record = dict(matching)
+                record[field] = value
+                records = {
+                    derive_access_session_ref(log.log_id): (
+                        record
+                        if log.log_id == ACCESS_A_ID
+                        else self.chain.get_access_by_session.side_effect(
+                            derive_access_session_ref(log.log_id)
+                        )
+                    )
+                    for log in self.access_logs
+                }
+                self.chain.get_access_by_session.side_effect = records.get
+                result = self.get_result()
+                self.assertFalse(result.access_history[0].verified)
+                self.assertFalse(
+                    getattr(result.access_history[0].verification, verification_field)
+                )
+                self.assertEqual(result.integrity_state, "INTEGRITY_MISMATCH")
+                self.chain.get_access_by_session.side_effect = {
+                    derive_access_session_ref(log.log_id): {
+                        "evidence_ref": derive_evidence_ref(EVIDENCE_ID),
+                        "officer_ref": derive_actor_ref(log.user_id),
+                        "action": AccessAction.DOWNLOAD,
+                        "occurred_at": int(log.accessed_at.timestamp()),
+                        "recorded_at": 1787049100 + index,
+                        "writer": "0x" + "44" * 20,
+                    }
+                    for index, log in enumerate(self.access_logs)
+                }.get
+
+    def test_v2_contract_metadata_is_legacy_partial_not_verified(self):
+        self.access_transactions[0].contract_address = "0x" + "99" * 20
+        self.chain.get_access_by_session.side_effect = lambda _ref: None
+
+        result = self.get_result()
+
+        self.assertFalse(result.access_history[0].verified)
+        self.assertEqual(
+            result.access_history[0].integrity_state,
+            "LEGACY_PARTIAL_VERIFICATION",
         )
-        self.assertEqual(self.chain.get_access_by_session.call_count, 2)
+        self.assertEqual(result.integrity_state, "LEGACY_PARTIAL_VERIFICATION")
 
     def test_missing_on_chain_registration_returns_structured_false(self):
         self.chain.get_evidence.return_value = {"exists": False}

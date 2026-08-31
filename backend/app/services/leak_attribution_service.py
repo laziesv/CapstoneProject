@@ -3,6 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from blockchain_client import (
+    AccessAction,
     derive_access_session_ref,
     derive_actor_ref,
     derive_evidence_ref,
@@ -50,6 +51,8 @@ class BlockchainAttributionReadError(LeakAttributionError):
 class BlockchainAccessAttribution:
     evidence_ref: str
     officer_ref: str
+    action: str
+    occurred_at: int
     recorded_at: int
     writer: str
 
@@ -84,6 +87,8 @@ class AttributionVerification:
     evidence_ref_matches: bool
     officer_ref_matches: bool
     access_session_ref_matches: bool
+    action_matches: bool
+    occurred_at_matches: bool
     transaction_link_matches: bool
 
 
@@ -135,6 +140,11 @@ class LeakAttributionService:
             chain_record.get("officer_ref"),
             "officer_ref",
         )
+        chain_action = self._normalize_chain_action(chain_record.get("action"))
+        occurred_at = self._normalize_chain_timestamp(
+            chain_record.get("occurred_at"),
+            "occurred_at",
+        )
         matches = self._find_access_log_matches(db, canonical_ref)
         if not matches:
             raise LocalAttributionNotFoundError(
@@ -154,6 +164,14 @@ class LeakAttributionService:
             raise AttributionIntegrityError("Access log evidence reference mismatch")
         if self._enum_value(access_log.action) != AuditAction.DOWNLOAD.value:
             raise AttributionIntegrityError("Access log action is not DOWNLOAD")
+        if chain_action != AuditAction.DOWNLOAD.value:
+            raise AttributionIntegrityError(
+                "Blockchain access action is not DOWNLOAD"
+            )
+        if self._datetime_to_unix(access_log.accessed_at) != occurred_at:
+            raise AttributionIntegrityError(
+                "Blockchain occurred_at does not match AccessLog accessed_at"
+            )
 
         evidence = EvidenceRepository.get_by_id(db, access_log.evidence_id)
         if evidence is None:
@@ -184,7 +202,12 @@ class LeakAttributionService:
             blockchain=BlockchainAccessAttribution(
                 evidence_ref=evidence_ref,
                 officer_ref=officer_ref,
-                recorded_at=chain_record["recorded_at"],
+                action=chain_action,
+                occurred_at=occurred_at,
+                recorded_at=self._normalize_chain_timestamp(
+                    chain_record.get("recorded_at"),
+                    "recorded_at",
+                ),
                 writer=chain_record["writer"],
             ),
             evidence=EvidenceAttribution(
@@ -206,6 +229,8 @@ class LeakAttributionService:
                 evidence_ref_matches=True,
                 officer_ref_matches=True,
                 access_session_ref_matches=True,
+                action_matches=True,
+                occurred_at_matches=True,
                 transaction_link_matches=True,
             ),
         )
@@ -248,6 +273,33 @@ class LeakAttributionService:
             raise AttributionIntegrityError(
                 f"Blockchain {field_name} is malformed"
             ) from exc
+
+    @staticmethod
+    def _normalize_chain_action(value: Any) -> str:
+        try:
+            if isinstance(value, AccessAction):
+                return value.name
+            if isinstance(value, str):
+                return AccessAction[value.upper()].name
+            return AccessAction(value).name
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AttributionIntegrityError(
+                "Blockchain action is malformed"
+            ) from exc
+
+    @staticmethod
+    def _normalize_chain_timestamp(value: Any, field_name: str) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise AttributionIntegrityError(
+                f"Blockchain {field_name} is malformed"
+            )
+        return value
+
+    @staticmethod
+    def _datetime_to_unix(value: Any) -> int | None:
+        if value is None or not hasattr(value, "timestamp"):
+            return None
+        return int(value.timestamp())
 
     @staticmethod
     def _find_access_log_matches(

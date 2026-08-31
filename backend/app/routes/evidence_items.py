@@ -12,7 +12,11 @@ from app.models.users import User
 from app.repositories.case_repository import CaseRepository
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.schemas.chain_of_custody import ChainOfCustodyResponse
-from app.schemas.evidence import EvidenceCreate, EvidenceResponse
+from app.schemas.evidence import (
+    EvidenceCreate,
+    EvidenceResponse,
+    EvidenceViewSessionResponse,
+)
 from app.services.case_authorization import can_access_case
 from app.services.chain_of_custody_service import (
     ChainOfCustodyBlockchainReadError,
@@ -22,6 +26,11 @@ from app.services.chain_of_custody_service import (
 )
 from app.services.evidence_service import EvidenceBlockchainWriteError, EvidenceService
 from app.services.evidence_access_service import EvidenceAccessService
+from app.services.evidence_view_service import (
+    EvidenceViewBlockchainWriteError,
+    EvidenceViewNotFoundError,
+    EvidenceViewPreparationService,
+)
 from app.services.access_log_service import AccessLogService, client_info
 from app.services.personalized_watermark_service import remove_personalized_copy
 
@@ -30,6 +39,33 @@ router = APIRouter(
     prefix="/evidences",
     tags=["Evidence"]
 )
+
+
+@router.post(
+    "/{evidence_id}/view-session",
+    response_model=EvidenceViewSessionResponse,
+)
+def create_view_session(
+    evidence_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        return EvidenceViewPreparationService.create_session(
+            db,
+            evidence_id=evidence_id,
+            current_user=current_user,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except EvidenceViewNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except EvidenceViewBlockchainWriteError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Evidence view could not be recorded",
+        ) from exc
 
 
 @router.get(

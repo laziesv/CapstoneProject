@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from blockchain_client import (
+    AccessAction,
     BlockchainClient,
     derive_access_session_ref,
     derive_actor_ref,
@@ -86,8 +87,10 @@ class BlockchainIntegrationService:
         evidence_id: UUID | str,
         officer_user_id: UUID | str,
         access_log_id: UUID | str,
+        action: AccessAction,
+        occurred_at: int,
     ) -> dict[str, Any]:
-        """Record an opaque evidence access session on chain."""
+        """Record a V3 evidence access session on chain."""
 
         self._require_write_enabled()
         evidence_ref = derive_evidence_ref(evidence_id)
@@ -97,11 +100,15 @@ class BlockchainIntegrationService:
             evidence_ref,
             officer_ref,
             access_session_ref,
+            action,
+            occurred_at,
         )
         return {
             "evidence_ref": evidence_ref,
             "officer_ref": officer_ref,
             "access_session_ref": access_session_ref,
+            "action": action,
+            "occurred_at": occurred_at,
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
             "contract_address": result.contract_address,
@@ -154,6 +161,8 @@ class BlockchainIntegrationService:
             {
                 "officer_ref": event.officer_ref,
                 "access_session_ref": event.access_session_ref,
+                "action": event.action,
+                "occurred_at": event.occurred_at,
                 "tx_hash": event.tx_hash,
                 "block_number": event.block_number,
                 "recorded_at": event.recorded_at,
@@ -196,6 +205,8 @@ class BlockchainIntegrationService:
         return {
             "evidence_ref": record["evidence_ref"],
             "officer_ref": record["officer_ref"],
+            "action": record["action"],
+            "occurred_at": record["occurred_at"],
             "recorded_at": record["recorded_at"],
             "writer": record["writer"],
         }

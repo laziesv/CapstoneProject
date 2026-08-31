@@ -2,6 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from blockchain_client import (
+    AccessAction,
     derive_access_session_ref,
     derive_actor_ref,
     derive_evidence_ref,
@@ -89,12 +90,15 @@ class ChainOfCustodyService:
 
         access_logs = [
             access_log
-            for access_log in AccessLogRepository.list_successful_downloads_by_evidence(
+            for access_log in AccessLogRepository.list_successful_accesses_by_evidence(
                 db,
                 evidence_id=evidence.evidence_id,
             )
-            if self._enum_value(access_log.action) == AuditAction.DOWNLOAD.value
-            and self._enum_value(access_log.result) == AuditResult.SUCCESS.value
+            if (
+                self._enum_value(access_log.action)
+                in (AuditAction.VIEW.value, AuditAction.DOWNLOAD.value)
+                and self._enum_value(access_log.result) == AuditResult.SUCCESS.value
+            )
         ]
         user_ids = {evidence.uploaded_by} | {
             access_log.user_id for access_log in access_logs
@@ -157,9 +161,16 @@ class ChainOfCustodyService:
             and registration_matches
             and access_records_verified == access_records_total
         )
+        integrity_state = self._custody_integrity_state(
+            verified=verified,
+            evidence_exists=evidence_exists,
+            registration_row=registration_row,
+            access_history=access_history,
+        )
 
         return ChainOfCustodyResponse(
             verified=verified,
+            integrity_state=integrity_state,
             evidence=ChainEvidenceMetadata(
                 evidence_id=evidence.evidence_id,
                 evidence_number=evidence.evidence_number,
@@ -196,6 +207,8 @@ class ChainOfCustodyService:
         session_exists = chain_access is not None
         chain_evidence_ref = None
         chain_officer_ref = None
+        chain_action = None
+        chain_occurred_at = None
         blockchain_metadata = None
         if session_exists:
             chain_evidence_ref = self._chain_bytes32(
@@ -206,8 +219,12 @@ class ChainOfCustodyService:
                 chain_access,
                 "officer_ref",
             )
+            chain_action = self._chain_action(chain_access)
+            chain_occurred_at = self._chain_occurred_at(chain_access)
             blockchain_metadata = ChainAccessMetadata(
                 officer_ref=chain_officer_ref,
+                action=chain_action,
+                occurred_at=chain_occurred_at,
                 recorded_at=self._chain_recorded_at(chain_access),
                 writer=self._chain_writer(chain_access),
             )
@@ -216,6 +233,14 @@ class ChainOfCustodyService:
         officer_ref_matches = (
             session_exists
             and chain_officer_ref == derive_actor_ref(access_log.user_id)
+        )
+        action_matches = (
+            session_exists
+            and chain_action == self._enum_value(access_log.action)
+        )
+        occurred_at_matches = (
+            session_exists
+            and chain_occurred_at == self._datetime_to_unix(access_log.accessed_at)
         )
         transaction_matches = self._transaction_matches(
             transaction,
@@ -228,6 +253,8 @@ class ChainOfCustodyService:
             session_exists
             and evidence_ref_matches
             and officer_ref_matches
+            and action_matches
+            and occurred_at_matches
             and transaction_matches
             and user is not None
         )
@@ -240,10 +267,17 @@ class ChainOfCustodyService:
             blockchain=blockchain_metadata,
             transaction=self._transaction_metadata(transaction, transaction_matches),
             verified=verified,
+            integrity_state=self._access_integrity_state(
+                verified=verified,
+                session_exists=session_exists,
+                transaction=transaction,
+            ),
             verification=ChainAccessVerification(
                 session_exists=session_exists,
                 evidence_ref_matches=evidence_ref_matches,
                 officer_ref_matches=officer_ref_matches,
+                action_matches=action_matches,
+                occurred_at_matches=occurred_at_matches,
                 transaction_matches=transaction_matches,
             ),
         )
@@ -294,6 +328,80 @@ class ChainOfCustodyService:
                 "Blockchain recorded_at is malformed"
             )
         return recorded_at
+
+    @staticmethod
+    def _chain_occurred_at(record: dict[str, Any]) -> int:
+        occurred_at = record.get("occurred_at")
+        if isinstance(occurred_at, bool) or not isinstance(occurred_at, int):
+            raise ChainOfCustodyMalformedChainDataError(
+                "Blockchain occurred_at is malformed"
+            )
+        return occurred_at
+
+    @staticmethod
+    def _chain_action(record: dict[str, Any]) -> str:
+        action = record.get("action")
+        try:
+            if isinstance(action, AccessAction):
+                return action.name
+            if isinstance(action, str):
+                return AccessAction[action.upper()].name
+            return AccessAction(action).name
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ChainOfCustodyMalformedChainDataError(
+                "Blockchain action is malformed"
+            ) from exc
+
+    @staticmethod
+    def _datetime_to_unix(value: Any) -> int | None:
+        if value is None or not hasattr(value, "timestamp"):
+            return None
+        return int(value.timestamp())
+
+    def _is_legacy_transaction(self, transaction: Any) -> bool:
+        configured_contract = self._blockchain.contract_address
+        return bool(
+            transaction is not None
+            and transaction.contract_address
+            and configured_contract
+            and str(transaction.contract_address).lower()
+            != str(configured_contract).lower()
+        )
+
+    def _access_integrity_state(
+        self,
+        *,
+        verified: bool,
+        session_exists: bool,
+        transaction: Any,
+    ) -> str:
+        if verified:
+            return "VERIFIED"
+        if self._is_legacy_transaction(transaction):
+            return "LEGACY_PARTIAL_VERIFICATION"
+        if not session_exists:
+            return "MISSING_ON_CHAIN"
+        return "INTEGRITY_MISMATCH"
+
+    def _custody_integrity_state(
+        self,
+        *,
+        verified: bool,
+        evidence_exists: bool,
+        registration_row: Any,
+        access_history: list[ChainAccessHistoryItem],
+    ) -> str:
+        if verified:
+            return "VERIFIED"
+        states = {item.integrity_state for item in access_history}
+        if (
+            self._is_legacy_transaction(registration_row)
+            or "LEGACY_PARTIAL_VERIFICATION" in states
+        ):
+            return "LEGACY_PARTIAL_VERIFICATION"
+        if not evidence_exists or "MISSING_ON_CHAIN" in states:
+            return "MISSING_ON_CHAIN"
+        return "INTEGRITY_MISMATCH"
 
     @staticmethod
     def _chain_writer(record: dict[str, Any]) -> str:

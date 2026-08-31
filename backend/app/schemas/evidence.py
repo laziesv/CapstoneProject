@@ -35,3 +35,15 @@ class EvidenceResponse(BaseModel):
     file_size_bytes: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EvidenceViewSessionResponse(BaseModel):
+    access_log_id: UUID
+    evidence_id: UUID
+    access_session_ref: str
+    action: str
+    occurred_at: datetime
+    tx_hash: str
+    block_number: int
+
+    model_config = ConfigDict(from_attributes=True)
