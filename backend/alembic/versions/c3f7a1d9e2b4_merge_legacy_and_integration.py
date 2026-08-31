@@ -27,7 +27,6 @@ _REQUIRED_TABLES = {
     'blockchain_transactions',
     'access_logs',
     'watermark_records',
-    'audit_trails',
 }
 
 
@@ -72,27 +71,29 @@ def upgrade() -> None:
             nullable=True,
         )
 
-    audit_columns = _column_names(inspector, 'audit_trails')
-    if 'accessed_at' not in audit_columns:
-        op.add_column(
-            'audit_trails',
-            sa.Column(
-                'accessed_at',
-                sa.TIMESTAMP(timezone=True),
-                server_default=sa.text('now()'),
-                nullable=False,
-            ),
-        )
-    inspector = sa.inspect(bind)
-    if 'ix_audit_trails_accessed_at' not in _index_names(
-        inspector, 'audit_trails'
-    ):
-        op.create_index(
-            'ix_audit_trails_accessed_at',
-            'audit_trails',
-            ['accessed_at'],
-            unique=False,
-        )
+    if 'audit_trails' in existing_tables:
+        # การรวม migration: ปรับ audit_trails เฉพาะเมื่อ dev ยังไม่ได้ลบตาราง
+        audit_columns = _column_names(inspector, 'audit_trails')
+        if 'accessed_at' not in audit_columns:
+            op.add_column(
+                'audit_trails',
+                sa.Column(
+                    'accessed_at',
+                    sa.TIMESTAMP(timezone=True),
+                    server_default=sa.text('now()'),
+                    nullable=False,
+                ),
+            )
+        inspector = sa.inspect(bind)
+        if 'ix_audit_trails_accessed_at' not in _index_names(
+            inspector, 'audit_trails'
+        ):
+            op.create_index(
+                'ix_audit_trails_accessed_at',
+                'audit_trails',
+                ['accessed_at'],
+                unique=False,
+            )
 
     watermark_columns = _column_names(inspector, 'watermark_records')
     if 'dwt_level' not in watermark_columns:

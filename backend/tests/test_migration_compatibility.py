@@ -26,15 +26,34 @@ class MigrationCompatibilityTests(TestCase):
     def test_reconciled_graph_has_one_merge_head(self) -> None:
         legacy_root = _load_migration("fa1497c19db3_legacy_history_marker.py")
         legacy_head = _load_migration("02677bad017f_legacy_history_marker.py")
-        merge = _load_migration(
+        compatibility_merge = _load_migration(
             "c3f7a1d9e2b4_merge_legacy_and_integration.py"
+        )
+        query_action = _load_migration(
+            "4eac92bd79a8_add_query_audit_action.py"
+        )
+        access_case = _load_migration(
+            "b7e2c1a90f34_add_access_logs_case_id.py"
+        )
+        drop_audit = _load_migration(
+            "d2f4a6b8c1e3_drop_audit_trails.py"
+        )
+        final_merge = _load_migration(
+            "e8b4c2d7a901_merge_blockchain_and_dev_histories.py"
         )
 
         self.assertIsNone(legacy_root.down_revision)
         self.assertEqual(legacy_head.down_revision, legacy_root.revision)
         self.assertEqual(
-            set(merge.down_revision),
+            set(compatibility_merge.down_revision),
             {legacy_head.revision, "14f1bea4590d"},
+        )
+        self.assertEqual(query_action.down_revision, "14f1bea4590d")
+        self.assertEqual(access_case.down_revision, query_action.revision)
+        self.assertEqual(drop_audit.down_revision, access_case.revision)
+        self.assertEqual(
+            set(final_merge.down_revision),
+            {compatibility_merge.revision, drop_audit.revision},
         )
 
     def test_python_enums_accept_legacy_and_current_labels(self) -> None:

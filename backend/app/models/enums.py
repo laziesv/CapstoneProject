@@ -24,6 +24,7 @@ class AuditAction(str, enum.Enum):
     DELETE = "DELETE"
     VIEW = "VIEW"
     DOWNLOAD = "DOWNLOAD"
+    QUERY = "QUERY"
 
 
 class AuditResult(str, enum.Enum):

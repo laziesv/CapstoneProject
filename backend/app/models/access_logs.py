@@ -23,6 +23,9 @@ class AccessLog(Base):
 
     user_id = Column(UUID(as_uuid=True),ForeignKey("users.user_id", ondelete="RESTRICT"),nullable=False,index=True,)
 
+    # การรวม migration: ให้ metadata ตรงกับ case_id แบบ nullable ใน schema ของ dev
+    case_id = Column(UUID(as_uuid=True),ForeignKey("cases.case_id", ondelete="RESTRICT"),index=True,)
+
     evidence_id = Column(UUID(as_uuid=True),ForeignKey("evidence_items.evidence_id", ondelete="RESTRICT"),index=True,)
 
     action = Column(Enum(AuditAction), nullable=False)
