@@ -103,6 +103,16 @@ class EvidencePreviewAuthorizationTests(unittest.TestCase):
         self.db.flush.assert_not_called()
         self.db.commit.assert_not_called()
 
+    def test_repeated_preview_does_not_create_access_logs(self):
+        with patch.object(BlockchainIntegrationService, "record_access") as record_access:
+            self.assertIsInstance(self.call_preview(), FileResponse)
+            self.assertIsInstance(self.call_preview(), FileResponse)
+
+        record_access.assert_not_called()
+        self.db.add.assert_not_called()
+        self.db.flush.assert_not_called()
+        self.db.commit.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

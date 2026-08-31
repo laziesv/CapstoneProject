@@ -77,6 +77,7 @@ class AccessLogBusinessCoreTests(unittest.TestCase):
                 return_value=[],
             ),
             patch.object(AccessLogService, "record_query") as record_query,
+            patch.object(AccessLogRepository, "stage_view") as stage_view,
         ):
             result = list_all(
                 case_id=None,
@@ -93,6 +94,7 @@ class AccessLogBusinessCoreTests(unittest.TestCase):
             ip_address="192.0.2.20",
             user_agent="test-agent",
         )
+        stage_view.assert_not_called()
 
     def test_admin_list_passes_case_and_pagination_filters(self):
         case_id = uuid4()

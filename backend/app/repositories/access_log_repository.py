@@ -124,3 +124,28 @@ class AccessLogRepository:
         )
         # การเชื่อมต่อ Blockchain: ต้องมี log_id ก่อนเขียนเชน แต่ให้ service เป็นผู้ commit ทั้งชุด
         return AccessLogRepository.stage(db, access_log)
+
+    @staticmethod
+    def stage_view(
+        db: Session,
+        *,
+        user_id: UUID,
+        evidence_id: UUID,
+        case_id: UUID,
+        accessed_at: datetime,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> AccessLog:
+        access_log = AccessLog(
+            log_id=uuid4(),
+            user_id=user_id,
+            case_id=case_id,
+            evidence_id=evidence_id,
+            action=AuditAction.VIEW,
+            accessed_at=accessed_at,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            result=AuditResult.SUCCESS,
+        )
+        # เตรียม VIEW ไว้ใน transaction เดียวกับ Blockchain V3 โดยยังไม่ commit
+        return AccessLogRepository.stage(db, access_log)
