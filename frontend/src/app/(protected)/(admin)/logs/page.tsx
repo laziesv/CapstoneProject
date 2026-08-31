@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search, Loader2, ArrowLeft, FileClock, Users, Files, ShieldX } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Search, Loader2, ArrowLeft, FileClock, Users, Files, ShieldX, RefreshCw } from "lucide-react";
 import type { AccessLog } from "@/interfaces";
 import { accessLogService } from "@/services";
 
 const actionStyle: Record<string, string> = {
+  query: "bg-slate-100 text-slate-700",
+  create: "bg-green-50 text-green-700",
+  update: "bg-amber-50 text-amber-700",
+  delete: "bg-red-50 text-red-700",
   view: "bg-blue-50 text-blue-700",
   download: "bg-purple-50 text-purple-700",
-  print: "bg-amber-50 text-amber-700",
-  share: "bg-cyan-50 text-cyan-700",
-  export: "bg-slate-100 text-slate-600",
 };
 const resultStyle: Record<string, string> = {
   success: "bg-green-50 text-green-700",
@@ -24,16 +25,36 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const loadLogs = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setLogs(await accessLogService.list({ limit: 200 }));
+    } catch {
+      setError("โหลดบันทึกการเข้าถึงไม่สำเร็จ");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    (async () => {
-      try {
-        setLogs(await accessLogService.list());
-      } catch {
-        setError("โหลดบันทึกการเข้าถึงไม่สำเร็จ");
-      } finally {
-        setLoading(false);
-      }
-    })();
+    let cancelled = false;
+    accessLogService
+      .list({ limit: 200 })
+      .then((items) => {
+        if (cancelled) return;
+        setLogs(items);
+        setError(null);
+      })
+      .catch(() => {
+        if (!cancelled) setError("โหลดบันทึกการเข้าถึงไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // ── ตัวกรอง ──────────────────────────────────────────
@@ -84,8 +105,11 @@ export default function LogsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
+      <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">Access Logs</h1>
+        <button type="button" onClick={() => void loadLogs()} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-hover disabled:opacity-50">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </button>
       </div>
 
       {/* Drill-down banner (มุมมองรายชิ้น) */}
@@ -144,9 +168,10 @@ export default function LogsPage() {
           <option value="">All Actions</option>
           <option value="view">View</option>
           <option value="download">Download</option>
-          <option value="print">Print</option>
-          <option value="share">Share</option>
-          <option value="export">Export</option>
+          <option value="query">Query</option>
+          <option value="create">Create</option>
+          <option value="update">Update</option>
+          <option value="delete">Delete</option>
         </select>
         <select
           value={result}
@@ -155,9 +180,7 @@ export default function LogsPage() {
         >
           <option value="">All Results</option>
           <option value="success">Success</option>
-          <option value="denied">Denied</option>
           <option value="failed">Failed</option>
-          <option value="unauthorized">Unauthorized</option>
         </select>
       </div>
 
@@ -195,17 +218,18 @@ export default function LogsPage() {
                   <td className="px-5 py-3 font-medium text-xs">{l.user_name ?? "—"}</td>
                   <td className="px-5 py-3">
                     <button
-                      onClick={() => setEvidenceId(l.evidence_id)}
+                      onClick={() => l.evidence_id && setEvidenceId(l.evidence_id)}
+                      disabled={!l.evidence_id}
                       className="font-mono text-xs text-primary hover:underline"
                       title="ดูประวัติการเข้าถึงเฉพาะหลักฐานชิ้นนี้"
                     >
-                      {l.evidence_number ?? l.evidence_id}
+                      {l.evidence_number ?? l.evidence_id ?? "—"}
                     </button>
                   </td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${actionStyle[l.action] ?? "bg-slate-100 text-slate-600"}`}>{l.action}</span>
                   </td>
-                  <td className="px-5 py-3 font-mono text-xs text-muted">{l.ip_address}</td>
+                  <td className="px-5 py-3 font-mono text-xs text-muted">{l.ip_address ?? "—"}</td>
                   <td className="px-5 py-3">
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${resultStyle[l.result] ?? "bg-slate-100 text-slate-600"}`}>{l.result}</span>
                   </td>

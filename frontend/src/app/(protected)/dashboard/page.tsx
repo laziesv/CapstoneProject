@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Loader2, FileClock, Users, Files, TrendingUp } from "lucide-react";
+import { Clock, Loader2, FileClock, Users, Files, TrendingUp, ImageOff } from "lucide-react";
 import Link from "next/link";
 import { dashboardService, accessLogService } from "@/services";
 import { useAuth } from "@/hooks/useAuth";
 import type { DashboardData, AccessLog } from "@/interfaces";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
+import { useIntentionalEvidenceNavigation } from "@/hooks/useIntentionalEvidenceNavigation";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { openEvidence, openingEvidenceId, openError } = useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -33,17 +35,18 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    accessLogService.list().then(setLogs).catch(() => {});
+    accessLogService.list({ limit: 200 }).then(setLogs).catch(() => {});
   }, [isAdmin]);
 
   const access = useMemo(() => {
     const total = logs.length;
     const users = new Set(logs.map((l) => l.user_id)).size;
-    const evidence = new Set(logs.map((l) => l.evidence_id)).size;
+    const evidence = new Set(logs.flatMap((l) => l.evidence_id ? [l.evidence_id] : [])).size;
 
     // นับจำนวนครั้งต่อหลักฐาน (เก็บ label เป็น evidence_number)
     const byEvidence = new Map<string, { label: string; count: number }>();
     for (const l of logs) {
+      if (!l.evidence_id) continue;
       const cur = byEvidence.get(l.evidence_id) ?? { label: l.evidence_number ?? l.evidence_id, count: 0 };
       cur.count += 1;
       byEvidence.set(l.evidence_id, cur);
@@ -120,13 +123,14 @@ export default function DashboardPage() {
             <Link href="/cases" className="text-xs text-primary hover:underline">View all</Link>
           </div>
           <div className="divide-y divide-border">
+            {openError && <p className="px-5 py-3 text-sm text-danger" role="alert">{openError}</p>}
             {data.recent_evidence.length === 0 && (
               <p className="px-5 py-6 text-center text-sm text-muted">ยังไม่มีหลักฐาน</p>
             )}
             {data.recent_evidence.map((e) => (
-              <Link key={e.evidence_id} href={`/evidence/${e.evidence_id}`} className="flex items-center gap-4 px-5 py-3 hover:bg-surface-hover transition-colors">
+              <button key={e.evidence_id} type="button" onClick={() => void openEvidence(e.evidence_id)} disabled={Boolean(openingEvidenceId)} className="flex w-full items-center gap-4 px-5 py-3 text-left transition-colors hover:bg-surface-hover disabled:cursor-wait disabled:opacity-70">
                 <div className="h-10 w-10 rounded-lg bg-slate-100 overflow-hidden flex-shrink-0">
-                  <EvidencePreviewImage fileId={e.display_file_id} alt="" className="h-full w-full object-cover" />
+                  <EvidencePreviewImage fileId={e.display_file_id} alt="" className="h-full w-full object-cover" fallback={<ImageOff className="m-auto h-5 w-5 text-muted" />} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{e.evidence_number}</p>
@@ -136,7 +140,7 @@ export default function DashboardPage() {
                   {e.is_watermarked && <span className="rounded-full bg-primary-light px-2 py-0.5 text-[10px] font-medium text-primary">WM</span>}
                   {e.is_blockchain_verified && <span className="rounded-full bg-success-light px-2 py-0.5 text-[10px] font-medium text-success">BC</span>}
                 </div>
-              </Link>
+              </button>
             ))}
           </div>
         </div>
