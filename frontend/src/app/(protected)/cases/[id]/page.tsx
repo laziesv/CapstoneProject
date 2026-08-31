@@ -11,6 +11,7 @@ import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
+import { useIntentionalEvidenceNavigation } from "@/hooks/useIntentionalEvidenceNavigation";
 
 
 export default function CaseDetailPage() {
@@ -19,6 +20,7 @@ export default function CaseDetailPage() {
   const supervisorMap = useSupervisorMap();
   const [caseData, setCaseData] = useState<Case | null | undefined>(undefined);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
+  const { openEvidence, openingEvidenceId, openError } = useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -89,16 +91,18 @@ export default function CaseDetailPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
+        {openError && <p className="col-span-3 text-sm text-danger" role="alert">{openError}</p>}
         {evidenceList.map((e) => (
-          <Link key={e.evidence_id} href={`/evidence/${e.evidence_id}`} className="group rounded-xl border border-border bg-surface overflow-hidden hover:shadow-md transition-all">
+          <button key={e.evidence_id} type="button" onClick={() => void openEvidence(e.evidence_id)} disabled={Boolean(openingEvidenceId)} className="group overflow-hidden rounded-xl border border-border bg-surface text-left transition-all hover:shadow-md disabled:cursor-wait disabled:opacity-70">
             <div className="aspect-video bg-slate-100 overflow-hidden">
               <EvidencePreviewImage
                 fileId={e.display_file_id}
                 alt={e.description}
                 className="h-full w-full object-cover group-hover:scale-105 transition-transform"
                 fallback={
-                <div className="flex h-full w-full items-center justify-center">
+                <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center">
                   <ImageOff className="h-7 w-7 text-muted" />
+                  <span className="text-xs text-muted">ไม่พบไฟล์หลักฐานเดิม</span>
                 </div>
                 }
               />
@@ -111,7 +115,7 @@ export default function CaseDetailPage() {
                 {e.is_blockchain_verified && <span className="rounded bg-success-light px-1.5 py-0.5 text-[10px] font-medium text-success">BC</span>}
               </div>
             </div>
-          </Link>
+          </button>
         ))}
       </div>
     </div>

@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Link2, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download, Eye, X } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Link2, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
-import { ApiError, caseService, evidenceService } from "@/services";
+import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
@@ -21,11 +21,7 @@ export default function EvidenceDetailPage() {
   const [evidence, setEvidence] = useState<EvidenceItem | null | undefined>(undefined);
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
   const [downloading, setDownloading] = useState(false);
-  const [previewEvidenceId, setPreviewEvidenceId] = useState<string>();
-  const [viewing, setViewing] = useState(false);
-  const [viewError, setViewError] = useState<{ evidenceId: string; message: string }>();
   const downloadInProgress = useRef(false);
-  const viewInProgress = useRef(false);
 
   useEffect(() => {
     (async () => {
@@ -72,26 +68,6 @@ export default function EvidenceDetailPage() {
     } finally {
       downloadInProgress.current = false;
       setDownloading(false);
-    }
-  };
-
-  const handleView = async () => {
-    if (viewInProgress.current) return;
-    viewInProgress.current = true;
-    setViewing(true);
-    setViewError(undefined);
-    try {
-      await evidenceService.createViewSession(evidence.evidence_id);
-      setPreviewEvidenceId(evidence.evidence_id);
-    } catch (cause) {
-      setPreviewEvidenceId(undefined);
-      setViewError({
-        evidenceId: evidence.evidence_id,
-        message: viewSessionErrorMessage(cause),
-      });
-    } finally {
-      viewInProgress.current = false;
-      setViewing(false);
     }
   };
 
@@ -150,54 +126,23 @@ export default function EvidenceDetailPage() {
         <div className="space-y-6 lg:col-span-2">
           <figure className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
             <div className="relative flex items-center justify-center bg-slate-900" style={{ minHeight: 320 }}>
-              {previewEvidenceId === evidence.evidence_id ? (
-                <>
-                  <EvidencePreviewImage
-                    fileId={evidence.display_file_id}
-                    alt={evidence.description || evidence.original_filename}
-                    className="max-h-[540px] w-full object-contain"
-                    fallback={
-                      <div className="flex w-full flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
-                        <ImageOff className="h-8 w-8 text-muted" />
-                        <p className="text-sm text-muted">ไม่สามารถแสดงภาพตัวอย่างได้</p>
-                      </div>
-                    }
-                    loadingFallback={
-                      <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted" />
-                        <p className="text-sm text-muted">กำลังโหลดภาพตัวอย่าง</p>
-                      </div>
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPreviewEvidenceId(undefined)}
-                    className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-md bg-black/70 text-white transition-colors hover:bg-black/90"
-                    aria-label="ปิดภาพตัวอย่าง"
-                    title="ปิดภาพตัวอย่าง"
-                  >
-                    <X className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </>
-              ) : (
-                <div className="flex w-full flex-col items-center justify-center gap-4 bg-slate-50 px-6 py-24 text-center">
-                  <Eye className="h-9 w-9 text-muted" aria-hidden="true" />
-                  <button
-                    type="button"
-                    onClick={() => void handleView()}
-                    disabled={viewing || !evidence.display_file_id}
-                    className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {viewing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
-                    {viewing ? "กำลังบันทึกการเปิดดู" : "ดูหลักฐาน"}
-                  </button>
-                  {viewError?.evidenceId === evidence.evidence_id && (
-                    <p className="max-w-md text-sm text-danger" role="alert" aria-live="polite">
-                      {viewError.message}
-                    </p>
-                  )}
-                </div>
-              )}
+              <EvidencePreviewImage
+                fileId={evidence.display_file_id}
+                alt={evidence.description || evidence.original_filename}
+                className="max-h-[540px] w-full object-contain"
+                fallback={
+                  <div className="flex w-full flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
+                    <ImageOff className="h-8 w-8 text-muted" />
+                    <p className="text-sm text-muted">ไม่พบไฟล์หลักฐานเดิม</p>
+                  </div>
+                }
+                loadingFallback={
+                  <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted" />
+                    <p className="text-sm text-muted">กำลังโหลดภาพตัวอย่าง</p>
+                  </div>
+                }
+              />
             </div>
             <figcaption className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 text-xs text-muted">
               <span className="inline-flex items-center gap-1.5 truncate">
@@ -284,7 +229,7 @@ export default function EvidenceDetailPage() {
         </div>
       </div>
 
-      <ChainOfCustodyPanel evidenceId={evidence.evidence_id} />
+      {isAdmin && <ChainOfCustodyPanel evidenceId={evidence.evidence_id} />}
     </div>
   );
 }
@@ -312,14 +257,4 @@ function StatusPill({ ok, icon: Icon, okText, noText }: { ok: boolean; icon: Luc
       {ok ? okText : noText}
     </span>
   );
-}
-
-function viewSessionErrorMessage(cause: unknown): string {
-  if (cause instanceof ApiError && [401, 403, 404].includes(cause.status)) {
-    return "ไม่สามารถเปิดดูหลักฐานได้ กรุณาตรวจสอบสิทธิ์หรือเข้าสู่ระบบอีกครั้ง";
-  }
-  if (cause instanceof ApiError && cause.status === 503) {
-    return "ไม่สามารถบันทึกการเปิดดูหลักฐานได้ในขณะนี้ กรุณาลองใหม่ภายหลัง";
-  }
-  return "ไม่สามารถเปิดดูหลักฐานได้";
 }

@@ -120,7 +120,9 @@ export default function CasesPage() {
                     fallback={
                     <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 to-primary-light/40">
                       <FolderOpen className="h-8 w-8 text-slate-400" />
-                      <span className="text-xs text-muted">ยังไม่มีหลักฐาน</span>
+                      <span className="text-xs text-muted">
+                        {count > 0 ? "ไม่พบไฟล์หลักฐานเดิม" : "ยังไม่มีหลักฐาน"}
+                      </span>
                     </div>
                     }
                   />

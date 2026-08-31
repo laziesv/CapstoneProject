@@ -2,7 +2,10 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { evidenceService } from "@/services";
+import { ApiError, evidenceService } from "@/services";
+
+
+const unavailableFileIds = new Set<string>();
 
 
 interface EvidencePreviewImageProps {
@@ -28,7 +31,7 @@ export function EvidencePreviewImage({
     let cancelled = false;
     let createdUrl: string | undefined;
 
-    if (!fileId) return;
+    if (!fileId || unavailableFileIds.has(fileId)) return;
 
     evidenceService
       .preview(fileId)
@@ -37,7 +40,11 @@ export function EvidencePreviewImage({
         createdUrl = URL.createObjectURL(blob);
         setPreview({ fileId, objectUrl: createdUrl });
       })
-      .catch(() => {
+      .catch((cause) => {
+        // การแสดงไฟล์หลักฐาน: จดจำเฉพาะ 404 ของไฟล์ legacy เพื่อไม่ยิงคำขอซ้ำทุกครั้งที่ component ถูก mount
+        if (cause instanceof ApiError && cause.status === 404) {
+          unavailableFileIds.add(fileId);
+        }
         if (!cancelled) setFailedFileId(fileId);
       });
 
@@ -49,7 +56,10 @@ export function EvidencePreviewImage({
   }, [fileId]);
 
   const loading = Boolean(
-    fileId && preview?.fileId !== fileId && failedFileId !== fileId
+    fileId
+      && preview?.fileId !== fileId
+      && failedFileId !== fileId
+      && !unavailableFileIds.has(fileId)
   );
   if (loading) return loadingFallback ?? fallback;
   if (!fileId || preview?.fileId !== fileId) return fallback;
