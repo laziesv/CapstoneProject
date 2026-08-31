@@ -2,7 +2,9 @@ from uuid import UUID
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.integrity import IntegrityMismatch
 
 
 class WatermarkUserProfile(BaseModel):
@@ -52,3 +54,10 @@ class WatermarkExtractResponse(BaseModel):
     blockchain_recorded_at: int | None = None
     access_tx_status: str | None = None
     matched_evidence_id: UUID | None = None
+    blockchain_session_verified: bool = False
+    database_integrity_state: Literal["VERIFIED", "INTEGRITY_MISMATCH"] | None = None
+    attribution_mismatches: list[IntegrityMismatch] = Field(default_factory=list)
+    database_access_user: WatermarkUserProfile | None = None
+    database_access_action: str | None = None
+    database_accessed_at: datetime | None = None
+    blockchain_occurred_at: int | None = None

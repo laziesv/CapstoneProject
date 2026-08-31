@@ -109,6 +109,11 @@ class LeakAttributionServiceTests(unittest.TestCase):
                 return_value=self.user if user is None else user,
             ),
             patch.object(
+                UserRepository,
+                "list",
+                return_value=[self.user],
+            ),
+            patch.object(
                 BlockchainTransactionRepository,
                 "get_by_id",
                 return_value=(
@@ -140,6 +145,8 @@ class LeakAttributionServiceTests(unittest.TestCase):
         self.assertEqual(result.transaction.tx_hash, TX_HASH)
         self.assertEqual(result.transaction.block_number, 8123)
         self.assertTrue(result.verification.transaction_link_matches)
+        self.assertEqual(result.database_integrity_state, "VERIFIED")
+        self.assertEqual(result.mismatches, ())
         self.chain.get_access_by_session.assert_called_once_with(SESSION_REF)
         self.assertFalse(self.chain.record_access.called)
         self.assertFalse(self.chain.record_evidence.called)
@@ -190,7 +197,7 @@ class LeakAttributionServiceTests(unittest.TestCase):
         with self.assertRaises(LocalAttributionNotFoundError):
             self.service.resolve_by_access_session_ref(self.db, SESSION_REF)
 
-    def test_access_log_session_ref_mismatch_is_integrity_failure(self):
+    def test_access_log_session_ref_mismatch_is_reported(self):
         mismatched_log = SimpleNamespace(
             **{
                 **self.access_log.__dict__,
@@ -203,31 +210,49 @@ class LeakAttributionServiceTests(unittest.TestCase):
                 "_find_access_log_matches",
                 return_value=[mismatched_log],
             ),
-            self.assertRaises(AttributionIntegrityError),
+            self.local_records(),
         ):
-            self.service.resolve_by_access_session_ref(self.db, SESSION_REF)
+            result = self.service.resolve_by_access_session_ref(
+                self.db,
+                SESSION_REF,
+            )
 
-    def test_officer_and_evidence_ref_mismatches_are_integrity_failures(self):
-        for field, value in (
-            ("officer_ref", derive_actor_ref(UUID(int=9))),
-            ("evidence_ref", derive_evidence_ref(UUID(int=10))),
-        ):
-            with self.subTest(field=field):
-                record = dict(self.chain.get_access_by_session.return_value)
-                record[field] = value
-                self.chain.get_access_by_session.return_value = record
-                with self.assertRaises(AttributionIntegrityError):
-                    self.service.resolve_by_access_session_ref(self.db, SESSION_REF)
-                self.chain.get_access_by_session.return_value = {
-                    "evidence_ref": EVIDENCE_REF,
-                    "officer_ref": OFFICER_REF,
-                    "action": AccessAction.DOWNLOAD,
-                    "occurred_at": OCCURRED_AT,
-                    "recorded_at": 1787018400,
-                    "writer": "0x" + "22" * 20,
-                }
+        self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
+        self.assertIn("access_session_ref", {item.field for item in result.mismatches})
 
-    def test_transaction_user_evidence_and_action_mismatches_fail_integrity(self):
+    def test_db_user_link_tamper_preserves_chain_user_and_reports_officer_diff(self):
+        tampered_user_id = UUID(int=9)
+        tampered_log = SimpleNamespace(
+            **{**self.access_log.__dict__, "user_id": tampered_user_id}
+        )
+        self.db.query.return_value.all.return_value = [tampered_log]
+        database_user = SimpleNamespace(user_id=tampered_user_id)
+        with self.local_records(user=database_user):
+            result = self.service.resolve_by_access_session_ref(
+                self.db,
+                SESSION_REF,
+                expected_evidence_id=EVIDENCE_ID,
+            )
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.matched_user.user_id, USER_ID)
+        self.assertEqual(result.database_user.user_id, tampered_user_id)
+        self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
+        self.assertIn("officer_ref", {item.field for item in result.mismatches})
+
+    def test_chain_evidence_mismatch_fails_before_local_metadata(self):
+        self.chain.get_access_by_session.return_value["evidence_ref"] = (
+            derive_evidence_ref(UUID(int=10))
+        )
+        with self.assertRaises(AttributionIntegrityError):
+            self.service.resolve_by_access_session_ref(
+                self.db,
+                SESSION_REF,
+                expected_evidence_id=EVIDENCE_ID,
+            )
+        self.db.query.assert_not_called()
+
+    def test_transaction_mismatches_are_reported_without_hiding_session(self):
         mismatches = (
             ("initiated_by", UUID(int=11)),
             ("evidence_id", UUID(int=12)),
@@ -238,11 +263,13 @@ class LeakAttributionServiceTests(unittest.TestCase):
                 transaction = SimpleNamespace(**self.transaction.__dict__)
                 setattr(transaction, field, value)
                 with self.local_records(transaction=transaction):
-                    with self.assertRaises(AttributionIntegrityError):
-                        self.service.resolve_by_access_session_ref(
-                            self.db,
-                            SESSION_REF,
-                        )
+                    result = self.service.resolve_by_access_session_ref(
+                        self.db,
+                        SESSION_REF,
+                    )
+                self.assertTrue(result.matched)
+                self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
+                self.assertIn("transaction_link", {item.field for item in result.mismatches})
 
     def test_view_session_is_not_download_attribution(self):
         self.chain.get_access_by_session.return_value["action"] = AccessAction.VIEW
@@ -250,11 +277,26 @@ class LeakAttributionServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(AttributionIntegrityError, "not DOWNLOAD"):
             self.resolve()
 
-    def test_occurred_at_must_match_access_log_timestamp(self):
+    def test_occurred_at_tamper_keeps_session_and_reports_timestamp_diff(self):
         self.chain.get_access_by_session.return_value["occurred_at"] += 1
 
-        with self.assertRaisesRegex(AttributionIntegrityError, "does not match"):
-            self.resolve()
+        result = self.resolve()
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
+        mismatch = next(item for item in result.mismatches if item.field == "accessed_at")
+        self.assertNotEqual(mismatch.database_value, mismatch.blockchain_value)
+
+    def test_db_action_tamper_keeps_download_session_and_reports_action_diff(self):
+        self.access_log.action = AuditAction.VIEW
+
+        result = self.resolve()
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.blockchain.action, AuditAction.DOWNLOAD.value)
+        mismatch = next(item for item in result.mismatches if item.field == "action")
+        self.assertEqual(mismatch.database_value, AuditAction.VIEW.value)
+        self.assertEqual(mismatch.blockchain_value, AuditAction.DOWNLOAD.value)
 
     def test_image_composition_extracts_then_resolves_matching_session(self):
         self.watermark.extract_access_session_ref.return_value = SESSION_REF

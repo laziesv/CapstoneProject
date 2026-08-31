@@ -20,6 +20,7 @@ from app.models.access_logs import AccessLog
 from app.models.enums import AuditAction, BlockchainAction
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.user_repository import UserRepository
+from app.schemas.integrity import IntegrityMismatch
 from app.services.personalized_watermark_service import PersonalizedWatermarkService
 
 
@@ -40,6 +41,10 @@ class LocalAttributionNotFoundError(LeakAttributionError):
 
 
 class AttributionIntegrityError(LeakAttributionError):
+    pass
+
+
+class AttributionEvidenceMismatchError(AttributionIntegrityError):
     pass
 
 
@@ -98,10 +103,13 @@ class LeakAttributionResult:
     access_session_ref: str
     blockchain: BlockchainAccessAttribution
     evidence: EvidenceAttribution
-    matched_user: UserAttribution
-    matched_access: AccessAttribution
-    transaction: TransactionAttribution
+    matched_user: UserAttribution | None
+    database_user: UserAttribution | None
+    matched_access: AccessAttribution | None
+    transaction: TransactionAttribution | None
     verification: AttributionVerification
+    database_integrity_state: str
+    mismatches: tuple[IntegrityMismatch, ...]
 
 
 class LeakAttributionService:
@@ -119,6 +127,7 @@ class LeakAttributionService:
         self,
         db: Session,
         access_session_ref: str,
+        expected_evidence_id: UUID | None = None,
     ) -> LeakAttributionResult:
         canonical_ref = self._normalize_access_session_ref(access_session_ref)
         try:
@@ -145,6 +154,20 @@ class LeakAttributionService:
             chain_record.get("occurred_at"),
             "occurred_at",
         )
+        if chain_action != AuditAction.DOWNLOAD.value:
+            raise AttributionIntegrityError(
+                "Blockchain access session is not DOWNLOAD"
+            )
+        if (
+            expected_evidence_id is not None
+            and derive_evidence_ref(expected_evidence_id) != evidence_ref
+        ):
+            # การตรวจสอบลายน้ำ: หยุดก่อนอ่านข้อมูลผู้ใช้/AccessLog เมื่อ
+            # session บนเชนอ้างถึงหลักฐานคนละชิ้นกับ Static Watermark
+            raise AttributionEvidenceMismatchError(
+                "Blockchain session belongs to different evidence"
+            )
+
         matches = self._find_access_log_matches(db, canonical_ref)
         if not matches:
             raise LocalAttributionNotFoundError(
@@ -155,45 +178,74 @@ class LeakAttributionService:
                 "Multiple local access logs match the Blockchain session"
             )
         access_log = matches[0]
-
-        if derive_access_session_ref(access_log.log_id) != canonical_ref:
-            raise AttributionIntegrityError("Access log session reference mismatch")
-        if derive_actor_ref(access_log.user_id) != officer_ref:
-            raise AttributionIntegrityError("Access log officer reference mismatch")
-        if derive_evidence_ref(access_log.evidence_id) != evidence_ref:
-            raise AttributionIntegrityError("Access log evidence reference mismatch")
-        if self._enum_value(access_log.action) != AuditAction.DOWNLOAD.value:
-            raise AttributionIntegrityError("Access log action is not DOWNLOAD")
-        if chain_action != AuditAction.DOWNLOAD.value:
-            raise AttributionIntegrityError(
-                "Blockchain access action is not DOWNLOAD"
+        evidence_id = expected_evidence_id or access_log.evidence_id
+        if derive_evidence_ref(evidence_id) != evidence_ref:
+            raise AttributionEvidenceMismatchError(
+                "Blockchain session belongs to different evidence"
             )
-        if self._datetime_to_unix(access_log.accessed_at) != occurred_at:
-            raise AttributionIntegrityError(
-                "Blockchain occurred_at does not match AccessLog accessed_at"
-            )
-
-        evidence = EvidenceRepository.get_by_id(db, access_log.evidence_id)
+        evidence = EvidenceRepository.get_by_id(db, evidence_id)
         if evidence is None:
             raise LocalAttributionNotFoundError("Matching evidence was not found")
-        user = UserRepository.get_by_id(db, access_log.user_id)
-        if user is None:
-            raise LocalAttributionNotFoundError("Matching user was not found")
-        if access_log.tx_internal_id is None:
-            raise AttributionIntegrityError(
-                "Access log is not linked to Blockchain transaction metadata"
+        database_user = UserRepository.get_by_id(db, access_log.user_id)
+        chain_users = [
+            user
+            for user in UserRepository.list(db)
+            if derive_actor_ref(user.user_id) == officer_ref
+        ]
+        chain_user = chain_users[0] if len(chain_users) == 1 else None
+        transaction = (
+            BlockchainTransactionRepository.get_by_id(
+                db,
+                access_log.tx_internal_id,
             )
-        transaction = BlockchainTransactionRepository.get_by_id(
-            db,
-            access_log.tx_internal_id,
+            if access_log.tx_internal_id is not None
+            else None
         )
-        if transaction is None:
-            raise AttributionIntegrityError(
-                "Blockchain transaction metadata was not found"
-            )
-        self._validate_transaction(
-            transaction,
+
+        verification = AttributionVerification(
+            evidence_ref_matches=(
+                derive_evidence_ref(access_log.evidence_id) == evidence_ref
+            ),
+            officer_ref_matches=(
+                derive_actor_ref(access_log.user_id) == officer_ref
+            ),
+            access_session_ref_matches=(
+                derive_access_session_ref(access_log.log_id) == canonical_ref
+            ),
+            action_matches=(
+                self._enum_value(access_log.action) == chain_action
+            ),
+            occurred_at_matches=(
+                self._datetime_to_unix(access_log.accessed_at) == occurred_at
+            ),
+            transaction_link_matches=self._transaction_matches(
+                transaction,
+                access_log=access_log,
+            ),
+        )
+        mismatches = self._database_mismatches(
+            canonical_ref=canonical_ref,
+            evidence_ref=evidence_ref,
+            officer_ref=officer_ref,
+            chain_action=chain_action,
+            occurred_at=occurred_at,
             access_log=access_log,
+            transaction=transaction,
+            verification=verification,
+        )
+        database_verified = bool(
+            all(
+                (
+                    verification.evidence_ref_matches,
+                    verification.officer_ref_matches,
+                    verification.access_session_ref_matches,
+                    verification.action_matches,
+                    verification.occurred_at_matches,
+                    verification.transaction_link_matches,
+                )
+            )
+            and chain_user is not None
+            and database_user is not None
         )
 
         return LeakAttributionResult(
@@ -214,25 +266,37 @@ class LeakAttributionService:
                 evidence_id=evidence.evidence_id,
                 evidence_number=evidence.evidence_number,
             ),
-            matched_user=UserAttribution(user_id=user.user_id),
+            matched_user=(
+                UserAttribution(user_id=chain_user.user_id)
+                if chain_user is not None
+                else None
+            ),
+            database_user=(
+                UserAttribution(user_id=database_user.user_id)
+                if database_user is not None
+                else None
+            ),
             matched_access=AccessAttribution(
                 access_log_id=access_log.log_id,
                 action=self._enum_value(access_log.action),
                 accessed_at=access_log.accessed_at,
             ),
-            transaction=TransactionAttribution(
-                tx_hash=transaction.tx_hash,
-                block_number=transaction.block_number,
-                status=transaction.status,
+            transaction=(
+                TransactionAttribution(
+                    tx_hash=transaction.tx_hash,
+                    block_number=transaction.block_number,
+                    status=transaction.status,
+                )
+                if transaction is not None
+                and transaction.tx_hash
+                and transaction.block_number is not None
+                else None
             ),
-            verification=AttributionVerification(
-                evidence_ref_matches=True,
-                officer_ref_matches=True,
-                access_session_ref_matches=True,
-                action_matches=True,
-                occurred_at_matches=True,
-                transaction_link_matches=True,
+            verification=verification,
+            database_integrity_state=(
+                "VERIFIED" if database_verified else "INTEGRITY_MISMATCH"
             ),
+            mismatches=tuple(mismatches),
         )
 
     def analyze_personalized_copy(
@@ -313,7 +377,14 @@ class LeakAttributionService:
             if derive_access_session_ref(access_log.log_id) == access_session_ref
         ]
 
-    def _validate_transaction(self, transaction: Any, *, access_log: AccessLog) -> None:
+    def _transaction_matches(
+        self,
+        transaction: Any,
+        *,
+        access_log: AccessLog,
+    ) -> bool:
+        if transaction is None:
+            return False
         configured_contract = self._blockchain.contract_address
         checks = (
             transaction.tx_internal_id == access_log.tx_internal_id,
@@ -328,10 +399,69 @@ class LeakAttributionService:
             str(transaction.contract_address).lower()
             == str(configured_contract).lower(),
         )
-        if not all(checks):
-            raise AttributionIntegrityError(
-                "Blockchain transaction metadata is inconsistent"
+        return all(checks)
+
+    def _database_mismatches(
+        self,
+        *,
+        canonical_ref: str,
+        evidence_ref: str,
+        officer_ref: str,
+        chain_action: str,
+        occurred_at: int,
+        access_log: AccessLog,
+        transaction: Any,
+        verification: AttributionVerification,
+    ) -> list[IntegrityMismatch]:
+        comparisons = (
+            (
+                "access_session_ref",
+                derive_access_session_ref(access_log.log_id),
+                canonical_ref,
+                verification.access_session_ref_matches,
+            ),
+            (
+                "evidence_ref",
+                derive_evidence_ref(access_log.evidence_id),
+                evidence_ref,
+                verification.evidence_ref_matches,
+            ),
+            (
+                "officer_ref",
+                derive_actor_ref(access_log.user_id),
+                officer_ref,
+                verification.officer_ref_matches,
+            ),
+            (
+                "action",
+                self._enum_value(access_log.action),
+                chain_action,
+                verification.action_matches,
+            ),
+            (
+                "accessed_at",
+                access_log.accessed_at.isoformat()
+                if access_log.accessed_at is not None
+                else None,
+                occurred_at,
+                verification.occurred_at_matches,
+            ),
+            (
+                "transaction_link",
+                transaction.tx_hash if transaction is not None else None,
+                "confirmed V3 access transaction",
+                verification.transaction_link_matches,
+            ),
+        )
+        return [
+            IntegrityMismatch(
+                field=field,
+                database_value=database_value,
+                blockchain_value=blockchain_value,
             )
+            for field, database_value, blockchain_value, matches in comparisons
+            if not matches
+        ]
 
     @staticmethod
     def _enum_value(value: Any) -> str:

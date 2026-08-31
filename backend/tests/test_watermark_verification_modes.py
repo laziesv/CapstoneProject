@@ -23,6 +23,7 @@ try:
         LocalAttributionNotFoundError,
     )
     from app.services.watermark_service import WatermarkService
+    from app.schemas.integrity import IntegrityMismatch
     from app.schemas.watermark import WatermarkExtractResponse
 finally:
     if _added_evaluator:
@@ -82,20 +83,35 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             access_session_ref=SESSION_REF,
             evidence=SimpleNamespace(evidence_id=evidence_id),
             matched_user=SimpleNamespace(user_id=USER_ID),
+            database_user=SimpleNamespace(user_id=USER_ID),
             matched_access=SimpleNamespace(
                 access_log_id=ACCESS_LOG_ID,
                 action="download",
                 accessed_at="2026-08-25T13:00:00Z",
             ),
-            blockchain=SimpleNamespace(recorded_at=1787653200),
+            blockchain=SimpleNamespace(
+                action="DOWNLOAD",
+                occurred_at=1787653100,
+                recorded_at=1787653200,
+            ),
             transaction=SimpleNamespace(
                 tx_hash="0x" + "12" * 32,
                 block_number=9001,
                 status="confirmed",
             ),
+            verification=SimpleNamespace(
+                evidence_ref_matches=True,
+                officer_ref_matches=True,
+                access_session_ref_matches=True,
+                action_matches=True,
+                occurred_at_matches=True,
+                transaction_link_matches=True,
+            ),
+            database_integrity_state="VERIFIED",
+            mismatches=(),
         )
 
-    def identify(self, dynamic_value):
+    def identify(self, dynamic_value, user_lookup=None):
         image = np.zeros((8, 8, 3), dtype=np.uint8)
         qr = np.zeros((8, 8), dtype=np.uint8)
         codec = Mock()
@@ -133,7 +149,11 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             ),
             patch(
                 "app.services.watermark_service.UserRepository.get_by_id",
-                return_value=self.matched_user,
+                side_effect=(
+                    user_lookup
+                    if user_lookup is not None
+                    else lambda _db, _user_id: self.matched_user
+                ),
             ),
         ):
             return WatermarkService.identify(
@@ -188,12 +208,16 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             result["matched_access_user"]["user_id"],
             result["uploader"]["user_id"],
         )
-        self.assertEqual(result["matched_access_action"], "download")
+        self.assertEqual(result["matched_access_action"], "DOWNLOAD")
+        self.assertTrue(result["blockchain_session_verified"])
+        self.assertEqual(result["database_integrity_state"], "VERIFIED")
+        self.assertEqual(result["attribution_mismatches"], [])
         self.assertEqual(result["access_tx_status"], "confirmed")
         self.assertEqual(result["matched_evidence_id"], EVIDENCE_ID)
         self.attribution.resolve_by_access_session_ref.assert_called_once_with(
             self.db,
             SESSION_REF,
+            expected_evidence_id=EVIDENCE_ID,
         )
         self.assertEqual(self.attribution.method_calls[0][0], "resolve_by_access_session_ref")
         serialized = str(result).lower()
@@ -204,6 +228,67 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         response = WatermarkExtractResponse(**result).model_dump()
         self.assertEqual(response["uploader"]["user_id"], UPLOADER_ID)
         self.assertEqual(response["matched_access_user"]["user_id"], USER_ID)
+
+    def test_personalized_database_tamper_preserves_chain_session_and_warnings(self):
+        database_user_id = UUID("66666666-6666-4666-8666-666666666666")
+        chain_user = self.matched_user
+        database_user = SimpleNamespace(
+            user_id=database_user_id,
+            badge_number="DB-006",
+            username="database-linked",
+            email="database-linked@example.test",
+            full_name="Database Linked User",
+            rank="Officer",
+        )
+        attribution = self.attribution_result()
+        attribution.database_user = SimpleNamespace(user_id=database_user_id)
+        attribution.matched_access = SimpleNamespace(
+            access_log_id=ACCESS_LOG_ID,
+            action="VIEW",
+            accessed_at="2026-08-25T14:00:00Z",
+        )
+        attribution.database_integrity_state = "INTEGRITY_MISMATCH"
+        attribution.mismatches = (
+            IntegrityMismatch(
+                field="officer_ref",
+                database_value="0x" + "11" * 32,
+                blockchain_value="0x" + "22" * 32,
+            ),
+            IntegrityMismatch(
+                field="action",
+                database_value="VIEW",
+                blockchain_value="DOWNLOAD",
+            ),
+            IntegrityMismatch(
+                field="accessed_at",
+                database_value="2026-08-25T14:00:00Z",
+                blockchain_value=1787653100,
+            ),
+        )
+        self.attribution.resolve_by_access_session_ref.return_value = attribution
+
+        result = self.identify(
+            SESSION_REF,
+            user_lookup=lambda _db, user_id: (
+                chain_user if user_id == USER_ID else database_user
+            ),
+        )
+
+        self.assertTrue(result["dynamic_ok"])
+        self.assertTrue(result["blockchain_session_verified"])
+        self.assertEqual(result["access_session_ref"], SESSION_REF)
+        self.assertEqual(result["matched_access_user"]["user_id"], USER_ID)
+        self.assertEqual(
+            result["database_access_user"]["user_id"],
+            database_user_id,
+        )
+        self.assertEqual(result["matched_access_action"], "DOWNLOAD")
+        self.assertEqual(result["database_access_action"], "VIEW")
+        self.assertEqual(result["database_integrity_state"], "INTEGRITY_MISMATCH")
+        self.assertEqual(
+            {item.field for item in result["attribution_mismatches"]},
+            {"officer_ref", "action", "accessed_at"},
+        )
 
     def test_personalized_watermark_must_match_identified_evidence(self):
         self.attribution.resolve_by_access_session_ref.return_value = (

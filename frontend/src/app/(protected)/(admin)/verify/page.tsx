@@ -3,8 +3,8 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { CheckCircle2, Copy, FileCheck2, Fingerprint, Loader2, QrCode, ShieldAlert, ShieldCheck, UploadCloud, UserRound, XCircle } from "lucide-react";
-import type { VerifyResult, WatermarkVerificationUser } from "@/interfaces";
+import { CheckCircle2, Copy, FileCheck2, Fingerprint, Loader2, ShieldAlert, ShieldCheck, UploadCloud, UserRound, XCircle } from "lucide-react";
+import type { IntegrityMismatch, VerifyResult, WatermarkVerificationUser } from "@/interfaces";
 import { ApiError, watermarkService } from "@/services";
 
 export default function VerifyPage() {
@@ -120,32 +120,67 @@ function VerificationReport({ result }: { result: VerifyResult }) {
 
       <ReportCard icon={<UserRound className="h-5 w-5" />} title="ผู้อัปโหลดหลักฐาน"><UserProfile profile={result.uploader} /></ReportCard>
 
-      {result.dynamicMode === "personalized" && result.dynamicOk && result.matchedAccessUser && (
+      {result.dynamicMode === "personalized" && result.dynamicOk && result.blockchainSessionVerified && (
         <section className="rounded-lg border border-border bg-surface p-5 lg:col-span-2">
-          <div className="flex items-center gap-2"><Fingerprint className="h-5 w-5 text-primary" /><div><h2 className="font-semibold">Matched Download Session</h2><p className="text-xs text-muted">สำเนานี้ตรงกับเซสชันการดาวน์โหลดต่อไปนี้</p></div></div>
+          <div className="flex items-center gap-2"><Fingerprint className="h-5 w-5 text-primary" /><div><h2 className="font-semibold">Matched Download Session</h2><p className="text-xs text-muted">สำเนาที่ตรวจสอบตรงกับ personalized download session นี้</p></div></div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <StatusItem label="Blockchain Session" ok={result.blockchainSessionVerified} />
+            <StatusItem label={`Database Integrity: ${result.databaseIntegrityState ?? "UNAVAILABLE"}`} ok={result.databaseIntegrityState === "VERIFIED"} />
+          </div>
           <div className="mt-5 grid gap-6 lg:grid-cols-2">
-            <UserProfile profile={result.matchedAccessUser} />
+            <div>
+              <p className="mb-3 text-xs font-semibold uppercase text-muted">Blockchain-associated user</p>
+              <UserProfile profile={result.matchedAccessUser} />
+              {result.databaseIntegrityState === "INTEGRITY_MISMATCH" && result.databaseAccessUser && (
+                <div className="mt-5 border-t border-border pt-4">
+                  <p className="mb-3 text-xs font-semibold uppercase text-warning">Current DB-linked user</p>
+                  <UserProfile profile={result.databaseAccessUser} />
+                </div>
+              )}
+            </div>
             <div>
               <DataRow label="Access Session Ref" value={result.accessSessionRef} copy />
               <DataRow label="Access Log ID" value={result.matchedAccessLogId} copy />
-              <DataRow label="Action" value={result.matchedAccessAction} />
-              <DataRow label="Download Time" value={formatDate(result.matchedAccessedAt)} />
-              <DataRow label="Blockchain Time" value={formatUnixTime(result.blockchainRecordedAt)} />
+              <DataRow label="Blockchain Action" value={result.matchedAccessAction} />
+              <DataRow label="Blockchain Occurred" value={formatUnixTime(result.blockchainOccurredAt)} />
+              <DataRow label="Blockchain Recorded" value={formatUnixTime(result.blockchainRecordedAt)} />
+              <DataRow label="Database Action" value={result.databaseAccessAction} />
+              <DataRow label="Database Access Time" value={formatDate(result.databaseAccessedAt)} />
               <DataRow label="Transaction Hash" value={result.accessTxHash} copy />
               <DataRow label="Block Number" value={result.accessBlockNumber?.toString() ?? null} />
-              <DataRow label="Blockchain Status" value={result.accessTxStatus} />
+              <DataRow label="DB Transaction Status" value={result.accessTxStatus} />
               <DataRow label="Referenced Evidence" value={result.matchedEvidenceId} copy />
             </div>
           </div>
+          {result.attributionMismatches.length > 0 && (
+            <IntegrityMismatchTable mismatches={result.attributionMismatches} />
+          )}
         </section>
       )}
+    </div>
+  );
+}
 
-      <ReportCard icon={<QrCode className="h-5 w-5" />} title="Verification Explanation" wide>
-        {result.dynamicMode === "canonical" && <p>Canonical Evidence Copy: Dynamic Watermark {result.dynamicOk ? "ตรง" : "ไม่ตรง"}กับ SHA-256 ของไฟล์ต้นฉบับ</p>}
-        {result.dynamicMode === "personalized" && result.dynamicOk && <><p>Dynamic Watermark ระบุ access_session_ref และตรวจสอบตรงกับข้อมูลบน Blockchain และฐานข้อมูล</p><p className="mt-2 text-muted">การจับคู่ session ระบุแหล่งที่มาของ personalized copy แต่ไม่ใช่หลักฐานยืนยันว่าผู้ใช้รายนี้เป็นผู้เผยแพร่ไฟล์</p></>}
-        {result.dynamicMode === "personalized" && !result.dynamicOk && <p>ไม่พบเซสชันดาวน์โหลดที่ยืนยันตรงกับหลักฐานชิ้นนี้</p>}
-        {result.dynamicMode === "unresolved" && <p>ไม่สามารถระบุประเภท Dynamic Watermark ได้</p>}
-      </ReportCard>
+function IntegrityMismatchTable({ mismatches }: { mismatches: IntegrityMismatch[] }) {
+  return (
+    <div className="mt-5 overflow-hidden border border-warning/30 bg-warning-light/30">
+      <div className="flex items-center gap-2 border-b border-warning/20 px-3 py-2 text-sm font-semibold text-warning">
+        <ShieldAlert className="h-4 w-4" /> Database integrity mismatch detected
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[34rem] text-left text-xs">
+          <thead className="text-muted"><tr><th className="px-3 py-2">Field</th><th className="px-3 py-2">Database</th><th className="px-3 py-2">Blockchain</th></tr></thead>
+          <tbody className="divide-y divide-warning/15">
+            {mismatches.map((item) => (
+              <tr key={item.field}>
+                <td className="px-3 py-2 font-medium">{item.field}</td>
+                <td className="break-all px-3 py-2 font-mono">{formatMismatch(item.database_value, item.field, false)}</td>
+                <td className="break-all px-3 py-2 font-mono">{formatMismatch(item.blockchain_value, item.field, true)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -186,8 +221,13 @@ function verificationType(mode: VerifyResult["dynamicMode"]) {
 }
 
 function blockchainStatus(result: VerifyResult) {
-  return result.dynamicMode === "personalized" ? result.dynamicOk && result.accessTxStatus === "confirmed" : result.blockchainVerified;
+  return result.dynamicMode === "personalized" ? result.blockchainSessionVerified : result.blockchainVerified;
 }
 
 function formatDate(value: string | null) { return value ? new Date(value).toLocaleString("th-TH") : "-"; }
 function formatUnixTime(value: number | null) { return value ? new Date(value * 1000).toLocaleString("th-TH") : "-"; }
+function formatMismatch(value: unknown, field: string, fromBlockchain: boolean) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (field === "accessed_at" && fromBlockchain && typeof value === "number") return `${formatUnixTime(value)} (occurredAt)`;
+  return String(value);
+}

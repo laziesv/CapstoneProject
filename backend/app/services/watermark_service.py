@@ -101,6 +101,7 @@ class WatermarkService:
             dynamic_ok = False
             attribution = None
             matched_access_user = None
+            database_access_user = None
 
             # ตรวจสอบลายน้ำ: รูปแบบเดิมผูกกับ hash ไฟล์ ส่วนรูปแบบเฉพาะบุคคล
             # ตรวจสอบ session ผ่านข้อมูล DB และ Blockchain แบบ read-only
@@ -114,7 +115,11 @@ class WatermarkService:
                 try:
                     resolved_attribution = (
                         attribution_service or LeakAttributionService()
-                    ).resolve_by_access_session_ref(db, dyn_decoded.lower())
+                    ).resolve_by_access_session_ref(
+                        db,
+                        dyn_decoded.lower(),
+                        expected_evidence_id=ev.evidence_id,
+                    )
                     if (
                         resolved_attribution.matched
                         and resolved_attribution.evidence.evidence_id
@@ -122,9 +127,21 @@ class WatermarkService:
                     ):
                         dynamic_ok = True
                         attribution = resolved_attribution
-                        matched_access_user = UserRepository.get_by_id(
-                            db,
-                            attribution.matched_user.user_id,
+                        matched_access_user = (
+                            UserRepository.get_by_id(
+                                db,
+                                attribution.matched_user.user_id,
+                            )
+                            if attribution.matched_user is not None
+                            else None
+                        )
+                        database_access_user = (
+                            UserRepository.get_by_id(
+                                db,
+                                attribution.database_user.user_id,
+                            )
+                            if attribution.database_user is not None
+                            else None
                         )
                 except BlockchainAttributionReadError:
                     raise
@@ -157,34 +174,67 @@ class WatermarkService:
                     attribution.access_session_ref if attribution else None
                 ),
                 "matched_access_log_id": (
-                    attribution.matched_access.access_log_id if attribution else None
+                    attribution.matched_access.access_log_id
+                    if attribution and attribution.matched_access
+                    else None
                 ),
                 "matched_user_id": (
-                    attribution.matched_user.user_id if attribution else None
+                    attribution.matched_user.user_id
+                    if attribution and attribution.matched_user
+                    else None
                 ),
                 "access_tx_hash": (
-                    attribution.transaction.tx_hash if attribution else None
+                    attribution.transaction.tx_hash
+                    if attribution and attribution.transaction
+                    else None
                 ),
                 "access_block_number": (
-                    attribution.transaction.block_number if attribution else None
+                    attribution.transaction.block_number
+                    if attribution and attribution.transaction
+                    else None
                 ),
                 "matched_access_user": (
                     _user_profile(matched_access_user)
                 ),
                 "matched_access_action": (
-                    attribution.matched_access.action if attribution else None
+                    attribution.blockchain.action if attribution else None
                 ),
                 "matched_accessed_at": (
-                    attribution.matched_access.accessed_at if attribution else None
+                    attribution.matched_access.accessed_at
+                    if attribution and attribution.matched_access
+                    else None
                 ),
                 "blockchain_recorded_at": (
                     attribution.blockchain.recorded_at if attribution else None
                 ),
                 "access_tx_status": (
-                    attribution.transaction.status if attribution else None
+                    attribution.transaction.status
+                    if attribution and attribution.transaction
+                    else None
                 ),
                 "matched_evidence_id": (
                     attribution.evidence.evidence_id if attribution else None
+                ),
+                "blockchain_session_verified": bool(attribution),
+                "database_integrity_state": (
+                    attribution.database_integrity_state if attribution else None
+                ),
+                "attribution_mismatches": (
+                    list(attribution.mismatches) if attribution else []
+                ),
+                "database_access_user": _user_profile(database_access_user),
+                "database_access_action": (
+                    attribution.matched_access.action
+                    if attribution and attribution.matched_access
+                    else None
+                ),
+                "database_accessed_at": (
+                    attribution.matched_access.accessed_at
+                    if attribution and attribution.matched_access
+                    else None
+                ),
+                "blockchain_occurred_at": (
+                    attribution.blockchain.occurred_at if attribution else None
                 ),
             }
 

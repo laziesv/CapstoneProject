@@ -1,11 +1,13 @@
 // ── Evidence / case / blockchain domain interfaces ──────
 
+import type { IntegrityMismatch } from "./chainOfCustody";
+
 export type WatermarkType = "static" | "dynamic";
 export type WmAlgorithm = "dct" | "dwt" | "lsb" | "hybrid";
 export type TxAction = "upload" | "access" | "verify" | "transfer" | "flag";
 export type TxStatus = "pending" | "confirmed" | "failed";
-export type AccessAction = "view" | "download" | "print" | "share" | "export";
-export type AccessResult = "success" | "denied" | "unauthorized";
+export type AccessAction = "create" | "update" | "delete" | "view" | "download" | "query" | "print" | "share" | "export";
+export type AccessResult = "success" | "failed" | "denied" | "unauthorized";
 
 export interface Case {
   case_id: string;
@@ -185,6 +187,13 @@ export interface WatermarkVerifyApiResponse {
   blockchain_recorded_at: number | null;
   access_tx_status: string | null;
   matched_evidence_id: string | null;
+  blockchain_session_verified: boolean;
+  database_integrity_state: "VERIFIED" | "INTEGRITY_MISMATCH" | null;
+  attribution_mismatches: IntegrityMismatch[];
+  database_access_user: WatermarkVerificationUser | null;
+  database_access_action: string | null;
+  database_accessed_at: string | null;
+  blockchain_occurred_at: number | null;
 }
 
 export interface WatermarkVerificationUser {
@@ -228,17 +237,25 @@ export interface VerifyResult {
   blockchainRecordedAt: number | null;
   accessTxStatus: string | null;
   matchedEvidenceId: string | null;
+  blockchainSessionVerified: boolean;
+  databaseIntegrityState: "VERIFIED" | "INTEGRITY_MISMATCH" | null;
+  attributionMismatches: IntegrityMismatch[];
+  databaseAccessUser: WatermarkVerificationUser | null;
+  databaseAccessAction: string | null;
+  databaseAccessedAt: string | null;
+  blockchainOccurredAt: number | null;
 }
 
 export interface AccessLog {
   log_id: string;
   user_id: string;
   user_name?: string;
-  evidence_id: string;
+  case_id?: string | null;
+  evidence_id: string | null;
   evidence_number?: string;
   action: AccessAction;
-  ip_address: string;
-  user_agent: string;
+  ip_address: string | null;
+  user_agent: string | null;
   tx_hash?: string;
   result: AccessResult;
   accessed_at: string;
@@ -250,4 +267,14 @@ export interface AccessLogFilters {
   user_id?: string;
   action?: string;
   result?: string;
+  limit?: number;
+  offset?: number;
+  exclude_query?: boolean;
+}
+
+export interface AccessLogPage {
+  items: AccessLog[];
+  total: number;
+  limit: number | null;
+  offset: number;
 }
