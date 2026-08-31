@@ -7,7 +7,7 @@ import {
   CircleAlert,
   Clock3,
   Copy,
-  Download,
+  Eye,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -109,11 +109,11 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
           </div>
           <div>
             <h2 id="chain-of-custody-heading" className="text-sm font-semibold">Chain of Custody</h2>
-            <p className="text-xs text-muted">Blockchain registration and auditable download history</p>
+            <p className="text-xs text-muted">Blockchain registration and auditable access history</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <VerificationBadge verified={data.verified} />
+          <VerificationBadge verified={data.verified} state={data.integrity_state} />
           <button
             type="button"
             onClick={() => void load()}
@@ -130,7 +130,11 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
       {!data.verified && (
         <div className="flex items-start gap-2 border-b border-warning/20 bg-warning-light/50 px-5 py-3 text-sm text-warning">
           <CircleAlert className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
-          <span>Blockchain verification mismatch. Review the checks and access records below.</span>
+          <span>
+            {data.integrity_state === "LEGACY_PARTIAL_VERIFICATION"
+              ? "Legacy V2 records support partial verification only."
+              : "Blockchain verification mismatch. Review the checks and access records below."}
+          </span>
         </div>
       )}
 
@@ -139,7 +143,7 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
         <VerificationCheck label="Uploader reference" verified={data.verification.uploader_ref_matches} />
         <VerificationCheck label="Register transaction" verified={data.verification.registration_transaction_matches} />
         <VerificationCheck
-          label={`Download sessions ${data.verification.access_records_verified}/${data.verification.access_records_total}`}
+          label={`Access sessions ${data.verification.access_records_verified}/${data.verification.access_records_total}`}
           verified={data.verification.access_records_verified === data.verification.access_records_total}
         />
       </div>
@@ -194,7 +198,7 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-3">
           <div className="flex items-center gap-2">
-            <Download className="h-4 w-4 text-muted" aria-hidden="true" />
+            <Eye className="h-4 w-4 text-muted" aria-hidden="true" />
             <h3 className="text-sm font-semibold">Access History</h3>
           </div>
           <span className="text-xs text-muted">
@@ -205,7 +209,7 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
         {data.access_history.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-5 py-10 text-center text-muted">
             <Clock3 className="h-6 w-6" aria-hidden="true" />
-            <p className="text-sm">No blockchain-recorded downloads yet</p>
+            <p className="text-sm">No blockchain-recorded access yet</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
@@ -226,17 +230,18 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <p className="truncate text-sm font-medium">{entry.user?.display_name ?? "Unknown user"}</p>
-          <VerificationBadge verified={entry.verified} compact />
+          <VerificationBadge verified={entry.verified} state={entry.integrity_state} compact />
         </div>
         <p className="mt-1 text-xs text-muted">
-          {entry.user?.role ?? "Role unavailable"} · {entry.action}
+          {entry.user?.role ?? "Role unavailable"} · <span className="font-semibold">{entry.action}</span>
         </p>
-        <p className="mt-2 text-xs text-muted">Accessed {formatDate(entry.accessed_at)}</p>
+        <p className="mt-2 text-xs text-muted">Access Time {formatDate(entry.accessed_at)}</p>
       </div>
 
       <div className="min-w-0 space-y-2">
-        <AuditValue label="Download session" value={entry.access_session_ref} copyable />
-        <AuditValue label="Blockchain recorded" value={formatChainTime(entry.blockchain?.recorded_at ?? null)} />
+        <AuditValue label="Access session" value={entry.access_session_ref} copyable />
+        <AuditValue label="Blockchain Occurred Time" value={formatChainTime(entry.blockchain?.occurred_at ?? null)} />
+        <AuditValue label="Blockchain Recorded Time" value={formatChainTime(entry.blockchain?.recorded_at ?? null)} />
         <AuditValue label="Transaction" value={entry.transaction?.tx_hash ?? null} copyable />
       </div>
 
@@ -249,8 +254,21 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
 }
 
 
-function VerificationBadge({ verified, compact = false }: { verified: boolean; compact?: boolean }) {
+function VerificationBadge({
+  verified,
+  state,
+  compact = false,
+}: {
+  verified: boolean;
+  state?: ChainOfCustodyResponse["integrity_state"];
+  compact?: boolean;
+}) {
   const Icon = verified ? CheckCircle2 : CircleAlert;
+  const label = verified
+    ? "Blockchain Verified"
+    : state === "LEGACY_PARTIAL_VERIFICATION"
+      ? "Legacy Partial Verification"
+      : "Verification Failed";
   return (
     <span
       className={`inline-flex flex-shrink-0 items-center gap-1 rounded-full border font-medium ${
@@ -262,7 +280,7 @@ function VerificationBadge({ verified, compact = false }: { verified: boolean; c
       }`}
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-      {verified ? "Blockchain Verified" : "Verification Failed"}
+      {label}
     </span>
   );
 }

@@ -90,6 +90,17 @@ export interface EvidenceApiResponse {
   file_size_bytes: number | null;
 }
 
+/** ผลลัพธ์จากการยืนยันเจตนาเปิดดูหลักฐานกับ EvidenceRegistry V3 */
+export interface EvidenceViewSessionResponse {
+  access_log_id: string;
+  evidence_id: string;
+  access_session_ref: string;
+  action: "VIEW";
+  occurred_at: string;
+  tx_hash: string;
+  block_number: number;
+}
+
 /** ไฟล์หนึ่งไฟล์ + metadata ของตัวเอง — 1 รายการนี้ = 1 EvidenceItem ที่ถูกสร้าง */
 export interface UploadEvidenceFile {
   file: File;

@@ -24,6 +24,8 @@ export interface ChainEvidenceMetadata {
 
 export interface ChainAccessMetadata {
   officer_ref: string;
+  action: string;
+  occurred_at: number;
   recorded_at: number;
   writer: string;
 }
@@ -32,8 +34,18 @@ export interface ChainAccessVerification {
   session_exists: boolean;
   evidence_ref_matches: boolean;
   officer_ref_matches: boolean;
+  action_matches: boolean;
+  occurred_at_matches: boolean;
   transaction_matches: boolean;
 }
+
+export type ChainIntegrityState =
+  | "VERIFIED"
+  | "MISSING_ON_CHAIN"
+  | "ORPHANED_ON_CHAIN"
+  | "INTEGRITY_MISMATCH"
+  | "LEGACY_PARTIAL_VERIFICATION"
+  | "BLOCKCHAIN_UNAVAILABLE";
 
 export interface ChainAccessHistoryItem {
   access_log_id: string;
@@ -44,6 +56,7 @@ export interface ChainAccessHistoryItem {
   blockchain: ChainAccessMetadata | null;
   transaction: ChainTransactionMetadata | null;
   verified: boolean;
+  integrity_state: ChainIntegrityState;
   verification: ChainAccessVerification;
 }
 
@@ -58,6 +71,7 @@ export interface ChainOfCustodyVerification {
 
 export interface ChainOfCustodyResponse {
   verified: boolean;
+  integrity_state: ChainIntegrityState;
   evidence: ChainEvidenceMetadata;
   uploader: ChainUserIdentity | null;
   registration_transaction: ChainTransactionMetadata | null;

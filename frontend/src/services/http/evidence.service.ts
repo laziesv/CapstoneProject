@@ -24,6 +24,7 @@ import type {
   UploadEvidenceInput,
   UploadedEvidenceRef,
   EvidenceApiResponse,
+  EvidenceViewSessionResponse,
   ChainOfCustodyResponse,
 } from "@/interfaces";
 import { mockTx } from "@/utils/mockData";
@@ -59,6 +60,14 @@ function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
 }
 
 export const evidenceService = {
+  /** บันทึก VIEW จากการกดเปิดหลักฐานโดยเจตนา ก่อนอนุญาตให้ UI แสดง preview */
+  createViewSession(evidenceId: string): Promise<EvidenceViewSessionResponse> {
+    return request<EvidenceViewSessionResponse>(
+      `/api/evidences/${encodeURIComponent(evidenceId)}/view-session`,
+      { method: "POST" }
+    );
+  },
+
   /** โหลด Chain of Custody ที่ backend ตรวจสอบกับ private Blockchain แล้ว */
   getChainOfCustody(evidenceId: string): Promise<ChainOfCustodyResponse> {
     return request<ChainOfCustodyResponse>(
