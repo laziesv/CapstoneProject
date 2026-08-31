@@ -29,6 +29,7 @@ from app.schemas.chain_of_custody import (
     ChainTransactionMetadata,
     ChainUserIdentity,
 )
+from app.schemas.integrity import IntegrityMismatch
 
 
 class ChainOfCustodyError(Exception):
@@ -258,6 +259,18 @@ class ChainOfCustodyService:
             and transaction_matches
             and user is not None
         )
+        mismatches = self._access_mismatches(
+            access_session_ref=access_session_ref,
+            evidence_ref=evidence_ref,
+            access_log=access_log,
+            transaction=transaction,
+            session_exists=session_exists,
+            chain_evidence_ref=chain_evidence_ref,
+            chain_officer_ref=chain_officer_ref,
+            chain_action=chain_action,
+            chain_occurred_at=chain_occurred_at,
+            transaction_matches=transaction_matches,
+        )
         return ChainAccessHistoryItem(
             access_log_id=access_log.log_id,
             access_session_ref=access_session_ref,
@@ -280,7 +293,75 @@ class ChainOfCustodyService:
                 occurred_at_matches=occurred_at_matches,
                 transaction_matches=transaction_matches,
             ),
+            mismatches=mismatches,
         )
+
+    def _access_mismatches(
+        self,
+        *,
+        access_session_ref: str,
+        evidence_ref: str,
+        access_log: Any,
+        transaction: Any,
+        session_exists: bool,
+        chain_evidence_ref: str | None,
+        chain_officer_ref: str | None,
+        chain_action: str | None,
+        chain_occurred_at: int | None,
+        transaction_matches: bool,
+    ) -> list[IntegrityMismatch]:
+        # การตรวจสอบ Chain of Custody: แสดงค่าคู่ที่ต่างจริง โดยไม่เทียบ
+        # accessed_at กับ recordedAt เพราะ recordedAt คือเวลารวมบล็อก
+        if not session_exists:
+            return [
+                IntegrityMismatch(
+                    field="access_session_ref",
+                    database_value=access_session_ref,
+                    blockchain_value=None,
+                )
+            ]
+
+        comparisons = (
+            ("evidence_ref", evidence_ref, chain_evidence_ref),
+            (
+                "officer_ref",
+                derive_actor_ref(access_log.user_id),
+                chain_officer_ref,
+            ),
+            ("action", self._enum_value(access_log.action), chain_action),
+            (
+                "accessed_at",
+                access_log.accessed_at.isoformat()
+                if access_log.accessed_at is not None
+                else None,
+                chain_occurred_at,
+            ),
+        )
+        mismatches = [
+            IntegrityMismatch(
+                field=field,
+                database_value=database_value,
+                blockchain_value=blockchain_value,
+            )
+            for field, database_value, blockchain_value in comparisons
+            if (
+                self._datetime_to_unix(access_log.accessed_at)
+                != chain_occurred_at
+                if field == "accessed_at"
+                else database_value != blockchain_value
+            )
+        ]
+        if not transaction_matches:
+            mismatches.append(
+                IntegrityMismatch(
+                    field="transaction_link",
+                    database_value=(
+                        transaction.tx_hash if transaction is not None else None
+                    ),
+                    blockchain_value="confirmed V3 access transaction",
+                )
+            )
+        return mismatches
 
     def _read_evidence(self, evidence_ref: str) -> dict[str, Any]:
         try:

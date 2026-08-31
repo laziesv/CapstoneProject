@@ -2,7 +2,9 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.schemas.integrity import IntegrityMismatch
 
 
 IntegrityState = Literal[
@@ -67,6 +69,7 @@ class ChainAccessHistoryItem(BaseModel):
     verified: bool
     integrity_state: IntegrityState
     verification: ChainAccessVerification
+    mismatches: list[IntegrityMismatch] = Field(default_factory=list)
 
 
 class ChainOfCustodyVerification(BaseModel):

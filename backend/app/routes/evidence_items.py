@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_admin_user, get_current_user
 from app.models.users import User
 from app.repositories.case_repository import CaseRepository
 from app.repositories.evidence_items_repository import EvidenceRepository
@@ -75,7 +75,7 @@ def create_view_session(
 def chain_of_custody(
     evidence_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_admin_user),
 ):
     evidence = EvidenceRepository.get_by_id(db, evidence_id)
     case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None

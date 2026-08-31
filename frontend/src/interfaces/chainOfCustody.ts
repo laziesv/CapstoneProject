@@ -39,6 +39,12 @@ export interface ChainAccessVerification {
   transaction_matches: boolean;
 }
 
+export interface IntegrityMismatch {
+  field: string;
+  database_value: unknown;
+  blockchain_value: unknown;
+}
+
 export type ChainIntegrityState =
   | "VERIFIED"
   | "MISSING_ON_CHAIN"
@@ -58,6 +64,7 @@ export interface ChainAccessHistoryItem {
   verified: boolean;
   integrity_state: ChainIntegrityState;
   verification: ChainAccessVerification;
+  mismatches: IntegrityMismatch[];
 }
 
 export interface ChainOfCustodyVerification {

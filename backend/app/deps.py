@@ -8,7 +8,7 @@ from app.models.users import User
 from app.repositories.user_repository import UserRepository
 
 # ── Bearer token scheme ─────────────────────────────────
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 _credentials_error = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -18,10 +18,12 @@ _credentials_error = HTTPException(
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     """ตรวจสอบ Bearer token แล้วคืน user ปัจจุบัน ใช้กับ route ที่ต้อง auth"""
+    if credentials is None:
+        raise _credentials_error
     payload = decode_access_token(credentials.credentials)
 
     if not payload:

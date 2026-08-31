@@ -1,4 +1,5 @@
 import unittest
+import inspect
 from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -22,6 +23,7 @@ from app.repositories.case_repository import CaseRepository
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.user_repository import UserRepository
 from app.routes.evidence_items import chain_of_custody
+from app.deps import get_admin_user, get_current_user
 from app.services.chain_of_custody_service import (
     ChainOfCustodyBlockchainReadError,
     ChainOfCustodyService,
@@ -393,6 +395,17 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
                     getattr(result.access_history[0].verification, verification_field)
                 )
                 self.assertEqual(result.integrity_state, "INTEGRITY_MISMATCH")
+                mismatch = next(
+                    item
+                    for item in result.access_history[0].mismatches
+                    if item.field == (
+                        "action" if field == "action" else "accessed_at"
+                    )
+                )
+                self.assertNotEqual(
+                    mismatch.database_value,
+                    mismatch.blockchain_value,
+                )
                 self.chain.get_access_by_session.side_effect = {
                     derive_access_session_ref(log.log_id): {
                         "evidence_ref": derive_evidence_ref(EVIDENCE_ID),
@@ -448,8 +461,21 @@ class ChainOfCustodyRouteTests(unittest.TestCase):
     def test_authorized_admin_receives_chain_of_custody(self):
         self._assert_authorized_response(role="admin")
 
-    def test_authorized_case_participant_receives_chain_of_custody(self):
-        self._assert_authorized_response(role="officer")
+    def test_route_requires_admin_dependency(self):
+        dependency = inspect.signature(chain_of_custody).parameters[
+            "current_user"
+        ].default
+        self.assertIs(dependency.dependency, get_admin_user)
+
+    def test_non_admin_is_forbidden(self):
+        with self.assertRaises(HTTPException) as raised:
+            get_admin_user(SimpleNamespace(role="officer"))
+        self.assertEqual(raised.exception.status_code, 403)
+
+    def test_anonymous_is_unauthorized(self):
+        with self.assertRaises(HTTPException) as raised:
+            get_current_user(credentials=None, db=self.db)
+        self.assertEqual(raised.exception.status_code, 401)
 
     def _assert_authorized_response(self, *, role):
         user = SimpleNamespace(user_id=UUID(int=13), role=role)

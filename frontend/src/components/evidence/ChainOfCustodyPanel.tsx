@@ -17,6 +17,7 @@ import {
 import type {
   ChainAccessHistoryItem,
   ChainOfCustodyResponse,
+  IntegrityMismatch,
 } from "@/interfaces";
 import { ApiError, evidenceService } from "@/services";
 
@@ -249,7 +250,43 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
         <p className="text-muted">Block</p>
         <p className="mt-1 font-mono font-medium">{entry.transaction?.block_number ?? "—"}</p>
       </div>
+
+      {entry.mismatches.length > 0 && (
+        <div className="overflow-hidden border border-warning/30 bg-warning-light/30 lg:col-span-3">
+          <div className="flex items-center gap-2 border-b border-warning/20 px-3 py-2 text-xs font-semibold text-warning">
+            <CircleAlert className="h-4 w-4" aria-hidden="true" />
+            Integrity mismatch detected
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[34rem] text-left text-xs">
+              <thead className="text-muted">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Field</th>
+                  <th className="px-3 py-2 font-medium">Database</th>
+                  <th className="px-3 py-2 font-medium">Blockchain</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-warning/15">
+                {entry.mismatches.map((mismatch) => (
+                  <MismatchRow key={mismatch.field} mismatch={mismatch} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </article>
+  );
+}
+
+
+function MismatchRow({ mismatch }: { mismatch: IntegrityMismatch }) {
+  return (
+    <tr>
+      <td className="px-3 py-2 font-medium">{mismatchLabel(mismatch.field)}</td>
+      <td className="break-all px-3 py-2 font-mono">{mismatchValue(mismatch, "database")}</td>
+      <td className="break-all px-3 py-2 font-mono">{mismatchValue(mismatch, "blockchain")}</td>
+    </tr>
   );
 }
 
@@ -351,6 +388,34 @@ function formatChainTime(value: number | null): string | null {
 
 function formatDate(value: string | null): string | null {
   return value ? new Date(value).toLocaleString("th-TH") : null;
+}
+
+
+function mismatchLabel(field: string): string {
+  const labels: Record<string, string> = {
+    access_session_ref: "Access Session Ref",
+    evidence_ref: "Evidence Ref",
+    officer_ref: "Officer Ref / User Association",
+    action: "Action",
+    accessed_at: "Access Time",
+    transaction_link: "Transaction Link",
+  };
+  return labels[field] ?? field;
+}
+
+
+function mismatchValue(
+  mismatch: IntegrityMismatch,
+  source: "database" | "blockchain",
+): string {
+  const value = source === "database"
+    ? mismatch.database_value
+    : mismatch.blockchain_value;
+  if (mismatch.field === "accessed_at" && source === "blockchain" && typeof value === "number") {
+    return `${new Date(value * 1000).toLocaleString("th-TH")} (occurredAt)`;
+  }
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
 }
 
 
