@@ -301,7 +301,7 @@ export default function LogsPage() {
                       </td>
                       <td className="px-5 py-3.5">
                         {l.evidence_id ? (
-                          <Link href={`/evidence/${l.evidence_id}`} className="font-mono text-xs text-primary hover:underline" title="เปิดดูหลักฐาน">
+                          <Link href={`/evidence/${l.evidence_number ?? l.evidence_id}`} className="font-mono text-xs text-primary hover:underline" title="เปิดดูหลักฐาน">
                             {l.evidence_number ?? l.evidence_id}
                           </Link>
                         ) : (

@@ -46,7 +46,8 @@ export default function EvidenceDetailPage() {
       }
       const [c, tx] = await Promise.all([
         caseService.get(ev.case_id),
-        evidenceService.transactionsOf(id),
+        // ใช้ UUID จริงของหลักฐาน (id จาก URL เป็นเลขหลักฐานแล้ว)
+        evidenceService.transactionsOf(ev.evidence_id),
       ]);
       setCaseData(c);
       setRelatedTx(tx);
@@ -55,10 +56,12 @@ export default function EvidenceDetailPage() {
   }, [id]);
 
   // ประวัติการเข้าถึงเป็นข้อมูลเฉพาะ admin (endpoint ก็ admin-only) — ดึงแยกและเฉพาะ admin
+  // ใช้ UUID จริงจากหลักฐานที่โหลดแล้ว (evidence_id ใน access_logs เป็น UUID ไม่ใช่เลขหลักฐาน)
+  const evUuid = evidence?.evidence_id;
   useEffect(() => {
-    if (user?.role !== "admin") return;
-    accessLogService.list({ evidence_id: id }).then(setRelatedLogs).catch(() => {});
-  }, [id, user]);
+    if (user?.role !== "admin" || !evUuid) return;
+    accessLogService.list({ evidence_id: evUuid }).then(setRelatedLogs).catch(() => {});
+  }, [evUuid, user]);
 
   if (!user || evidence === undefined || supervisorMap === null) {
     return (
@@ -98,7 +101,7 @@ export default function EvidenceDetailPage() {
 
       // รีเฟรชตารางประวัติให้เห็น DOWNLOAD ที่เพิ่งบันทึกทันที (เฉพาะ admin ที่เห็นประวัติ)
       if (isAdmin) {
-        accessLogService.list({ evidence_id: id }).then(setRelatedLogs).catch(() => {});
+        accessLogService.list({ evidence_id: evidence.evidence_id }).then(setRelatedLogs).catch(() => {});
       }
     } finally {
       setDownloading(false);
@@ -112,7 +115,7 @@ export default function EvidenceDetailPage() {
     setShowChainDetail(false); // ตรวจใหม่ = พับรายละเอียดกลับ
     try {
       // ดึง log สดตอนตรวจ (แทนที่จะพึ่ง state ที่อาจยังโหลดไม่เสร็จ) — กันตรวจกับชุดว่าง/ไม่ครบ
-      const logs = isAdmin ? await accessLogService.list({ evidence_id: id }) : relatedLogs;
+      const logs = isAdmin ? await accessLogService.list({ evidence_id: evidence.evidence_id }) : relatedLogs;
       if (isAdmin) setRelatedLogs(logs);
       setChainCheck(await evidenceService.verifyOnChain(evidence, logs));
       setCheckedAt(new Date());
@@ -156,7 +159,7 @@ export default function EvidenceDetailPage() {
     <div className="space-y-5">
       {/* Breadcrumb + การกระทำ */}
       <div className="flex flex-wrap items-center gap-3">
-        <Link href={`/cases/${evidence.case_id}`} className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-primary">
+        <Link href={`/cases/${evidence.case_number ?? evidence.case_id}`} className="inline-flex items-center gap-1.5 text-sm text-muted transition-colors hover:text-primary">
           <ArrowLeft className="h-4 w-4" /> คดี
         </Link>
         <span className="text-muted/60">/</span>
@@ -531,7 +534,7 @@ export default function EvidenceDetailPage() {
             </div>
             <dl className="divide-y divide-border text-sm">
               <InfoRow label="คดี">
-                <Link href={`/cases/${evidence.case_id}`} className="font-mono text-xs font-medium text-primary hover:underline">
+                <Link href={`/cases/${evidence.case_number ?? evidence.case_id}`} className="font-mono text-xs font-medium text-primary hover:underline">
                   {evidence.case_number || "—"}
                 </Link>
               </InfoRow>

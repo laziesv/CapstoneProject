@@ -84,7 +84,7 @@ export default function NewCasePage() {
         created_by: user!.user_id,
         assigned_officers: form.assigned_officers
       });
-      router.push(`/cases/${created.case_id}`);
+      router.push(`/cases/${created.case_number}`);
     } catch {
       setMsg({ type: "err", text: "ไม่สามารถสร้างคดีได้" });
       setSubmitting(false);

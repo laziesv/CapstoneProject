@@ -80,16 +80,17 @@ def list_all(
 
 
 @router.get(
-    "/{evidence_id}",
+    "/{evidence_ref}",
     response_model=EvidenceResponse
 )
 def get_one(
-    evidence_id: UUID,
+    evidence_ref: str,
     request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    evidence = EvidenceService.get_by_id(db, evidence_id)
+    # รับได้ทั้ง UUID (path เดิม) และเลขหลักฐาน (เช่น EV-20260829-A82EC1)
+    evidence = EvidenceService.get_by_ref(db, evidence_ref)
 
     if not evidence:
         raise HTTPException(status_code=404, detail="ไม่พบหลักฐาน")

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Loader2, FolderOpen } from "lucide-react";
+import { Plus, Search, Loader2, FolderOpen, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService } from "@/services";
@@ -63,20 +63,30 @@ export default function CasesPage() {
     <div className="space-y-5">
       {/* แถวควบคุม: ค้นหา (pill) + ปุ่มสร้างคดี */}
       <div className="flex items-center gap-4">
-        <div className="relative w-full max-w-md">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <div className="group relative w-full max-w-md">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted transition-colors group-focus-within:text-primary" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="ค้นหาเลขคดี / ชื่อคดี…"
-            className="h-10 w-full rounded-full bg-surface-hover pl-11 pr-4 text-sm outline-none transition focus:ring-2 focus:ring-primary/25"
+            className="h-11 w-full rounded-full border border-border bg-surface pl-11 pr-10 text-sm shadow-sm outline-none transition placeholder:text-muted hover:border-muted/50 focus:border-primary focus:ring-4 focus:ring-primary/10"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="ล้างการค้นหา"
+              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover hover:text-ink"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
         {canCreate ? (
           <Link
             href="/cases/new"
-            className="ml-auto inline-flex h-10 flex-shrink-0 items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+            className="ml-auto inline-flex h-11 flex-shrink-0 items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
           >
             <Plus className="h-4 w-4" /> สร้างคดีใหม่
           </Link>
@@ -84,7 +94,7 @@ export default function CasesPage() {
           <button
             disabled
             title={user.role === "admin" ? "ผู้ดูแลระบบไม่มีสิทธิ์สร้างคดี" : "เฉพาะระดับหัวหน้า (ชั้นสัญญาบัตร) เท่านั้นที่สร้างคดีได้"}
-            className="ml-auto inline-flex h-10 flex-shrink-0 cursor-not-allowed items-center gap-1.5 rounded-full bg-surface-hover px-5 text-sm font-semibold text-muted"
+            className="ml-auto inline-flex h-11 flex-shrink-0 cursor-not-allowed items-center gap-1.5 rounded-full bg-surface-hover px-5 text-sm font-semibold text-muted"
           >
             <Plus className="h-4 w-4" /> สร้างคดีใหม่
           </button>
@@ -114,7 +124,7 @@ export default function CasesPage() {
             return (
               <Link
                 key={c.case_id}
-                href={`/cases/${c.case_id}`}
+                href={`/cases/${c.case_number}`}
                 className="group overflow-hidden rounded-2xl border border-border bg-surface transition-colors hover:border-primary"
               >
                 {/* ปก */}

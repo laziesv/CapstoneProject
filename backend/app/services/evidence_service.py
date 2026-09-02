@@ -14,6 +14,7 @@ from app.models.evidence_files import EvidenceFile
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
+from app.utils.ref_lookup import resolve_by_ref
 from app.models.enums import FileType
 
 
@@ -47,6 +48,15 @@ class EvidenceService:
     @staticmethod
     def get_by_id(db: Session, evidence_id):
         return EvidenceRepository.get_by_id(db, evidence_id)
+
+    @staticmethod
+    def get_by_ref(db: Session, ref):
+        """หาหลักฐานจาก UUID หรือเลขหลักฐาน (เช่น EV-20260829-A82EC1) — ไม่เจอคืน None"""
+        return resolve_by_ref(
+            ref,
+            lambda u: EvidenceRepository.get_by_id(db, u),
+            lambda n: EvidenceRepository.get_by_number(db, n),
+        )
 
     @staticmethod
     def get_all(db: Session, case_id=None):

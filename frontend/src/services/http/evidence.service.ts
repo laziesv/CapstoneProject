@@ -11,7 +11,8 @@
 // │              + evidence = JSON string ของ                            │
 // │                { case_id, description?, captured_at? }               │
 // │      uploaded_by มาจาก token (ไม่ต้องส่ง) · server คำนวณ SHA-256 จริง  │
-// │ GET  /api/evidences/{id}            → EvidenceApiResponse (+log VIEW) │
+// │ GET  /api/evidences/{ref}           → EvidenceApiResponse (+log VIEW) │
+// │      ref = UUID หรือเลขหลักฐาน (เช่น EV-20260829-A82EC1)              │
 // │ GET  /api/evidence-files/{file_id}?action=download → ไฟล์ (+log DL)   │
 // └──────────────────────────────────────────────────────────────────────┘
 //
@@ -75,7 +76,7 @@ export const evidenceService = {
    *  เปิดหน้านี้ = server บันทึก VIEW log ให้อัตโนมัติ (เลี่ยงไม่ได้) */
   async get(id: string): Promise<EvidenceItem | undefined> {
     try {
-      const dto = await request<EvidenceApiResponse>(`/api/evidences/${id}`);
+      const dto = await request<EvidenceApiResponse>(`/api/evidences/${encodeURIComponent(id)}`);
       return toEvidence(dto);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) return undefined;

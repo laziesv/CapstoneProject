@@ -61,7 +61,7 @@ export const caseService = {
    *  ทั้งสองกรณีแปลว่า "หาไม่เจอ" — คืน undefined ให้หน้าเว็บจัดการ ไม่ปล่อยให้ throw จนหน้าพัง */
   async get(id: string): Promise<Case | undefined> {
     try {
-      return toCase(await request<CaseApiResponse>(`/api/cases/${id}`));
+      return toCase(await request<CaseApiResponse>(`/api/cases/${encodeURIComponent(id)}`));
     } catch (e) {
       if (e instanceof ApiError && (e.status === 404 || e.status === 422)) return undefined;
       throw e;

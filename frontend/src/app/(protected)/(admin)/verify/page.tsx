@@ -152,8 +152,8 @@ export default function VerifyPage() {
 
                 <div className="flex flex-col gap-3.5">
                   <DarkRow label="หมายเลขหลักฐาน">
-                    {result.evidenceId ? (
-                      <Link href={`/evidence/${result.evidenceId}`} className="font-mono font-semibold text-white underline decoration-ink-border underline-offset-2 hover:decoration-white">
+                    {result.evidenceNumber ? (
+                      <Link href={`/evidence/${result.evidenceNumber}`} className="font-mono font-semibold text-white underline decoration-ink-border underline-offset-2 hover:decoration-white">
                         {result.evidenceNumber}
                       </Link>
                     ) : (
