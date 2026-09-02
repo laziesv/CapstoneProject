@@ -140,15 +140,6 @@ class ImageRegistration:
         aligned_f32 = cv2.warpPerspective(attacked_f32, matrix, (w, h), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT101)
         return aligned_f32
 
-def pad_to_multiple(img: np.ndarray, divisor: int) -> np.ndarray:
-    h, w = img.shape[:2]
-    new_h = int(np.ceil(h / divisor)) * divisor
-    new_w = int(np.ceil(w / divisor)) * divisor
-    pad_bottom = new_h - h
-    pad_right = new_w - w
-    if pad_bottom == 0 and pad_right == 0:
-        return img
-    return cv2.copyMakeBorder(img, 0, pad_bottom, 0, pad_right, cv2.BORDER_REFLECT101)
 
 def seq_to_img(seq: np.ndarray, size: int) -> np.ndarray:
     img_arr = np.where(seq > 0, 255, 0).astype(np.uint8)
@@ -160,119 +151,188 @@ def float_to_display(img_f32: np.ndarray) -> np.ndarray:
 class DigitalWatermarkingSystem:
     """
     คลาสหลักสำหรับใช้งานใน FastAPI Router จัดการฝังและดึงลายน้ำ DWT + QIM
+ 
+    การเปลี่ยนแปลงหลักจากเวอร์ชันก่อนหน้า:
+    - ไม่ resize ภาพทั้งใบอีกต่อไป ใช้ clTBwavelet.get_square_roi() ตัด ROI สี่เหลี่ยม
+      จัตุรัสตรงกลางภาพ (ขนาดหารด้วย 2**level ลงตัว) มาทำ DWT + ฝัง/แกะลายน้ำ แล้วนำ
+      ROI ที่แก้ไขแล้วกลับไปวางตำแหน่งเดิมด้วย clTBwavelet.place_square_roi() ส่วนพื้นที่
+      อื่นของภาพจะไม่ถูกแตะต้อง
+    - แยก static และ dynamic ออกเป็นคนละเมธอด:
+        * embed_static()  : ใช้ครั้งเดียวตอนสร้างหลักฐานใหม่ ฝัง QR ของ hash(evidence_uuid)
+                             ลงในแบนด์ LH เท่านั้น
+        * embed_dynamic()  : ใช้ทุกครั้งที่มีการเข้าถึง (access) ภาพ รับภาพที่ผ่าน
+                             embed_static() มาแล้ว (หรือภาพที่มี dynamic เดิมฝังอยู่แล้ว
+                             จากการเข้าถึงครั้งก่อน ๆ) แล้วฝัง QR ของ dynamic hash ล่าสุด
+                             (ที่ backend ได้จาก blockchain) ลงในแบนด์ HL ทับค่าที่ฝังไว้เดิม
+                             ทำแบบนี้ซ้ำได้เรื่อย ๆ ทุกครั้งที่มีการเข้าถึง โดยจะได้ dynamic
+                             ล่าสุดแทนที่ของเก่าเสมอ
+    - extract() จะหาตำแหน่ง ROI จาก reference_image (ภาพอ้างอิง/ต้นทางที่ backend เก็บไว้)
+      แล้วทำ Image Registration ก่อน เพื่อรองรับกรณีภาพที่ตรวจสอบถูกโจมตีด้วยการ
+      หมุน/ครอป/เลื่อนตำแหน่ง จากนั้นจึงตัด ROI ตำแหน่งเดียวกันมาสกัดลายน้ำทั้งสองชุด
     """
-    def __init__(self, level: int = 3, alpha: int = 80, k_arnold: int = 15):
+ 
+    def __init__(self, level: int = 3, alpha: int = 80, k_arnold: int = 15, qr_size: int = 128):
         self.level = level
         self.alpha = alpha
         self.k_arnold = k_arnold
-
-    def embed(self, image_array: np.ndarray, static_data: str, dynamic_hash: str) -> np.ndarray:
+        # ขนาด QR ที่ต้องการฝัง (หน่วยพิกเซล) ค่าจริงที่ใช้จะถูกจำกัดไม่ให้เกินขนาด
+        # แบนด์ที่มีอยู่จริงของ ROI (ดู _band_qr_size)
+        self.qr_size = qr_size
+ 
+    # ---------- Helper: จัดการ ROI ----------
+    def _prepare_roi(self, image_array: np.ndarray):
         """
-        กระบวนการฝัง Double Watermarking
-        รับ Input: np.ndarray ของภาพต้นฉบับ (Grayscale)
-        คืนค่า: np.ndarray ภาพที่ฝังลายน้ำแล้ว (uint8 พร้อมสำหรับการบันทึก/ส่งกลับ)
+        ตัด ROI สี่เหลี่ยมจัตุรัสกลางภาพ (ขนาดหารด้วย 2**level ลงตัว) โดยไม่ resize
+        ภาพทั้งใบ คืนค่า roi (float32, สำเนา), row_offset, col_offset, size
         """
-        target_size = 128 * (2 ** self.level) # ถ้า level 3 จะได้ 1024
-        image_array = cv2.resize(image_array, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
-        # ----------------------------------------------------
-        divisor = 2 ** self.level
-        host_img_f32 = pad_to_multiple(image_array.astype(np.float32), divisor)
-
-        # 1. ทำ DWT ภาพหลัก
-        dwt_coeffs = clTBwavelet.dwt(host_img_f32, level=self.level)
+        roi, row_off, col_off, size = clTBwavelet.get_square_roi(
+            image_array.astype(np.float32), levels=self.level
+        )
+        return roi, row_off, col_off, size
+ 
+    def _band_qr_size(self, roi_size: int) -> int:
+        """ขนาด QR สูงสุดที่ฝังลงในแบนด์ของ ROI ขนาดนี้ได้ (ไม่เกิน self.qr_size)"""
+        band_size = roi_size // (2 ** self.level)
+        return min(self.qr_size, band_size)
+ 
+    # ---------- ฝัง Static (ครั้งแรกที่สร้างหลักฐาน) ----------
+    def embed_static(self, image_array: np.ndarray, evidence_uuid: str) -> np.ndarray:
+        """
+        ฝังลายน้ำ Static = QR ของ hash(evidence_uuid) ลงในแบนด์ LH ที่ตำแหน่ง ROI
+        กลางภาพ ใช้ตอนสร้างภาพหลักฐานครั้งแรกเท่านั้น (ยังไม่มี dynamic)
+        """
+        working = np.copy(image_array).astype(np.float32)
+        roi, row_off, col_off, size = self._prepare_roi(working)
+        qr_size = self._band_qr_size(size)
+ 
+        dwt_coeffs = clTBwavelet.dwt(roi, level=self.level)
         lh_band = clTBwavelet.get_subband(dwt_coeffs, "LH", self.level)
-        hl_band = clTBwavelet.get_subband(dwt_coeffs, "HL", self.level)
         band_h, band_w = lh_band.shape
-        qr_size = 128 
-
-        # 2. สร้าง QR Code และ Sequence
-        hashed_static_data = hashlib.sha256(static_data.encode('utf-8')).hexdigest()
+ 
+        hashed_static_data = hashlib.sha256(evidence_uuid.encode('utf-8')).hexdigest()
         qr_static = clQRcodec.generateQR(hashed_static_data, pixel_size=qr_size)
         wm_seq_static = clWMseq.bm2seq(Image.fromarray(qr_static))
-
-        qr_dynamic = clQRcodec.generateQR(dynamic_hash, pixel_size=qr_size)
-        wm_seq_dynamic = clWMseq.bm2seq(Image.fromarray(qr_dynamic))
-
-        # 3. กำหนด Seed ให้คงที่ตาม Dynamic Hash และทำ Arnold Scramble
-        seed_value = int(hashlib.sha256(dynamic_hash.encode('utf-8')).hexdigest(), 16) % (10**8)
+ 
+        # หมายเหตุ: arnold_scramble/descramble เป็นการแปลงเชิงกำหนด (deterministic) ตาม k
+        # เพียงอย่างเดียว ไม่ได้พึ่งค่า seed แบบสุ่ม บรรทัด seed ด้านล่างคงไว้เพื่อรองรับ
+        # ส่วนขยายในอนาคตที่อาจใช้ตำแหน่งฝังแบบสุ่ม
+        seed_value = int(hashlib.sha256(evidence_uuid.encode('utf-8')).hexdigest(), 16) % (10 ** 8)
         np.random.seed(seed_value)
         signal_static_scrambled = clWMseq.arnold_scramble(wm_seq_static, k=self.k_arnold)
-        signal_dynamic_scrambled = clWMseq.arnold_scramble(wm_seq_dynamic, k=self.k_arnold)
-
-        # 4. กำหนดจุดฝัง (Center Embedding)
+ 
         start_y = (band_h - qr_size) // 2
         start_x = (band_w - qr_size) // 2
-
+ 
         lh_wm = copy.deepcopy(lh_band)
-        hl_wm = copy.deepcopy(hl_band)
-
-        # 5. ทำ QIM Embed ลงใน Patch
         patch_lh = lh_wm[start_y:start_y+qr_size, start_x:start_x+qr_size]
-        patch_hl = hl_wm[start_y:start_y+qr_size, start_x:start_x+qr_size]
-        
-        lh_wm[start_y:start_y+qr_size, start_x:start_x+qr_size] = clWMseq.qim_embed(patch_lh, signal_static_scrambled, self.alpha)
-        hl_wm[start_y:start_y+qr_size, start_x:start_x+qr_size] = clWMseq.qim_embed(patch_hl, signal_dynamic_scrambled, self.alpha)
-
-        # 6. บันทึกและทำ Inverse DWT
+        lh_wm[start_y:start_y+qr_size, start_x:start_x+qr_size] = clWMseq.qim_embed(
+            patch_lh, signal_static_scrambled, self.alpha
+        )
+ 
         coeffs_wm = copy.deepcopy(dwt_coeffs)
         clTBwavelet.set_subband(coeffs_wm, lh_wm, "LH", self.level)
-        clTBwavelet.set_subband(coeffs_wm, hl_wm, "HL", self.level)
-        
-        host_wm_f32 = clTBwavelet.inverse_dwt(coeffs_wm, level=self.level)
-
-        return float_to_display(host_wm_f32)
-
-    def extract(self, suspected_image: np.ndarray, reference_image: np.ndarray, dynamic_hash: str) -> tuple[np.ndarray, np.ndarray]:
+        roi_wm_f32 = clTBwavelet.inverse_dwt(coeffs_wm, level=self.level)
+ 
+        clTBwavelet.place_square_roi(working, roi_wm_f32, row_off, col_off)
+        return float_to_display(working)
+ 
+    # ---------- ฝัง/แทนที่ Dynamic (ทุกครั้งที่มีการเข้าถึงภาพ) ----------
+    def embed_dynamic(self, image_with_watermark: np.ndarray, dynamic_hash: str) -> np.ndarray:
         """
-        กระบวนการสกัดลายน้ำสำหรับการ Verify ข้อมูลดิจิทัล (รับ Input แบบ np.ndarray)
-        คืนค่า: Tuple ของภาพ QR Code (Static, Dynamic) ในรูปแบบ np.ndarray
+        ฝัง (หรือแทนที่) ลายน้ำ Dynamic = QR ของ dynamic_hash (ที่ backend รับมาจาก
+        blockchain) ลงในแบนด์ HL ที่ตำแหน่ง ROI เดียวกับตอนฝัง static
+ 
+        ใช้ทุกครั้งที่มีการเข้าถึง (access) ภาพ: รับภาพที่ผ่าน embed_static() มาแล้ว
+        ในการเข้าถึงครั้งแรก หรือรับภาพที่มี dynamic เดิมฝังอยู่แล้วจากการเข้าถึงครั้งก่อน
+        ในการเข้าถึงครั้งถัดไป แล้วฝัง dynamic_hash ล่าสุดทับตำแหน่งเดิม ทำซ้ำแบบนี้ได้
+        เรื่อย ๆ โดย static เดิมในแบนด์ LH จะไม่ถูกกระทบ
         """
-        # --- เพิ่มโค้ดส่วนนี้ (บังคับ Resize ภาพให้เป็น 1024x1024 ทั้งสองภาพให้ตรงกับตอนฝัง) ---
-        target_size = 128 * (2 ** self.level) # ถ้า level 3 จะได้ 1024
-        suspected_image = cv2.resize(suspected_image, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
-        reference_image = cv2.resize(reference_image, (target_size, target_size), interpolation=cv2.INTER_CUBIC)
-        # -------------------------------------------------------------------------
-        # สร้าง Seed ตอนถอดกลับเพื่อให้ตรงกับตอนฝัง
-        seed_value = int(hashlib.sha256(dynamic_hash.encode('utf-8')).hexdigest(), 16) % (10**8)
+        working = np.copy(image_with_watermark).astype(np.float32)
+        roi, row_off, col_off, size = self._prepare_roi(working)
+        qr_size = self._band_qr_size(size)
+ 
+        dwt_coeffs = clTBwavelet.dwt(roi, level=self.level)
+        hl_band = clTBwavelet.get_subband(dwt_coeffs, "HL", self.level)
+        band_h, band_w = hl_band.shape
+ 
+        qr_dynamic = clQRcodec.generateQR(dynamic_hash, pixel_size=qr_size)
+        wm_seq_dynamic = clWMseq.bm2seq(Image.fromarray(qr_dynamic))
+ 
+        seed_value = int(hashlib.sha256(dynamic_hash.encode('utf-8')).hexdigest(), 16) % (10 ** 8)
         np.random.seed(seed_value)
-
-        divisor = 2 ** self.level
-        host_f32 = pad_to_multiple(reference_image.astype(np.float32), divisor)
-        suspect_f32 = pad_to_multiple(suspected_image.astype(np.float32), divisor)
-
-        # ทำ Image Registration ก่อนเพื่อแก้ Geometric Attacks
-        aligned_f32 = ImageRegistration.align(suspect_f32, host_f32)
-
-        dwt_ext = clTBwavelet.dwt(aligned_f32, level=self.level)
-        lh_ext = clTBwavelet.get_subband(dwt_ext, "LH", self.level)
-        hl_ext = clTBwavelet.get_subband(dwt_ext, "HL", self.level)
-
-        band_h, band_w = lh_ext.shape
-        qr_size = 128 
+        signal_dynamic_scrambled = clWMseq.arnold_scramble(wm_seq_dynamic, k=self.k_arnold)
+ 
         start_y = (band_h - qr_size) // 2
         start_x = (band_w - qr_size) // 2
-
+ 
+        hl_wm = copy.deepcopy(hl_band)
+        patch_hl = hl_wm[start_y:start_y+qr_size, start_x:start_x+qr_size]
+        hl_wm[start_y:start_y+qr_size, start_x:start_x+qr_size] = clWMseq.qim_embed(
+            patch_hl, signal_dynamic_scrambled, self.alpha
+        )
+ 
+        coeffs_wm = copy.deepcopy(dwt_coeffs)
+        clTBwavelet.set_subband(coeffs_wm, hl_wm, "HL", self.level)
+        roi_wm_f32 = clTBwavelet.inverse_dwt(coeffs_wm, level=self.level)
+ 
+        clTBwavelet.place_square_roi(working, roi_wm_f32, row_off, col_off)
+        return float_to_display(working)
+ 
+    # ---------- สกัดลายน้ำ (ใช้ตอน Verify) ----------
+    def extract(self, suspected_image: np.ndarray, reference_image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """
+        สกัดลายน้ำทั้ง Static และ Dynamic จากภาพที่ต้องการตรวจสอบ (suspected_image)
+        โดยอิง reference_image (ภาพต้นทาง/ภาพอ้างอิงที่ backend เก็บไว้) เพื่อ
+        1) หาตำแหน่ง ROI ที่ตรงกับตอนฝัง (คำนวณจาก reference_image)
+        2) ทำ Image Registration แก้ปัญหา Geometric Attacks (หมุน/ครอป/เลื่อน) ก่อนตัด ROI
+ 
+        คืนค่า: Tuple ของภาพ QR Code (Static, Dynamic) ในรูปแบบ np.ndarray
+        ไม่มีการ resize ภาพทั้งใบ
+        """
+        suspect_f32 = suspected_image.astype(np.float32)
+        reference_f32 = reference_image.astype(np.float32)
+ 
+        # แก้ Geometric Attacks: จัดภาพที่สงสัยให้ตรงกับเรขาคณิตของภาพอ้างอิง
+        aligned_f32 = ImageRegistration.align(suspect_f32, reference_f32)
+ 
+        # ตำแหน่ง ROI ต้องคำนวณจากภาพอ้างอิง เพราะเป็นตำแหน่งเดียวกับตอนฝังจริง
+        _, row_off, col_off, size = clTBwavelet.get_square_roi(reference_f32, levels=self.level)
+        qr_size = self._band_qr_size(size)
+ 
+        roi_suspect = aligned_f32[row_off:row_off+size, col_off:col_off+size].copy()
+ 
+        dwt_ext = clTBwavelet.dwt(roi_suspect, level=self.level)
+        lh_ext = clTBwavelet.get_subband(dwt_ext, "LH", self.level)
+        hl_ext = clTBwavelet.get_subband(dwt_ext, "HL", self.level)
+ 
+        band_h, band_w = lh_ext.shape
+        start_y = (band_h - qr_size) // 2
+        start_x = (band_w - qr_size) // 2
+ 
         ext_patch_lh = lh_ext[start_y:start_y+qr_size, start_x:start_x+qr_size]
         ext_patch_hl = hl_ext[start_y:start_y+qr_size, start_x:start_x+qr_size]
-
-        # QIM Extract และ Descramble
+ 
+        # QIM Extract (Blind) ไม่ต้องใช้ dynamic_hash/seed ใด ๆ ในการสกัด
         sig_ext_static_scrambled = clWMseq.qim_extract(ext_patch_lh, self.alpha)
         sig_ext_dynamic_scrambled = clWMseq.qim_extract(ext_patch_hl, self.alpha)
-
+ 
+        # Arnold descramble เป็น deterministic ตาม k เท่านั้น จึงไม่ต้องรู้ evidence_uuid
+        # หรือ dynamic_hash ล่วงหน้าเพื่อถอดรหัสตำแหน่งพิกเซลกลับ
         sig_ext_static = clWMseq.arnold_descramble(sig_ext_static_scrambled, k=self.k_arnold)
         sig_ext_dynamic = clWMseq.arnold_descramble(sig_ext_dynamic_scrambled, k=self.k_arnold)
-
+ 
         qr_extr_static = seq_to_img(sig_ext_static, qr_size)
         qr_extr_dynamic = seq_to_img(sig_ext_dynamic, qr_size)
-
+ 
         return qr_extr_static, qr_extr_dynamic
-
+ 
     def evaluate_quality(self, original_img: np.ndarray, watermarked_img: np.ndarray) -> dict:
         """ ตรวจสอบคุณภาพหลังฝังลายน้ำ (เอาไว้ใช้ยิง Log หรือเขียนเทสได้) """
-        orig_f32 = pad_to_multiple(original_img.astype(np.float32), 2**self.level)
-        wm_f32 = pad_to_multiple(watermarked_img.astype(np.float32), 2**self.level)
-        
+        orig_f32 = original_img.astype(np.float32)
+        wm_f32 = watermarked_img.astype(np.float32)
+ 
         return {
             "MSE": mse(orig_f32, wm_f32),
             "SSIM": ssim(orig_f32, wm_f32, data_range=255.0)
         }
+ 
