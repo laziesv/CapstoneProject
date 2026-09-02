@@ -31,6 +31,25 @@ import { mockTx } from "@/utils/mockData";
 import { mockVerifyOnChain } from "./_mocks/blockchainVerify";
 import { request, ApiError } from "./client";
 
+// React Strict Mode เรียก effect ซ้ำใน development เพื่อช่วยตรวจหา side effect
+// ใช้ request ที่กำลังทำงานร่วมกัน เพื่อไม่ให้ GET ที่ backend นำไปบันทึก access log
+// สร้าง VIEW/QUERY ซ้ำสำหรับการเปิดหน้าครั้งเดียว
+const pendingReads = new Map<string, Promise<EvidenceApiResponse | EvidenceApiResponse[]>>();
+
+function sharedRead<T extends EvidenceApiResponse | EvidenceApiResponse[]>(
+  key: string,
+  load: () => Promise<T>,
+): Promise<T> {
+  const pending = pendingReads.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const next = load().finally(() => {
+    if (pendingReads.get(key) === next) pendingReads.delete(key);
+  });
+  pendingReads.set(key, next);
+  return next;
+}
+
 /** สุ่ม hex — ใช้เฉพาะ tx/block ที่ยังไม่มี endpoint จริง
  *  TODO(backend): ลบทิ้งเมื่อมี blockchain endpoint */
 function randomHex(len: number): string {
@@ -67,7 +86,8 @@ export const evidenceService = {
   /** รายการหลักฐาน (กรองตามคดีได้ — กรองฝั่ง server) */
   async list(filters: { case_id?: string } = {}): Promise<EvidenceItem[]> {
     const qs = filters.case_id ? `?case_id=${encodeURIComponent(filters.case_id)}` : "";
-    const data = await request<EvidenceApiResponse[]>(`/api/evidences${qs}`);
+    const path = `/api/evidences${qs}`;
+    const data = await sharedRead(path, () => request<EvidenceApiResponse[]>(path));
     return data.map(toEvidence);
   },
 
@@ -75,7 +95,8 @@ export const evidenceService = {
    *  เปิดหน้านี้ = server บันทึก VIEW log ให้อัตโนมัติ (เลี่ยงไม่ได้) */
   async get(id: string): Promise<EvidenceItem | undefined> {
     try {
-      const dto = await request<EvidenceApiResponse>(`/api/evidences/${id}`);
+      const path = `/api/evidences/${id}`;
+      const dto = await sharedRead(path, () => request<EvidenceApiResponse>(path));
       return toEvidence(dto);
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) return undefined;

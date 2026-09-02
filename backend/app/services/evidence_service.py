@@ -15,6 +15,7 @@ from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
 from app.models.enums import FileType
+from app.watermark.clTBwavelet import clTBwavelet
 
 
 _WM_DIR = os.path.abspath(
@@ -24,12 +25,51 @@ _WM_DIR = os.path.abspath(
 if _WM_DIR not in sys.path:
     sys.path.insert(0, _WM_DIR)
 
-from app.watermark.mainyy import DigitalWatermarkingSystem
+from app.watermark.mainyy import (
+    DigitalWatermarkingSystem,
+    float_to_display,
+    pad_to_multiple,
+)
 
 
 UPLOAD_DIR = "uploads/evidence"
 ORIGINAL_DIR = os.path.join(UPLOAD_DIR, "original")
 WATERMARKED_DIR = os.path.join(UPLOAD_DIR, "watermarked")
+
+
+def _embed_initial_static_watermark(
+    system: DigitalWatermarkingSystem,
+    image_array: np.ndarray,
+    *,
+    static_data: str,
+    file_hash: str,
+) -> np.ndarray:
+    """ฝัง static ด้วยระบบเดิม แล้วคืนย่าน HL เดิมเพื่อไม่เก็บ dynamic watermark."""
+    target_size = 128 * (2 ** system.level)
+    source = cv2.resize(
+        image_array,
+        (target_size, target_size),
+        interpolation=cv2.INTER_CUBIC,
+    )
+
+    # embed() เดิมฝัง static ใน LH และ dynamic ใน HL จึงคืนค่า HL ของต้นฉบับ
+    # ก่อนสร้างภาพผลลัพธ์สำหรับการบันทึกหลักฐานครั้งแรก
+    embedded = system.embed(source, static_data=static_data, dynamic_hash=file_hash)
+    divisor = 2 ** system.level
+    source_coeffs = clTBwavelet.dwt(
+        pad_to_multiple(source.astype(np.float32), divisor),
+        level=system.level,
+    )
+    embedded_coeffs = clTBwavelet.dwt(
+        pad_to_multiple(embedded.astype(np.float32), divisor),
+        level=system.level,
+    )
+    source_hl = clTBwavelet.get_subband(source_coeffs, "HL", system.level)
+    clTBwavelet.set_subband(embedded_coeffs, source_hl, "HL", system.level)
+
+    return float_to_display(
+        clTBwavelet.inverse_dwt(embedded_coeffs, level=system.level)
+    )
 
 
 class EvidenceService:
@@ -154,10 +194,11 @@ class EvidenceService:
 
             system = DigitalWatermarkingSystem()
 
-            y_wm = system.embed(
+            y_wm = _embed_initial_static_watermark(
+                system,
                 y,
                 static_data=str(evidence.evidence_id),
-                dynamic_hash=file_hash
+                file_hash=file_hash,
             )
 
             if y_wm is None:
