@@ -9,11 +9,16 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.repositories.evidence_items_repository import EvidenceRepository
+from app.models.blockchain_transactions import BlockchainTransaction
+from app.models.enums import BlockchainAction
 
-# mainyy.py ใช้ implicit import — ต้องมีโฟลเดอร์ watermark บน sys.path (เหมือน evidence_service)
-_WM_DIR = os.path.join(os.path.dirname(__file__), "..", "watermark")
+
+_WM_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "watermark")
+)
 if _WM_DIR not in sys.path:
     sys.path.insert(0, _WM_DIR)
+
 from app.watermark.mainyy import DigitalWatermarkingSystem, WatermarkEvaluator
 from app.watermark.clQRcodec import clQRcodec
 
@@ -36,8 +41,7 @@ class WatermarkService:
     def identify(db: Session, image_bytes: bytes):
         """ถอดลายน้ำจากภาพที่อัปโหลด แล้วลองเทียบกับทุกหลักฐานจนเจอตัวที่ตรง (blind)
 
-        แต่ละหลักฐานใช้ต้นฉบับของตัวเองเป็น reference + file_hash เป็น key ถอด
-        เทียบผิดคู่ = descramble ด้วย seed ผิด → QR อ่านไม่ออก → ไม่ match (กัน false positive)
+        การถอดเป็นแบบ blind โดยใช้ภาพต้นฉบับของหลักฐานเป็น reference
         """
         arr = np.frombuffer(image_bytes, np.uint8)
         bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
@@ -59,16 +63,24 @@ class WatermarkService:
                 continue
             y_ref = _luminance(ref)
 
-            qr_static, qr_dynamic = system.extract(
-                y_suspect, y_ref, dynamic_hash=ev.original_file.file_hash
-            )
+            qr_static, qr_dynamic = system.extract(y_suspect, y_ref)
             expected = hashlib.sha256(str(ev.evidence_id).encode("utf-8")).hexdigest()
             if clQRcodec.decodeQR(qr_static) != expected:
                 continue  # ไม่ใช่หลักฐานชิ้นนี้
 
             # เจอแล้ว — ประกอบผลลัพธ์ + แนบ QR ที่แกะได้ไปโชว์
             dyn_decoded = clQRcodec.decodeQR(qr_dynamic)
-            dynamic_ok = dyn_decoded == ev.original_file.file_hash
+            latest_tx = (
+                db.query(BlockchainTransaction)
+                .filter(
+                    BlockchainTransaction.evidence_id == ev.evidence_id,
+                    BlockchainTransaction.action_type == BlockchainAction.ACCESS,
+                )
+                .order_by(BlockchainTransaction.created_at.desc())
+                .first()
+            )
+            expected_dynamic = latest_tx.tx_hash if latest_tx else None
+            dynamic_ok = bool(expected_dynamic and dyn_decoded == expected_dynamic)
             expected_qr = clQRcodec.generateQR(expected, qr_static.shape[0])
             ber = WatermarkEvaluator.calculate_ber(expected_qr, qr_static)
 
