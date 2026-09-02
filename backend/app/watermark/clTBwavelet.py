@@ -77,8 +77,41 @@ class clTBwavelet:
     @staticmethod
     def min_size_to_level(image_size, min_size):
         return int(math.log(image_size / min_size, 2))
+    @staticmethod
+    def get_square_roi(image, levels=None):
+        """
+        ตัดพื้นที่สี่เหลี่ยมจัตุรัสตรงกลางภาพ โดยใช้ด้าน "สั้นที่สุด" ของภาพเป็นขนาดด้าน
+        เช่น ภาพกว้าง 30 สูง 40 -> จะได้ ROI ขนาด 30x30 อยู่ตรงกลางแนวตั้ง
+ 
+        คืนค่า:
+            roi         : numpy array ขนาด size x size (เป็นสำเนา ไม่ผูกกับ image เดิม)
+            row_offset  : ตำแหน่งแถวเริ่มต้นของ ROI ในภาพต้นฉบับ
+            col_offset  : ตำแหน่งคอลัมน์เริ่มต้นของ ROI ในภาพต้นฉบับ
+            size        : ความยาวด้านของสี่เหลี่ยมจัตุรัส (min(rows, cols))
+        """
+        rows, cols = image.shape[:2]
+        size = min(rows, cols)
+        if levels is not None:
+            unit = 2 ** levels
+            size = (size // unit) * unit   # ปัดลงให้หารลงตัวพอดี
 
+        row_offset = (rows - size) // 2
+        col_offset = (cols - size) // 2
 
+        roi = image[row_offset:row_offset + size, col_offset:col_offset + size].copy()
+        return roi, row_offset, col_offset, size
+ 
+    @staticmethod
+    def place_square_roi(image, roi, row_offset, col_offset):
+        """
+        นำ ROI สี่เหลี่ยมจัตุรัส (ที่ผ่านการประมวลผลแล้ว) กลับไปวางตำแหน่งเดิมในภาพ
+        ส่วนพื้นที่ซ้าย/ขวา (หรือบน/ล่าง) ที่เหลือของภาพจะไม่ถูกแก้ไข
+        แก้ไข image ที่ส่งเข้ามาโดยตรง (in-place) และคืนค่า image กลับมาด้วยเพื่อความสะดวก
+        """
+        size = roi.shape[0]
+        image[row_offset:row_offset + size, col_offset:col_offset + size] = roi
+        return image
+ 
     # --- Transformation Helpers ---
     @staticmethod
     def dwt(image, level=2):
