@@ -14,6 +14,7 @@ from app.models.evidence_files import EvidenceFile
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
+from app.utils.ref_lookup import resolve_by_ref
 from app.models.enums import FileType
 from app.watermark.clTBwavelet import clTBwavelet
 
@@ -89,6 +90,15 @@ class EvidenceService:
         return EvidenceRepository.get_by_id(db, evidence_id)
 
     @staticmethod
+    def get_by_ref(db: Session, ref):
+        """หาหลักฐานจาก UUID หรือเลขหลักฐาน (เช่น EV-20260829-A82EC1) — ไม่เจอคืน None"""
+        return resolve_by_ref(
+            ref,
+            lambda u: EvidenceRepository.get_by_id(db, u),
+            lambda n: EvidenceRepository.get_by_number(db, n),
+        )
+
+    @staticmethod
     def get_all(db: Session, case_id=None):
         if case_id:
             return EvidenceRepository.get_by_case(db, case_id)
@@ -102,6 +112,8 @@ class EvidenceService:
         upload_file: UploadFile,
         uploaded_by
     ):
+        created_paths: list[str] = []
+        committed = False
         try:
             os.makedirs(ORIGINAL_DIR, exist_ok=True)
             os.makedirs(WATERMARKED_DIR, exist_ok=True)
@@ -146,6 +158,7 @@ class EvidenceService:
             if bgr is None:
                 raise ValueError("อ่านไฟล์ภาพไม่ได้")
 
+            created_paths.append(file_path)
             with open(file_path, "wb") as buffer:
                 buffer.write(file_bytes)
 
@@ -224,6 +237,7 @@ class EvidenceService:
             if not success:
                 raise ValueError("บันทึกภาพลายน้ำไม่สำเร็จ")
 
+            created_paths.append(wm_path)
             with open(wm_path, "wb") as buffer:
                 buffer.write(encoded_image.tobytes())
 
@@ -246,10 +260,17 @@ class EvidenceService:
             evidence.is_watermarked = True
 
             db.commit()
+            committed = True
             db.refresh(evidence)
 
             return evidence
 
         except Exception:
             db.rollback()
+            if not committed:
+                for created_path in created_paths:
+                    try:
+                        os.remove(created_path)
+                    except OSError:
+                        pass
             raise

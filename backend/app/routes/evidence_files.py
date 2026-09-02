@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user_optional
+from app.deps import get_current_user
 from app.models.users import User
 from app.models.enums import AuditAction
 from app.services.evidence_service import EvidenceService
@@ -28,9 +28,7 @@ def preview_file(
     request: Request,
     action: str | None = None,
     db: Session = Depends(get_db),
-    # auth แบบไม่บังคับ — <img> โหลดรูปแบบไม่มี token ต้องผ่านได้
-    # แต่ถ้ามี token (ตอนกดดาวน์โหลด) จะรู้ว่าใครโหลด เอาไปบันทึก log
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
 ):
 
     file = EvidenceService.get_file(
@@ -53,7 +51,7 @@ def preview_file(
 
     # บันทึก DOWNLOAD เฉพาะตอนกดปุ่มดาวน์โหลด (?action=download) และรู้ว่าใครโหลด
     # การโชว์รูปผ่าน <img> (ไม่มี action) จะไม่สร้าง log
-    if action == "download" and current_user is not None:
+    if action == "download":
         ip, user_agent = client_info(request)
         # หา case_id จากหลักฐานของไฟล์นี้ ให้ log มี case_id ครบเหมือน VIEW
         evidence = EvidenceService.get_by_id(db, file.evidence_id)

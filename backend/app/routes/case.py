@@ -27,13 +27,14 @@ def get_cases(
     return CaseService.get_all(db)
 
 
-@router.get("/{case_id}", response_model=CaseResponse)
+@router.get("/{case_ref}", response_model=CaseResponse)
 def get_case(
-    case_id: UUID,
+    case_ref: str,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),   # ต้องล็อกอิน
 ):
-    return CaseService.get_by_id(db, case_id)
+    # รับได้ทั้ง UUID (path เดิม) และเลขคดี (เช่น CASE-2026-0061)
+    return CaseService.get_by_ref(db, case_ref)
 
 
 @router.post("", response_model=CaseResponse)

@@ -152,12 +152,12 @@ export default function VerifyPage() {
 
                 <div className="flex flex-col gap-3.5">
                   <DarkRow label="หมายเลขหลักฐาน">
-                    {result.evidenceId ? (
-                      <Link href={`/evidence/${result.evidenceId}`} className="font-mono font-semibold text-white underline decoration-ink-border underline-offset-2 hover:decoration-white">
-                        {result.evidenceNumber}
+                    {result.evidenceNumber || result.evidenceId ? (
+                      <Link href={`/evidence/${result.evidenceNumber ?? result.evidenceId}`} className="font-mono font-semibold text-white underline decoration-ink-border underline-offset-2 hover:decoration-white">
+                        {result.evidenceNumber ?? result.evidenceId}
                       </Link>
                     ) : (
-                      <span className="font-mono font-semibold">{result.evidenceNumber ?? "—"}</span>
+                      <span className="font-mono font-semibold">—</span>
                     )}
                   </DarkRow>
                   <DarkRow label="ผู้อัปโหลดต้นฉบับ"><span className="text-white">{result.officerName ?? "—"}</span></DarkRow>

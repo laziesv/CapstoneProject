@@ -7,6 +7,7 @@ from app.models.cases import Case
 from app.models.users import User
 from app.repositories.case_repository import CaseRepository
 from app.schemas.case import CaseCreate, CaseUpdate
+from app.utils.ref_lookup import resolve_by_ref
 
 
 class CaseService:
@@ -28,6 +29,20 @@ class CaseService:
                 status_code=404,
                 detail="Case not found",
             )
+
+        return case
+
+    @staticmethod
+    def get_by_ref(db: Session, ref):
+        """หาคดีจาก UUID หรือเลขคดี (เช่น CASE-2026-0061) — ไม่เจอโยน 404"""
+        case = resolve_by_ref(
+            ref,
+            lambda u: CaseRepository.get_by_id(db, u),
+            lambda n: CaseRepository.get_by_number(db, n),
+        )
+
+        if not case:
+            raise HTTPException(status_code=404, detail="Case not found")
 
         return case
 

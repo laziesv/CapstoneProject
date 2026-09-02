@@ -50,7 +50,8 @@ export default function UsersPage() {
   }, []);
 
   useEffect(() => {
-    loadUsers();
+    const task = window.setTimeout(() => void loadUsers(), 0);
+    return () => window.clearTimeout(task);
   }, [loadUsers]);
 
   // สรุปสถิติ (จากข้อมูลจริง)

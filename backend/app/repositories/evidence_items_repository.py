@@ -31,6 +31,20 @@ class EvidenceRepository:
 
 
     @staticmethod
+    def get_by_number(
+        db: Session,
+        evidence_number: str
+    ):
+        return (
+            db.query(EvidenceItem)
+            .filter(
+                EvidenceItem.evidence_number == evidence_number
+            )
+            .first()
+        )
+
+
+    @staticmethod
     def get_all(
         db: Session
     ):

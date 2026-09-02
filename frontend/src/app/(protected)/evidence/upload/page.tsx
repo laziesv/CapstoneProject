@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
-import { UploadCloud, X, Shield, ShieldCheck, Loader2, CheckCircle2, ChevronRight, ShieldAlert, ArrowRight } from "lucide-react";
+import { UploadCloud, X, Shield, Loader2, CheckCircle2, ChevronRight, ShieldAlert, ArrowRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import ProtectedImage from "@/components/ProtectedImage";
 import { caseService, evidenceService } from "@/services";
@@ -130,7 +130,7 @@ export default function UploadEvidencePage() {
   /** ออกจากหน้า — คืน object URL ของ preview ทั้งหมดก่อน */
   const goToCase = () => {
     items.forEach((it) => URL.revokeObjectURL(it.preview));
-    router.push(`/cases/${caseId}`);
+    router.push(`/cases/${activeCase?.case_number ?? caseId}`);
   };
 
   const missingDates = items.filter((it) => !capturedAtOf(it)).length;
@@ -170,7 +170,7 @@ export default function UploadEvidencePage() {
     <div className="space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-3">
-        <Link href={`/cases/${activeCase.case_id}`} className="font-mono text-sm text-muted transition-colors hover:text-primary">
+        <Link href={`/cases/${activeCase.case_number}`} className="font-mono text-sm text-muted transition-colors hover:text-primary">
           {activeCase.case_number}
         </Link>
         <span className="text-muted/60">/</span>

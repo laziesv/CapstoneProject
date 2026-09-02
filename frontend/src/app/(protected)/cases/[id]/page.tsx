@@ -30,12 +30,15 @@ export default function CaseDetailPage() {
 
   useEffect(() => {
     (async () => {
-      const [c, ev] = await Promise.all([
-        caseService.get(id),
-        evidenceService.list({ case_id: id }),
-      ]);
-      setCaseData(c ?? null);
-      setEvidenceList(ev);
+      // id จาก URL เป็นเลขคดีแล้ว — โหลดคดีก่อนเพื่อได้ UUID จริง ค่อยดึงหลักฐานของคดีนั้น
+      const c = await caseService.get(id);
+      if (!c) {
+        setCaseData(null);
+        setEvidenceList([]);
+        return;
+      }
+      setCaseData(c);
+      setEvidenceList(await evidenceService.list({ case_id: c.case_id }));
     })();
   }, [id]);
 
@@ -157,7 +160,7 @@ export default function CaseDetailPage() {
 
           <div className="grid grid-cols-2 gap-3.5 p-5 sm:grid-cols-3 xl:grid-cols-4">
             {filteredEv.map((e) => (
-              <Link key={e.evidence_id} href={`/evidence/${e.evidence_id}`} className="group flex flex-col gap-2">
+              <Link key={e.evidence_id} href={`/evidence/${e.evidence_number}`} className="group flex flex-col gap-2">
                 <div className="relative aspect-square overflow-hidden rounded-xl bg-surface-hover">
                   {e.thumbnail_url ? (
                     <ProtectedImage src={e.thumbnail_url} alt={e.description || e.evidence_number} className="h-full w-full object-cover transition-transform group-hover:scale-[1.04]" />

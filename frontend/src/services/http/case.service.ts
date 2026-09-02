@@ -27,6 +27,19 @@
 import type { Case, NewCaseInput, CaseApiResponse } from "@/interfaces";
 import { ApiError, request } from "./client";
 
+const pendingCaseReads = new Map<string, Promise<CaseApiResponse>>();
+
+function sharedCaseRead(path: string): Promise<CaseApiResponse> {
+  const pending = pendingCaseReads.get(path);
+  if (pending) return pending;
+
+  const next = request<CaseApiResponse>(path).finally(() => {
+    if (pendingCaseReads.get(path) === next) pendingCaseReads.delete(path);
+  });
+  pendingCaseReads.set(path, next);
+  return next;
+}
+
 /** ตรวจว่าเป็น UUID จริงไหม — ใช้คัดว่าค่าที่ส่งมาใช้กับ backend ได้หรือไม่ */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -61,7 +74,8 @@ export const caseService = {
    *  ทั้งสองกรณีแปลว่า "หาไม่เจอ" — คืน undefined ให้หน้าเว็บจัดการ ไม่ปล่อยให้ throw จนหน้าพัง */
   async get(id: string): Promise<Case | undefined> {
     try {
-      return toCase(await request<CaseApiResponse>(`/api/cases/${id}`));
+      const path = `/api/cases/${encodeURIComponent(id)}`;
+      return toCase(await sharedCaseRead(path));
     } catch (e) {
       if (e instanceof ApiError && (e.status === 404 || e.status === 422)) return undefined;
       throw e;
