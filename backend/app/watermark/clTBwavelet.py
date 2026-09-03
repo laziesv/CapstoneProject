@@ -114,7 +114,7 @@ class clTBwavelet:
  
     # --- Transformation Helpers ---
     @staticmethod
-    def dwt(image, level=2):
+    def dwt(image, level=3):
         """
         Mimics the single-array (Mallat layout) in-place DWT behavior of TurboWavelets
         """
@@ -139,7 +139,7 @@ class clTBwavelet:
         return fdwt
 
     @staticmethod
-    def inverse_dwt(coeffs, level=2):
+    def inverse_dwt(coeffs, level=3):
         """
         Mimics the single-array (Mallat layout) in-place Inverse DWT behavior
         """
