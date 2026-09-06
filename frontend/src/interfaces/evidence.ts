@@ -176,6 +176,14 @@ export interface WatermarkVerifyApiResponse {
   dynamic_qr_png: string | null;
   static_decoded: string | null;
   dynamic_decoded: string | null;
+  evidence_integrity_status: OriginalEvidenceIntegrityState | null;
+  original_file_integrity_status: IntegrityCheckState | null;
+  database_hash_integrity_status: IntegrityCheckState | null;
+  watermark_hash_integrity_status: "VERIFIED" | "INTEGRITY_MISMATCH" | null;
+  blockchain_evidence_hash: string | null;
+  current_original_hash: string | null;
+  database_original_hash: string | null;
+  original_integrity_mismatches: IntegrityMismatch[];
   access_session_ref: string | null;
   matched_access_log_id: string | null;
   matched_user_id: string | null;
@@ -205,6 +213,18 @@ export interface WatermarkVerificationUser {
   rank: string | null;
 }
 
+export type IntegrityCheckState =
+  | "VERIFIED"
+  | "INTEGRITY_MISMATCH"
+  | "MISSING_ON_CHAIN";
+
+export type OriginalEvidenceIntegrityState =
+  | "VERIFIED"
+  | "ORIGINAL_FILE_MISMATCH"
+  | "DATABASE_HASH_MISMATCH"
+  | "ORIGINAL_AND_DATABASE_HASH_MISMATCH"
+  | "MISSING_ON_CHAIN";
+
 /** ผลถอดลายน้ำที่ frontend ใช้ — อัปโหลดภาพแล้วระบบเดาว่าเป็นหลักฐานชิ้นไหน
  *  หมายเหตุ: officer/uploaded มาจาก DB (lookup ด้วย evidence_id) ไม่ใช่จากลายน้ำ
  *  — static QR เก็บแค่ sha256(evidence_id) เท่านั้น ไม่มีข้อมูลคน/เวลา/พิกัด */
@@ -226,6 +246,14 @@ export interface VerifyResult {
   dynamicQrPng: string | null;
   staticDecoded: string | null;
   dynamicDecoded: string | null;
+  evidenceIntegrityStatus: OriginalEvidenceIntegrityState | null;
+  originalFileIntegrityStatus: IntegrityCheckState | null;
+  databaseHashIntegrityStatus: IntegrityCheckState | null;
+  watermarkHashIntegrityStatus: "VERIFIED" | "INTEGRITY_MISMATCH" | null;
+  blockchainEvidenceHash: string | null;
+  currentOriginalHash: string | null;
+  databaseOriginalHash: string | null;
+  originalIntegrityMismatches: IntegrityMismatch[];
   accessSessionRef: string | null;
   matchedAccessLogId: string | null;
   matchedUserId: string | null;

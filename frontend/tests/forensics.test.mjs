@@ -7,6 +7,8 @@ import {
   formatForensicMismatchValue,
   formatForensicUnixTime,
   formatInclusionDelay,
+  formatIntegrityState,
+  forensicMismatchLabel,
 } from "../src/utils/forensics.ts";
 
 test("formats forensic timestamps in Asia/Bangkok with one shared format", () => {
@@ -43,4 +45,26 @@ test("sorts custody events by Blockchain block despite mutable database time", (
   ));
 
   assert.deepEqual(events.map((event) => event.action), ["REGISTER", "VIEW", "DOWNLOAD"]);
+});
+
+test("formats original evidence integrity states for forensic review", () => {
+  assert.equal(
+    formatIntegrityState("ORIGINAL_FILE_MISMATCH"),
+    "ไฟล์ต้นฉบับปัจจุบันไม่ตรงกับ Blockchain",
+  );
+  assert.equal(
+    formatIntegrityState("DATABASE_HASH_MISMATCH"),
+    "ค่าแฮชในฐานข้อมูลไม่ตรงกับ Blockchain",
+  );
+});
+
+test("uses readable labels for original hash comparisons", () => {
+  assert.equal(
+    forensicMismatchLabel("original_file_bytes_hash"),
+    "ค่าแฮชของไฟล์ต้นฉบับปัจจุบัน",
+  );
+  assert.equal(
+    forensicMismatchLabel("database_original_hash"),
+    "ค่าแฮชไฟล์ต้นฉบับที่บันทึกในระบบ",
+  );
 });

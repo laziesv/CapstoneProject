@@ -20,6 +20,10 @@ from app.services.personalized_watermark_service import (
     PersonalizedWatermarkService,
     remove_personalized_copy,
 )
+from app.services.original_evidence_integrity_service import (
+    OriginalEvidenceIntegrityResult,
+    OriginalEvidenceIntegrityService,
+)
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,7 @@ class EvidenceAccessService:
         user_agent: str | None,
         blockchain_service: BlockchainIntegrationService | None = None,
         watermark_service: PersonalizedWatermarkService | None = None,
+        integrity_service: OriginalEvidenceIntegrityService | None = None,
     ) -> EvidenceDownload:
         evidence = EvidenceRepository.get_by_id(db, evidence_id)
         case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None
@@ -59,6 +64,23 @@ class EvidenceAccessService:
 
         personalized_path = None
         try:
+            service = blockchain_service or BlockchainIntegrationService()
+            integrity = (
+                integrity_service
+                or OriginalEvidenceIntegrityService(blockchain_service=service)
+            ).verify(
+                evidence_id=evidence.evidence_id,
+                original_file_path=original_file.file_path,
+                database_hash=original_file.file_hash,
+            )
+            if not integrity.verified:
+                # การตรวจสอบความถูกต้องของหลักฐาน: ต้องผ่านทั้งไฟล์จริงและ hash ใน DB
+                # ก่อนสร้างสำเนาเฉพาะบุคคลหรือบันทึก DOWNLOAD บน Blockchain
+                raise HTTPException(
+                    status_code=409,
+                    detail=EvidenceAccessService._integrity_error_detail(integrity),
+                )
+
             # การเชื่อมต่อ Blockchain: ใช้เวลาเดียวกันในฐานข้อมูลและ occurredAt บน V3
             occurred_at = datetime.now(timezone.utc).replace(microsecond=0)
             access_log = AccessLogRepository.stage_download(
@@ -79,7 +101,6 @@ class EvidenceAccessService:
             )
             personalized_path = personalized.file_path
 
-            service = blockchain_service or BlockchainIntegrationService()
             chain_result = service.record_access(
                 evidence_id=evidence.evidence_id,
                 officer_user_id=current_user.user_id,
@@ -116,3 +137,17 @@ class EvidenceAccessService:
             evidence.original_filename or f"{evidence.evidence_number}.bin"
         )
         return EvidenceDownload(file_path=personalized.file_path, filename=filename)
+
+    @staticmethod
+    def _integrity_error_detail(
+        integrity: OriginalEvidenceIntegrityResult,
+    ) -> str:
+        if integrity.status == "ORIGINAL_FILE_MISMATCH":
+            reason = "ไฟล์ต้นฉบับปัจจุบันไม่ตรงกับค่าแฮชที่บันทึกบน Blockchain"
+        elif integrity.status == "DATABASE_HASH_MISMATCH":
+            reason = "ค่าแฮชไฟล์ต้นฉบับในฐานข้อมูลไม่ตรงกับ Blockchain"
+        elif integrity.status == "ORIGINAL_AND_DATABASE_HASH_MISMATCH":
+            reason = "ไฟล์ต้นฉบับปัจจุบันและค่าแฮชในฐานข้อมูลไม่ตรงกับ Blockchain"
+        else:
+            reason = "ไม่พบค่าแฮชอ้างอิงของหลักฐานบน Blockchain"
+        return f"EVIDENCE_INTEGRITY_MISMATCH: {reason}"

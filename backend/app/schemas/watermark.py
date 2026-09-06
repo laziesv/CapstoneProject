@@ -42,6 +42,29 @@ class WatermarkExtractResponse(BaseModel):
     static_decoded: str | None = None   # ข้อความที่ decode จาก static QR (= sha256 ของ evidence_id)
     dynamic_decoded: str | None = None  # ข้อความที่ decode จาก dynamic QR (= file_hash)
 
+    # การตรวจสอบความถูกต้องของหลักฐาน: แยกไฟล์จริง, DB และ Watermark
+    # โดยใช้ evidenceHash บน Blockchain เป็นค่าอ้างอิงหลัก
+    evidence_integrity_status: Literal[
+        "VERIFIED",
+        "ORIGINAL_FILE_MISMATCH",
+        "DATABASE_HASH_MISMATCH",
+        "ORIGINAL_AND_DATABASE_HASH_MISMATCH",
+        "MISSING_ON_CHAIN",
+    ] | None = None
+    original_file_integrity_status: Literal[
+        "VERIFIED", "INTEGRITY_MISMATCH", "MISSING_ON_CHAIN"
+    ] | None = None
+    database_hash_integrity_status: Literal[
+        "VERIFIED", "INTEGRITY_MISMATCH", "MISSING_ON_CHAIN"
+    ] | None = None
+    watermark_hash_integrity_status: Literal[
+        "VERIFIED", "INTEGRITY_MISMATCH"
+    ] | None = None
+    blockchain_evidence_hash: str | None = None
+    current_original_hash: str | None = None
+    database_original_hash: str | None = None
+    original_integrity_mismatches: list[IntegrityMismatch] = Field(default_factory=list)
+
     # ตรวจสอบลายน้ำ: ส่งข้อมูลอ้างอิงการดาวน์โหลดเฉพาะเมื่อยืนยัน personalized watermark ได้
     access_session_ref: str | None = None
     matched_access_log_id: UUID | None = None

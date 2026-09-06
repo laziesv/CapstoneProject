@@ -23,6 +23,9 @@ try:
         LocalAttributionNotFoundError,
     )
     from app.services.watermark_service import WatermarkService
+    from app.services.original_evidence_integrity_service import (
+        OriginalEvidenceBlockchainReadError,
+    )
     from app.schemas.integrity import IntegrityMismatch
     from app.schemas.watermark import WatermarkExtractResponse
 finally:
@@ -42,6 +45,8 @@ class WatermarkVerificationModeTests(unittest.TestCase):
     def setUp(self):
         self.db = Mock()
         self.attribution = Mock()
+        self.integrity = Mock()
+        self.integrity.verify.return_value = self.integrity_result()
         self.matched_user = SimpleNamespace(
             user_id=USER_ID,
             badge_number="DL-002",
@@ -75,6 +80,32 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             watermarked_file=SimpleNamespace(file_path="watermarked.png"),
         )
         self.static_value = hashlib.sha256(str(EVIDENCE_ID).encode()).hexdigest()
+
+    @staticmethod
+    def integrity_result(
+        *,
+        current_hash=FILE_HASH,
+        database_hash=FILE_HASH,
+        blockchain_hash=FILE_HASH,
+        status="VERIFIED",
+        mismatches=(),
+    ):
+        return SimpleNamespace(
+            current_file_hash=current_hash,
+            database_hash=database_hash,
+            blockchain_hash=blockchain_hash,
+            current_matches_blockchain=current_hash == blockchain_hash,
+            database_matches_blockchain=database_hash == blockchain_hash,
+            current_matches_database=current_hash == database_hash,
+            status=status,
+            mismatches=mismatches,
+            original_file_integrity_status=(
+                "VERIFIED" if current_hash == blockchain_hash else "INTEGRITY_MISMATCH"
+            ),
+            database_hash_integrity_status=(
+                "VERIFIED" if database_hash == blockchain_hash else "INTEGRITY_MISMATCH"
+            ),
+        )
 
     @staticmethod
     def attribution_result(evidence_id=EVIDENCE_ID):
@@ -116,6 +147,7 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         qr = np.zeros((8, 8), dtype=np.uint8)
         codec = Mock()
         codec.extract.return_value = (qr, qr)
+        self.codec = codec
         evaluator = Mock()
         evaluator.calculate_ber.return_value = 0.0
         with (
@@ -160,6 +192,7 @@ class WatermarkVerificationModeTests(unittest.TestCase):
                 self.db,
                 b"synthetic-image",
                 attribution_service=self.attribution,
+                integrity_service=self.integrity,
             )
 
     def test_canonical_dynamic_watermark_matches_original_hash(self):
@@ -172,8 +205,81 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         self.assertEqual(result["original_filename"], "evidence.png")
         self.assertEqual(result["original_file_hash"], FILE_HASH)
         self.assertTrue(result["blockchain_verified"])
+        self.assertEqual(result["evidence_integrity_status"], "VERIFIED")
+        self.assertEqual(result["watermark_hash_integrity_status"], "VERIFIED")
+        self.assertEqual(result["blockchain_evidence_hash"], FILE_HASH)
+        self.assertEqual(result["current_original_hash"], FILE_HASH)
+        self.assertEqual(result["database_original_hash"], FILE_HASH)
         self.assertIsNone(result["matched_access_user"])
         self.attribution.resolve_by_access_session_ref.assert_not_called()
+        self.codec.extract.assert_called_once()
+        self.assertEqual(self.codec.extract.call_args.kwargs, {})
+        self.integrity.verify.assert_called_once_with(
+            evidence_id=EVIDENCE_ID,
+            original_file_path="original.png",
+            database_hash=FILE_HASH,
+        )
+        self.db.add.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_canonical_database_tamper_keeps_watermark_blockchain_valid(self):
+        database_hash = "ef" * 32
+        self.evidence.original_file.file_hash = database_hash
+        mismatch = IntegrityMismatch(
+            field="database_original_hash",
+            database_value=database_hash,
+            blockchain_value=FILE_HASH,
+        )
+        self.integrity.verify.return_value = self.integrity_result(
+            database_hash=database_hash,
+            status="DATABASE_HASH_MISMATCH",
+            mismatches=(mismatch,),
+        )
+
+        result = self.identify(FILE_HASH)
+
+        self.assertTrue(result["dynamic_ok"])
+        self.assertEqual(result["watermark_hash_integrity_status"], "VERIFIED")
+        self.assertEqual(
+            result["database_hash_integrity_status"],
+            "INTEGRITY_MISMATCH",
+        )
+        self.assertEqual(result["evidence_integrity_status"], "DATABASE_HASH_MISMATCH")
+
+    def test_canonical_current_original_tamper_is_reported_separately(self):
+        current_hash = "ef" * 32
+        mismatch = IntegrityMismatch(
+            field="original_file_bytes_hash",
+            database_value=current_hash,
+            blockchain_value=FILE_HASH,
+        )
+        self.integrity.verify.return_value = self.integrity_result(
+            current_hash=current_hash,
+            status="ORIGINAL_FILE_MISMATCH",
+            mismatches=(mismatch,),
+        )
+
+        result = self.identify(FILE_HASH)
+
+        self.assertTrue(result["dynamic_ok"])
+        self.assertEqual(
+            result["original_file_integrity_status"],
+            "INTEGRITY_MISMATCH",
+        )
+        self.assertEqual(result["evidence_integrity_status"], "ORIGINAL_FILE_MISMATCH")
+
+    def test_canonical_dynamic_hash_must_match_blockchain_not_database(self):
+        result = self.identify("ef" * 32)
+
+        self.assertFalse(result["dynamic_ok"])
+        self.assertEqual(
+            result["watermark_hash_integrity_status"],
+            "INTEGRITY_MISMATCH",
+        )
+        self.assertEqual(
+            {item.field for item in result["original_integrity_mismatches"]},
+            {"watermark_dynamic_hash"},
+        )
 
     def test_static_uploader_allows_nullable_profile_fields(self):
         self.evidence.uploader = SimpleNamespace(
@@ -290,6 +396,59 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             {"officer_ref", "action", "accessed_at"},
         )
 
+    def test_personalized_session_remains_visible_after_original_file_tamper(self):
+        current_hash = "ef" * 32
+        mismatch = IntegrityMismatch(
+            field="original_file_bytes_hash",
+            database_value=current_hash,
+            blockchain_value=FILE_HASH,
+        )
+        self.integrity.verify.return_value = self.integrity_result(
+            current_hash=current_hash,
+            status="ORIGINAL_FILE_MISMATCH",
+            mismatches=(mismatch,),
+        )
+        self.attribution.resolve_by_access_session_ref.return_value = (
+            self.attribution_result()
+        )
+
+        result = self.identify(SESSION_REF)
+
+        self.assertTrue(result["blockchain_session_verified"])
+        self.assertTrue(result["dynamic_ok"])
+        self.assertEqual(result["access_session_ref"], SESSION_REF)
+        self.assertEqual(
+            result["original_file_integrity_status"],
+            "INTEGRITY_MISMATCH",
+        )
+        self.assertEqual(result["evidence_integrity_status"], "ORIGINAL_FILE_MISMATCH")
+
+    def test_personalized_session_remains_visible_after_original_db_hash_tamper(self):
+        database_hash = "ef" * 32
+        self.evidence.original_file.file_hash = database_hash
+        mismatch = IntegrityMismatch(
+            field="database_original_hash",
+            database_value=database_hash,
+            blockchain_value=FILE_HASH,
+        )
+        self.integrity.verify.return_value = self.integrity_result(
+            database_hash=database_hash,
+            status="DATABASE_HASH_MISMATCH",
+            mismatches=(mismatch,),
+        )
+        self.attribution.resolve_by_access_session_ref.return_value = (
+            self.attribution_result()
+        )
+
+        result = self.identify(SESSION_REF)
+
+        self.assertTrue(result["blockchain_session_verified"])
+        self.assertEqual(result["access_session_ref"], SESSION_REF)
+        self.assertEqual(
+            result["database_hash_integrity_status"],
+            "INTEGRITY_MISMATCH",
+        )
+
     def test_personalized_watermark_must_match_identified_evidence(self):
         self.attribution.resolve_by_access_session_ref.return_value = (
             self.attribution_result(
@@ -343,6 +502,22 @@ class WatermarkVerificationModeTests(unittest.TestCase):
                 verify(file=upload, db=self.db, _=Mock())
 
         self.assertEqual(raised.exception.status_code, 503)
+
+    def test_original_hash_blockchain_read_failure_is_503(self):
+        upload = SimpleNamespace(file=BytesIO(b"synthetic-image"))
+        with patch.object(
+            WatermarkService,
+            "identify",
+            side_effect=OriginalEvidenceBlockchainReadError("rpc unavailable"),
+        ):
+            with self.assertRaises(HTTPException) as raised:
+                verify(file=upload, db=self.db, _=Mock())
+
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertEqual(
+            raised.exception.detail,
+            "Evidence integrity verification is unavailable",
+        )
 
 
 if __name__ == "__main__":

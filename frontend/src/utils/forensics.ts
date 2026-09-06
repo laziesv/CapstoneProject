@@ -49,6 +49,9 @@ export function formatIntegrityState(value: string | null | undefined): string {
     MISSING_ON_CHAIN: "ไม่พบรายการบน Blockchain",
     BLOCKCHAIN_UNAVAILABLE: "ไม่สามารถตรวจสอบ Blockchain ได้ในขณะนี้",
     ORPHANED_ON_CHAIN: "พบรายการบน Blockchain แต่ไม่พบข้อมูลปัจจุบันในระบบ",
+    ORIGINAL_FILE_MISMATCH: "ไฟล์ต้นฉบับปัจจุบันไม่ตรงกับ Blockchain",
+    DATABASE_HASH_MISMATCH: "ค่าแฮชในฐานข้อมูลไม่ตรงกับ Blockchain",
+    ORIGINAL_AND_DATABASE_HASH_MISMATCH: "ไฟล์ต้นฉบับและค่าแฮชในฐานข้อมูลไม่ตรงกับ Blockchain",
   };
   return value ? labels[value] ?? value : "—";
 }
@@ -64,6 +67,10 @@ export function forensicMismatchLabel(field: string): string {
     access_session_ref: "รหัสอ้างอิงรอบการเข้าถึง",
     transaction: "ธุรกรรม Blockchain",
     transaction_link: "ธุรกรรม Blockchain",
+    original_file_bytes_hash: "ค่าแฮชของไฟล์ต้นฉบับปัจจุบัน",
+    database_original_hash: "ค่าแฮชไฟล์ต้นฉบับที่บันทึกในระบบ",
+    blockchain_evidence_hash: "ค่าแฮชไฟล์ต้นฉบับอ้างอิงบน Blockchain",
+    watermark_dynamic_hash: "ค่าแฮชไฟล์ต้นฉบับที่อ่านจาก Watermark",
   };
   return labels[field] ?? field;
 }

@@ -11,10 +11,14 @@ from sqlalchemy.orm import Session
 
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.user_repository import UserRepository
+from app.schemas.integrity import IntegrityMismatch
 from app.services.leak_attribution_service import (
     BlockchainAttributionReadError,
     LeakAttributionError,
     LeakAttributionService,
+)
+from app.services.original_evidence_integrity_service import (
+    OriginalEvidenceIntegrityService,
 )
 
 
@@ -62,11 +66,11 @@ class WatermarkService:
         db: Session,
         image_bytes: bytes,
         attribution_service: LeakAttributionService | None = None,
+        integrity_service: OriginalEvidenceIntegrityService | None = None,
     ):
         """ถอดลายน้ำจากภาพที่อัปโหลด แล้วลองเทียบกับทุกหลักฐานจนเจอตัวที่ตรง (blind)
 
-        แต่ละหลักฐานใช้ต้นฉบับของตัวเองเป็น reference + file_hash เป็น key ถอด
-        เทียบผิดคู่ = descramble ด้วย seed ผิด → QR อ่านไม่ออก → ไม่ match (กัน false positive)
+        แต่ละหลักฐานใช้ต้นฉบับของตัวเองเป็น reference และ Static Watermark ระบุตัวตน
         """
         arr = np.frombuffer(image_bytes, np.uint8)
         bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
@@ -88,12 +92,20 @@ class WatermarkService:
                 continue
             y_ref = _luminance(ref)
 
-            qr_static, qr_dynamic = system.extract(
-                y_suspect, y_ref, dynamic_hash=ev.original_file.file_hash
-            )
+            qr_static, qr_dynamic = system.extract(y_suspect, y_ref)
             expected = hashlib.sha256(str(ev.evidence_id).encode("utf-8")).hexdigest()
             if clQRcodec.decodeQR(qr_static) != expected:
                 continue  # ไม่ใช่หลักฐานชิ้นนี้
+
+            # การตรวจสอบความถูกต้องของหลักฐาน: ใช้ hash บน Blockchain เป็น anchor
+            # และ re-hash ไฟล์ ORIGINAL ปัจจุบันทุกครั้งที่ตรวจสอบ
+            original_integrity = (
+                integrity_service or OriginalEvidenceIntegrityService()
+            ).verify(
+                evidence_id=ev.evidence_id,
+                original_file_path=ev.original_file.file_path,
+                database_hash=ev.original_file.file_hash,
+            )
 
             # เจอแล้ว — ประกอบผลลัพธ์ + แนบ QR ที่แกะได้ไปโชว์
             dyn_decoded = clQRcodec.decodeQR(qr_dynamic)
@@ -102,14 +114,28 @@ class WatermarkService:
             attribution = None
             matched_access_user = None
             database_access_user = None
+            watermark_hash_integrity_status = None
+            integrity_mismatches = list(original_integrity.mismatches)
 
             # ตรวจสอบลายน้ำ: รูปแบบเดิมผูกกับ hash ไฟล์ ส่วนรูปแบบเฉพาะบุคคล
             # ตรวจสอบ session ผ่านข้อมูล DB และ Blockchain แบบ read-only
             if dyn_decoded and _CANONICAL_DYNAMIC_PATTERN.fullmatch(dyn_decoded):
                 dynamic_mode = "canonical"
                 dynamic_ok = (
-                    dyn_decoded.lower() == ev.original_file.file_hash.lower()
+                    original_integrity.blockchain_hash is not None
+                    and dyn_decoded.lower() == original_integrity.blockchain_hash
                 )
+                watermark_hash_integrity_status = (
+                    "VERIFIED" if dynamic_ok else "INTEGRITY_MISMATCH"
+                )
+                if not dynamic_ok:
+                    integrity_mismatches.append(
+                        IntegrityMismatch(
+                            field="watermark_dynamic_hash",
+                            database_value=dyn_decoded.lower(),
+                            blockchain_value=original_integrity.blockchain_hash,
+                        )
+                    )
             elif dyn_decoded and _PERSONALIZED_DYNAMIC_PATTERN.fullmatch(dyn_decoded):
                 dynamic_mode = "personalized"
                 try:
@@ -158,9 +184,7 @@ class WatermarkService:
                 "uploaded_at": ev.uploaded_at,
                 "original_filename": getattr(ev, "original_filename", None),
                 "original_file_hash": ev.original_file.file_hash,
-                "blockchain_verified": bool(
-                    getattr(ev, "is_blockchain_verified", False)
-                ),
+                "blockchain_verified": original_integrity.blockchain_hash is not None,
                 "uploader": _user_profile(getattr(ev, "uploader", None)),
                 "match_percent": round((1.0 - ber) * 100.0, 1),
                 "static_ok": True,
@@ -170,6 +194,18 @@ class WatermarkService:
                 "dynamic_qr_png": _qr_data_uri(qr_dynamic),
                 "static_decoded": expected,
                 "dynamic_decoded": dyn_decoded or None,
+                "evidence_integrity_status": original_integrity.status,
+                "original_file_integrity_status": (
+                    original_integrity.original_file_integrity_status
+                ),
+                "database_hash_integrity_status": (
+                    original_integrity.database_hash_integrity_status
+                ),
+                "watermark_hash_integrity_status": watermark_hash_integrity_status,
+                "blockchain_evidence_hash": original_integrity.blockchain_hash,
+                "current_original_hash": original_integrity.current_file_hash,
+                "database_original_hash": original_integrity.database_hash,
+                "original_integrity_mismatches": integrity_mismatches,
                 "access_session_ref": (
                     attribution.access_session_ref if attribution else None
                 ),

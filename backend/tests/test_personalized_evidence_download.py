@@ -205,7 +205,10 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
         self.db = MagicMock()
         self.user = SimpleNamespace(user_id=uuid4(), role="officer")
         self.case = SimpleNamespace(case_id=uuid4())
-        self.original = SimpleNamespace(file_path="original.png")
+        self.original = SimpleNamespace(
+            file_path="original.png",
+            file_hash="ab" * 32,
+        )
         self.canonical = SimpleNamespace(file_path="canonical-watermarked.png")
         self.evidence = SimpleNamespace(
             evidence_id=uuid4(),
@@ -224,6 +227,11 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
         self.watermark = MagicMock()
         self.watermark.create_personalized_copy.return_value = SimpleNamespace(
             file_path="personalized.png",
+        )
+        self.integrity = MagicMock()
+        self.integrity.verify.return_value = SimpleNamespace(
+            verified=True,
+            status="VERIFIED",
         )
 
     @contextmanager
@@ -279,6 +287,7 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
                 user_agent="test-agent",
                 blockchain_service=self.blockchain,
                 watermark_service=self.watermark,
+                integrity_service=self.integrity,
             )
         return result, log
 
@@ -321,6 +330,7 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
                     user_agent=None,
                     blockchain_service=self.blockchain,
                     watermark_service=self.watermark,
+                    integrity_service=self.integrity,
                 )
 
         refs = [

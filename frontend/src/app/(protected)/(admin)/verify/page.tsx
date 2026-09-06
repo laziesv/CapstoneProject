@@ -142,14 +142,47 @@ function VerificationReport({ result }: { result: VerifyResult }) {
         <DataRow label="ชื่อไฟล์ต้นฉบับ" value={result.originalFilename} />
         <DataRow label="เวลาอัปโหลด" value={formatForensicDateTime(result.uploadedAt)} />
         <DataRow label="สถานะ Blockchain" value={result.blockchainVerified ? "ข้อมูลตรงกับ Blockchain" : "ไม่พบรายการบน Blockchain"} />
+        <div className="mt-4 grid gap-2">
+          {result.dynamicMode === "canonical" && (
+            <StatusText
+              label="ความถูกต้องของค่าแฮชจาก Watermark"
+              value={formatIntegrityState(result.watermarkHashIntegrityStatus)}
+              ok={result.watermarkHashIntegrityStatus === "VERIFIED"}
+            />
+          )}
+          <StatusText
+            label="ความถูกต้องของไฟล์ต้นฉบับ"
+            value={formatIntegrityState(result.originalFileIntegrityStatus)}
+            ok={result.originalFileIntegrityStatus === "VERIFIED"}
+          />
+          <StatusText
+            label="ความถูกต้องของค่าแฮชในฐานข้อมูล"
+            value={formatIntegrityState(result.databaseHashIntegrityStatus)}
+            ok={result.databaseHashIntegrityStatus === "VERIFIED"}
+          />
+        </div>
+        {result.evidenceIntegrityStatus !== "VERIFIED" && (
+          <p className="mt-4 flex items-start gap-2 text-sm text-warning">
+            <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            {formatIntegrityState(result.evidenceIntegrityStatus)}
+          </p>
+        )}
         <TechnicalDetails>
           <DataRow label="Evidence ID" value={result.evidenceId} copy />
-          <DataRow label="Original SHA-256" value={result.originalFileHash} copy />
+          {result.dynamicMode === "canonical" && (
+            <DataRow label="ค่าแฮชจาก Watermark" value={result.dynamicDecoded} copy />
+          )}
+          <DataRow label="ค่าแฮชอ้างอิงบน Blockchain" value={result.blockchainEvidenceHash} copy />
+          <DataRow label="ค่าแฮชไฟล์ต้นฉบับปัจจุบัน" value={result.currentOriginalHash} copy />
+          <DataRow label="ค่าแฮชในฐานข้อมูล" value={result.databaseOriginalHash} copy />
           <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4">
             <QrValue title="รหัสอ้างอิงหลักฐาน" png={result.staticQrPng} value={result.staticDecoded} />
             <QrValue title={dynamicWatermarkLabel(result.dynamicMode)} png={result.dynamicQrPng} value={result.dynamicDecoded} />
           </div>
         </TechnicalDetails>
+        {result.originalIntegrityMismatches.length > 0 && (
+          <IntegrityMismatchTable mismatches={result.originalIntegrityMismatches} />
+        )}
       </ReportCard>
 
       <ReportCard icon={<UserRound className="h-5 w-5" />} title="ผู้อัปโหลดหลักฐาน">
@@ -169,7 +202,17 @@ function VerificationReport({ result }: { result: VerifyResult }) {
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <StatusText label="สถานะรายการบน Blockchain" value="ข้อมูลตรงกัน" ok />
             <StatusText
-              label="ความถูกต้องของข้อมูลในฐานข้อมูล"
+              label="ความถูกต้องของไฟล์ต้นฉบับ"
+              value={formatIntegrityState(result.originalFileIntegrityStatus)}
+              ok={result.originalFileIntegrityStatus === "VERIFIED"}
+            />
+            <StatusText
+              label="ความถูกต้องของค่าแฮชต้นฉบับในฐานข้อมูล"
+              value={formatIntegrityState(result.databaseHashIntegrityStatus)}
+              ok={result.databaseHashIntegrityStatus === "VERIFIED"}
+            />
+            <StatusText
+              label="ความถูกต้องของข้อมูล Download Session ในฐานข้อมูล"
               value={formatIntegrityState(result.databaseIntegrityState)}
               ok={result.databaseIntegrityState === "VERIFIED"}
             />

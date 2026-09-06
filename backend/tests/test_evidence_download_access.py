@@ -25,7 +25,10 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             assigned_officer=None,
         )
         self.file = SimpleNamespace(file_path="watermarked.png")
-        self.original_file = SimpleNamespace(file_path="original.png")
+        self.original_file = SimpleNamespace(
+            file_path="original.png",
+            file_hash="ab" * 32,
+        )
         self.evidence = SimpleNamespace(
             evidence_id=uuid4(),
             evidence_number="EV-TEST",
@@ -45,6 +48,12 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.watermark = MagicMock()
         self.watermark.create_personalized_copy.return_value = SimpleNamespace(
             file_path="personalized.png",
+            file_hash="cd" * 32,
+        )
+        self.integrity = MagicMock()
+        self.integrity.verify.return_value = SimpleNamespace(
+            verified=True,
+            status="VERIFIED",
         )
 
     def prepare(self):
@@ -74,6 +83,8 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                 return_value=self.transaction,
             ) as stage_transaction,
         ):
+            self.stage_log = stage_log
+            self.stage_transaction = stage_transaction
             result = EvidenceAccessService.prepare_download(
                 self.db,
                 evidence_id=self.evidence.evidence_id,
@@ -82,6 +93,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                 user_agent="test-agent",
                 blockchain_service=self.blockchain,
                 watermark_service=self.watermark,
+                integrity_service=self.integrity,
             )
         return result, stage_log, stage_transaction
 
@@ -118,6 +130,11 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.assertEqual(result.file_path, "personalized.png")
         self.assertNotEqual(result.file_path, self.original_file.file_path)
         self.assertNotEqual(result.file_path, self.file.file_path)
+        self.integrity.verify.assert_called_once_with(
+            evidence_id=self.evidence.evidence_id,
+            original_file_path=self.original_file.file_path,
+            database_hash=self.original_file.file_hash,
+        )
 
     def test_authorization_happens_before_staging_or_chain_write(self):
         with (
@@ -228,6 +245,69 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.assertEqual(raised.exception.status_code, 503)
         self.blockchain.record_access.assert_called_once()
         self.db.rollback.assert_called_once_with()
+        self.db.commit.assert_not_called()
+
+    def test_changed_original_file_blocks_before_any_download_write(self):
+        self.integrity.verify.return_value = SimpleNamespace(
+            verified=False,
+            status="ORIGINAL_FILE_MISMATCH",
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            self.prepare()
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("EVIDENCE_INTEGRITY_MISMATCH", raised.exception.detail)
+        self.stage_log.assert_not_called()
+        self.watermark.create_personalized_copy.assert_not_called()
+        self.blockchain.record_access.assert_not_called()
+        self.stage_transaction.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_changed_database_hash_blocks_before_personalization(self):
+        self.integrity.verify.return_value = SimpleNamespace(
+            verified=False,
+            status="DATABASE_HASH_MISMATCH",
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            self.prepare()
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("ฐานข้อมูล", raised.exception.detail)
+        self.stage_log.assert_not_called()
+        self.watermark.create_personalized_copy.assert_not_called()
+        self.blockchain.record_access.assert_not_called()
+        self.stage_transaction.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_original_and_database_mismatch_returns_combined_reason(self):
+        self.integrity.verify.return_value = SimpleNamespace(
+            verified=False,
+            status="ORIGINAL_AND_DATABASE_HASH_MISMATCH",
+        )
+
+        with self.assertRaises(HTTPException) as raised:
+            self.prepare()
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertIn("ไฟล์ต้นฉบับปัจจุบันและค่าแฮชในฐานข้อมูล", raised.exception.detail)
+        self.stage_log.assert_not_called()
+        self.watermark.create_personalized_copy.assert_not_called()
+        self.blockchain.record_access.assert_not_called()
+        self.stage_transaction.assert_not_called()
+
+    def test_integrity_read_failure_keeps_503_and_creates_no_custody_write(self):
+        self.integrity.verify.side_effect = RuntimeError("rpc unavailable")
+
+        with self.assertRaises(HTTPException) as raised:
+            self.prepare()
+
+        self.assertEqual(raised.exception.status_code, 503)
+        self.stage_log.assert_not_called()
+        self.watermark.create_personalized_copy.assert_not_called()
+        self.blockchain.record_access.assert_not_called()
+        self.stage_transaction.assert_not_called()
         self.db.commit.assert_not_called()
 
     def test_commit_failure_after_chain_success_does_not_retry(self):

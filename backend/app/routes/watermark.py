@@ -7,6 +7,9 @@ from app.models.users import User
 from app.schemas.watermark import WatermarkExtractResponse
 from app.services.watermark_service import WatermarkService
 from app.services.leak_attribution_service import BlockchainAttributionReadError
+from app.services.original_evidence_integrity_service import (
+    OriginalEvidenceIntegrityError,
+)
 
 
 router = APIRouter(
@@ -33,4 +36,9 @@ def verify(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Personalized watermark verification is unavailable",
+        ) from exc
+    except OriginalEvidenceIntegrityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Evidence integrity verification is unavailable",
         ) from exc
