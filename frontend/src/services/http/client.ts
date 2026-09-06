@@ -7,10 +7,20 @@ import { getToken, clearSession } from "@/utils/session";
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code: string | null;
+  details: Record<string, unknown> | null;
+
+  constructor(
+    message: string,
+    status: number,
+    code: string | null = null,
+    details: Record<string, unknown> | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -43,9 +53,25 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
 async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
+    const detail = data?.detail;
+    const structuredDetail = (
+      detail !== null
+      && typeof detail === "object"
+      && !Array.isArray(detail)
+    ) ? detail as Record<string, unknown> : null;
+    const message = typeof detail === "string"
+      ? detail
+      : typeof structuredDetail?.message === "string"
+        ? structuredDetail.message
+        : "เกิดข้อผิดพลาด";
+    const code = typeof structuredDetail?.code === "string"
+      ? structuredDetail.code
+      : null;
     throw new ApiError(
-      data?.detail?.toString?.() ?? "เกิดข้อผิดพลาด",
-      res.status
+      message,
+      res.status,
+      code,
+      structuredDetail,
     );
   }
   if (res.status === 204) return undefined as T;

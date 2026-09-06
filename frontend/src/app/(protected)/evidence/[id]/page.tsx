@@ -3,15 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Link2, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ShieldCheck, Link2, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
-import { caseService, evidenceService } from "@/services";
+import { ApiError, caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { ChainOfCustodyPanel } from "@/components/evidence/ChainOfCustodyPanel";
+import {
+  downloadErrorDialog,
+  type DownloadErrorDialogContent,
+} from "@/utils/evidenceDownloadError";
 
 
 export default function EvidenceDetailPage() {
@@ -21,6 +25,7 @@ export default function EvidenceDetailPage() {
   const [evidence, setEvidence] = useState<EvidenceItem | null | undefined>(undefined);
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
   const [downloading, setDownloading] = useState(false);
+  const [downloadDialog, setDownloadDialog] = useState<DownloadErrorDialogContent | null>(null);
   const downloadInProgress = useRef(false);
 
   useEffect(() => {
@@ -54,6 +59,7 @@ export default function EvidenceDetailPage() {
     if (downloadInProgress.current) return;
     downloadInProgress.current = true;
     setDownloading(true);
+    setDownloadDialog(null);
     try {
       const blob = await evidenceService.download(evidence.evidence_id);
       const url = URL.createObjectURL(blob);
@@ -65,6 +71,12 @@ export default function EvidenceDetailPage() {
       } finally {
         URL.revokeObjectURL(url);
       }
+    } catch (cause) {
+      setDownloadDialog(downloadErrorDialog(
+        cause instanceof ApiError
+          ? cause
+          : { message: "เกิดข้อผิดพลาดระหว่างดาวน์โหลด กรุณาลองใหม่อีกครั้ง" },
+      ));
     } finally {
       downloadInProgress.current = false;
       setDownloading(false);
@@ -229,7 +241,25 @@ export default function EvidenceDetailPage() {
         </div>
       </div>
 
-      {isAdmin && <ChainOfCustodyPanel evidenceId={evidence.evidence_id} />}
+      {isAdmin && (
+        <div id="chain-of-custody">
+          <ChainOfCustodyPanel evidenceId={evidence.evidence_id} />
+        </div>
+      )}
+
+      {downloadDialog && (
+        <DownloadErrorModal
+          content={downloadDialog}
+          onClose={() => setDownloadDialog(null)}
+          onViewChainOfCustody={isAdmin ? () => {
+            setDownloadDialog(null);
+            document.getElementById("chain-of-custody")?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          } : undefined}
+        />
+      )}
     </div>
   );
 }
@@ -256,5 +286,49 @@ function StatusPill({ ok, icon: Icon, okText, noText }: { ok: boolean; icon: Luc
       <Icon className="h-3.5 w-3.5" />
       {ok ? okText : noText}
     </span>
+  );
+}
+
+function DownloadErrorModal({
+  content,
+  onClose,
+  onViewChainOfCustody,
+}: {
+  content: DownloadErrorDialogContent;
+  onClose: () => void;
+  onViewChainOfCustody?: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation">
+      <section
+        aria-labelledby="download-error-title"
+        aria-modal="true"
+        className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-xl"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" />
+            <div>
+              <h2 id="download-error-title" className="font-semibold">{content.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">{content.message}</p>
+            </div>
+          </div>
+          <button type="button" aria-label="ปิด" title="ปิด" className="text-muted hover:text-text" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          {onViewChainOfCustody && content.kind === "integrity" && (
+            <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-hover" onClick={onViewChainOfCustody}>
+              <Link2 className="h-4 w-4" /> ดู Chain of Custody
+            </button>
+          )}
+          <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90" onClick={onClose}>
+            <CheckCircle2 className="h-4 w-4" /> รับทราบ
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }

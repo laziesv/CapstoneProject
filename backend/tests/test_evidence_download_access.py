@@ -257,7 +257,14 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             self.prepare()
 
         self.assertEqual(raised.exception.status_code, 409)
-        self.assertIn("EVIDENCE_INTEGRITY_MISMATCH", raised.exception.detail)
+        self.assertEqual(
+            raised.exception.detail["code"],
+            "EVIDENCE_INTEGRITY_MISMATCH",
+        )
+        self.assertEqual(
+            raised.exception.detail["mismatch_type"],
+            "ORIGINAL_FILE_MISMATCH",
+        )
         self.stage_log.assert_not_called()
         self.watermark.create_personalized_copy.assert_not_called()
         self.blockchain.record_access.assert_not_called()
@@ -274,7 +281,14 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             self.prepare()
 
         self.assertEqual(raised.exception.status_code, 409)
-        self.assertIn("ฐานข้อมูล", raised.exception.detail)
+        self.assertEqual(
+            raised.exception.detail,
+            {
+                "code": "EVIDENCE_INTEGRITY_MISMATCH",
+                "mismatch_type": "DATABASE_HASH_MISMATCH",
+                "message": "ค่าแฮชไฟล์ต้นฉบับในฐานข้อมูลไม่ตรงกับ Blockchain",
+            },
+        )
         self.stage_log.assert_not_called()
         self.watermark.create_personalized_copy.assert_not_called()
         self.blockchain.record_access.assert_not_called()
@@ -291,7 +305,14 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             self.prepare()
 
         self.assertEqual(raised.exception.status_code, 409)
-        self.assertIn("ไฟล์ต้นฉบับปัจจุบันและค่าแฮชในฐานข้อมูล", raised.exception.detail)
+        self.assertEqual(
+            raised.exception.detail["mismatch_type"],
+            "ORIGINAL_AND_DATABASE_HASH_MISMATCH",
+        )
+        self.assertIn(
+            "ไฟล์ต้นฉบับปัจจุบันและค่าแฮชในฐานข้อมูล",
+            raised.exception.detail["message"],
+        )
         self.stage_log.assert_not_called()
         self.watermark.create_personalized_copy.assert_not_called()
         self.blockchain.record_access.assert_not_called()

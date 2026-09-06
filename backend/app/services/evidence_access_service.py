@@ -141,7 +141,7 @@ class EvidenceAccessService:
     @staticmethod
     def _integrity_error_detail(
         integrity: OriginalEvidenceIntegrityResult,
-    ) -> str:
+    ) -> dict[str, str]:
         if integrity.status == "ORIGINAL_FILE_MISMATCH":
             reason = "ไฟล์ต้นฉบับปัจจุบันไม่ตรงกับค่าแฮชที่บันทึกบน Blockchain"
         elif integrity.status == "DATABASE_HASH_MISMATCH":
@@ -150,4 +150,10 @@ class EvidenceAccessService:
             reason = "ไฟล์ต้นฉบับปัจจุบันและค่าแฮชในฐานข้อมูลไม่ตรงกับ Blockchain"
         else:
             reason = "ไม่พบค่าแฮชอ้างอิงของหลักฐานบน Blockchain"
-        return f"EVIDENCE_INTEGRITY_MISMATCH: {reason}"
+        # การตรวจสอบความถูกต้องของหลักฐาน: ส่งรหัสคงที่ให้ UI เลือกข้อความ
+        # โดยไม่ต้องแยกข้อความภาษาไทยที่อาจเปลี่ยนในอนาคต
+        return {
+            "code": "EVIDENCE_INTEGRITY_MISMATCH",
+            "mismatch_type": integrity.status,
+            "message": reason,
+        }
