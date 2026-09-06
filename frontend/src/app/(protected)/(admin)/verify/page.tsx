@@ -27,6 +27,7 @@ import {
   formatForensicUnixTime,
   formatInclusionDelay,
   formatIntegrityState,
+  shouldShowMatchedDownloadSession,
 } from "@/utils/forensics";
 
 export default function VerifyPage() {
@@ -189,7 +190,7 @@ function VerificationReport({ result }: { result: VerifyResult }) {
         <UserProfile profile={result.uploader} />
       </ReportCard>
 
-      {result.dynamicMode === "personalized" && result.dynamicOk && result.blockchainSessionVerified && (
+      {shouldShowMatchedDownloadSession(result) && (
         <section className="rounded-lg border border-border bg-surface p-5 lg:col-span-2">
           <div className="flex items-center gap-2">
             <Fingerprint className="h-5 w-5 text-primary" />

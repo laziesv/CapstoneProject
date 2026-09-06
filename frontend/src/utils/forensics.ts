@@ -114,6 +114,16 @@ export interface BlockchainOrderValue {
   stableKey: string;
 }
 
+export function shouldShowMatchedDownloadSession(result: {
+  dynamicMode: string | null;
+  blockchainSessionVerified: boolean;
+}): boolean {
+  // การตรวจสอบเชิงนิติพิสูจน์: session บน Blockchain เป็นอิสระจาก
+  // ความถูกต้องของไฟล์ต้นฉบับหรือค่า hash ที่แก้ไขได้ในฐานข้อมูล
+  return result.dynamicMode === "personalized"
+    && result.blockchainSessionVerified;
+}
+
 export function compareBlockchainOrder(
   left: BlockchainOrderValue,
   right: BlockchainOrderValue,

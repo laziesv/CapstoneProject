@@ -334,6 +334,8 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         response = WatermarkExtractResponse(**result).model_dump()
         self.assertEqual(response["uploader"]["user_id"], UPLOADER_ID)
         self.assertEqual(response["matched_access_user"]["user_id"], USER_ID)
+        self.db.add.assert_not_called()
+        self.db.commit.assert_not_called()
 
     def test_personalized_database_tamper_preserves_chain_session_and_warnings(self):
         database_user_id = UUID("66666666-6666-4666-8666-666666666666")
@@ -448,6 +450,57 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             result["database_hash_integrity_status"],
             "INTEGRITY_MISMATCH",
         )
+
+    def test_personalized_session_remains_visible_when_file_and_db_are_tampered(self):
+        current_hash = "ef" * 32
+        database_hash = "12" * 32
+        self.evidence.original_file.file_hash = database_hash
+        mismatches = (
+            IntegrityMismatch(
+                field="original_file_bytes_hash",
+                database_value=current_hash,
+                blockchain_value=FILE_HASH,
+            ),
+            IntegrityMismatch(
+                field="database_original_hash",
+                database_value=database_hash,
+                blockchain_value=FILE_HASH,
+            ),
+        )
+        self.integrity.verify.return_value = self.integrity_result(
+            current_hash=current_hash,
+            database_hash=database_hash,
+            status="ORIGINAL_AND_DATABASE_HASH_MISMATCH",
+            mismatches=mismatches,
+        )
+        self.attribution.resolve_by_access_session_ref.return_value = (
+            self.attribution_result()
+        )
+
+        result = self.identify(SESSION_REF)
+
+        self.assertTrue(result["blockchain_session_verified"])
+        self.assertEqual(result["access_session_ref"], SESSION_REF)
+        self.assertIsNotNone(result["matched_access_user"])
+        self.assertEqual(
+            result["original_file_integrity_status"],
+            "INTEGRITY_MISMATCH",
+        )
+        self.assertEqual(
+            result["database_hash_integrity_status"],
+            "INTEGRITY_MISMATCH",
+        )
+
+    def test_personalized_session_remains_visible_without_resolved_actor_profile(self):
+        attribution = self.attribution_result()
+        attribution.matched_user = None
+        self.attribution.resolve_by_access_session_ref.return_value = attribution
+
+        result = self.identify(SESSION_REF)
+
+        self.assertTrue(result["blockchain_session_verified"])
+        self.assertEqual(result["access_session_ref"], SESSION_REF)
+        self.assertIsNone(result["matched_access_user"])
 
     def test_personalized_watermark_must_match_identified_evidence(self):
         self.attribution.resolve_by_access_session_ref.return_value = (

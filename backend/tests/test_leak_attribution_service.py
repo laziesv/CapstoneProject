@@ -191,11 +191,43 @@ class LeakAttributionServiceTests(unittest.TestCase):
         with self.assertRaises(BlockchainAttributionReadError):
             self.service.resolve_by_access_session_ref(self.db, SESSION_REF)
 
-    def test_missing_local_access_log_is_unresolved(self):
+    def test_missing_local_access_log_preserves_verified_chain_session(self):
         self.db.query.return_value.all.return_value = []
 
-        with self.assertRaises(LocalAttributionNotFoundError):
-            self.service.resolve_by_access_session_ref(self.db, SESSION_REF)
+        with self.local_records():
+            result = self.service.resolve_by_access_session_ref(
+                self.db,
+                SESSION_REF,
+                expected_evidence_id=EVIDENCE_ID,
+            )
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.blockchain.evidence_ref, EVIDENCE_REF)
+        self.assertEqual(result.blockchain.officer_ref, OFFICER_REF)
+        self.assertEqual(result.blockchain.action, AuditAction.DOWNLOAD.value)
+        self.assertEqual(result.matched_user.user_id, USER_ID)
+        self.assertIsNone(result.matched_access)
+        self.assertIsNone(result.database_user)
+        self.assertIsNone(result.transaction)
+        self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
+
+    def test_missing_actor_profile_keeps_verified_chain_session(self):
+        with self.local_records(user=None), patch.object(
+            UserRepository,
+            "list",
+            return_value=[],
+        ):
+            result = self.service.resolve_by_access_session_ref(
+                self.db,
+                SESSION_REF,
+                expected_evidence_id=EVIDENCE_ID,
+            )
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.access_session_ref, SESSION_REF)
+        self.assertIsNone(result.matched_user)
+        self.assertEqual(result.blockchain.officer_ref, OFFICER_REF)
+        self.assertEqual(result.blockchain.action, AuditAction.DOWNLOAD.value)
 
     def test_access_log_session_ref_mismatch_is_reported(self):
         mismatched_log = SimpleNamespace(

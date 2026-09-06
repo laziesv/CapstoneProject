@@ -9,6 +9,7 @@ import {
   formatInclusionDelay,
   formatIntegrityState,
   forensicMismatchLabel,
+  shouldShowMatchedDownloadSession,
 } from "../src/utils/forensics.ts";
 
 test("formats forensic timestamps in Asia/Bangkok with one shared format", () => {
@@ -66,5 +67,35 @@ test("uses readable labels for original hash comparisons", () => {
   assert.equal(
     forensicMismatchLabel("database_original_hash"),
     "ค่าแฮชไฟล์ต้นฉบับที่บันทึกในระบบ",
+  );
+});
+
+test("keeps a verified personalized session visible under integrity warnings", () => {
+  assert.equal(
+    shouldShowMatchedDownloadSession({
+      dynamicMode: "personalized",
+      blockchainSessionVerified: true,
+      dynamicOk: false,
+      originalFileIntegrityStatus: "INTEGRITY_MISMATCH",
+      databaseHashIntegrityStatus: "INTEGRITY_MISMATCH",
+    }),
+    true,
+  );
+});
+
+test("hides attribution when no personalized blockchain session is verified", () => {
+  assert.equal(
+    shouldShowMatchedDownloadSession({
+      dynamicMode: "personalized",
+      blockchainSessionVerified: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowMatchedDownloadSession({
+      dynamicMode: "canonical",
+      blockchainSessionVerified: true,
+    }),
+    false,
   );
 });
