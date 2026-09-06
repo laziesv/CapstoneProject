@@ -2,6 +2,11 @@ export interface ChainUserIdentity {
   user_id: string;
   display_name: string;
   role: string;
+  badge_number: string | null;
+  username: string;
+  email: string;
+  full_name: string | null;
+  rank: string | null;
 }
 
 export interface ChainTransactionMetadata {

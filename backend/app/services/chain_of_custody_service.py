@@ -101,14 +101,13 @@ class ChainOfCustodyService:
                 and self._enum_value(access_log.result) == AuditResult.SUCCESS.value
             )
         ]
-        user_ids = {evidence.uploaded_by} | {
-            access_log.user_id for access_log in access_logs
+        users_by_ref = {
+            derive_actor_ref(user.user_id): user
+            for user in UserRepository.list(db)
         }
-        users = {
-            user.user_id: user
-            for user in UserRepository.get_by_ids(db, user_ids)
-        }
-        uploader = self._user_identity(users.get(evidence.uploaded_by))
+        # การแสดงผลเชิงนิติพิสูจน์: เลือกโปรไฟล์จาก reference บน Blockchain
+        # แทนการถือว่า user_id ที่แก้ไขได้ใน AccessLog เป็นตัวตนหลัก
+        uploader = self._user_identity(users_by_ref.get(uploader_ref))
 
         registration_rows = (
             BlockchainTransactionRepository.get_by_evidence_and_action(
@@ -147,11 +146,12 @@ class ChainOfCustodyService:
             self._access_item(
                 evidence_ref=evidence_ref,
                 access_log=access_log,
-                user=users.get(access_log.user_id),
+                users_by_ref=users_by_ref,
                 transaction=access_transactions.get(access_log.tx_internal_id),
             )
             for access_log in access_logs
         ]
+        access_history.sort(key=self._access_order_key)
         access_records_verified = sum(item.verified for item in access_history)
         access_records_total = len(access_history)
         verified = bool(
@@ -200,7 +200,7 @@ class ChainOfCustodyService:
         *,
         evidence_ref: str,
         access_log: Any,
-        user: Any,
+        users_by_ref: dict[str, Any],
         transaction: Any,
     ) -> ChainAccessHistoryItem:
         access_session_ref = derive_access_session_ref(access_log.log_id)
@@ -229,6 +229,7 @@ class ChainOfCustodyService:
                 recorded_at=self._chain_recorded_at(chain_access),
                 writer=self._chain_writer(chain_access),
             )
+        chain_user = users_by_ref.get(chain_officer_ref)
 
         evidence_ref_matches = session_exists and chain_evidence_ref == evidence_ref
         officer_ref_matches = (
@@ -257,7 +258,7 @@ class ChainOfCustodyService:
             and action_matches
             and occurred_at_matches
             and transaction_matches
-            and user is not None
+            and chain_user is not None
         )
         mismatches = self._access_mismatches(
             access_session_ref=access_session_ref,
@@ -274,7 +275,7 @@ class ChainOfCustodyService:
         return ChainAccessHistoryItem(
             access_log_id=access_log.log_id,
             access_session_ref=access_session_ref,
-            user=self._user_identity(user),
+            user=self._user_identity(chain_user),
             action=self._enum_value(access_log.action),
             accessed_at=access_log.accessed_at,
             blockchain=blockchain_metadata,
@@ -548,6 +549,26 @@ class ChainOfCustodyService:
         )
 
     @staticmethod
+    def _access_order_key(item: ChainAccessHistoryItem) -> tuple[int, int, int, str]:
+        # การแสดงผลเชิงนิติพิสูจน์: ใช้ลำดับที่ยืนยันบน Blockchain ก่อนเวลาใน DB
+        block_number = (
+            item.transaction.block_number
+            if item.transaction is not None
+            else None
+        )
+        recorded_at = (
+            item.blockchain.recorded_at
+            if item.blockchain is not None
+            else None
+        )
+        return (
+            0 if block_number is not None else 1,
+            block_number if block_number is not None else 0,
+            recorded_at if recorded_at is not None else 0,
+            str(item.access_log_id),
+        )
+
+    @staticmethod
     def _user_identity(user: Any) -> ChainUserIdentity | None:
         if user is None:
             return None
@@ -555,6 +576,11 @@ class ChainOfCustodyService:
             user_id=user.user_id,
             display_name=user.full_name or user.username,
             role=user.role,
+            badge_number=user.badge_number,
+            username=user.username,
+            email=user.email,
+            full_name=user.full_name,
+            rank=user.rank,
         )
 
     @staticmethod

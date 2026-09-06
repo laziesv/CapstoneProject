@@ -68,6 +68,9 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
                 user_id=UPLOADER_ID,
                 full_name="Upload Officer",
                 username="uploader",
+                email="uploader@example.test",
+                badge_number="UP-001",
+                rank="Inspector",
                 role="officer",
                 password_hash="hidden-uploader-password",
             ),
@@ -75,6 +78,9 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
                 user_id=OFFICER_A_ID,
                 full_name="Access Officer A",
                 username="officer-a",
+                email="officer-a@example.test",
+                badge_number="OF-001",
+                rank="Officer",
                 role="officer",
                 password_hash="hidden-a-password",
             ),
@@ -82,6 +88,9 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
                 user_id=OFFICER_B_ID,
                 full_name=None,
                 username="officer-b",
+                email="officer-b@example.test",
+                badge_number="OF-002",
+                rank="Supervisor",
                 role="supervisor",
                 password_hash="hidden-b-password",
             ),
@@ -184,7 +193,7 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
             ),
             patch.object(
                 UserRepository,
-                "get_by_ids",
+                "list",
                 return_value=self.users,
             ),
             patch.object(
@@ -216,6 +225,12 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
         self.assertEqual(result.evidence.evidence_hash, "0x" + ORIGINAL_HASH)
         self.assertNotEqual(result.evidence.original_sha256, WATERMARKED_HASH)
         self.assertEqual(result.uploader.display_name, "Upload Officer")
+        self.assertEqual(result.uploader.badge_number, "UP-001")
+        self.assertEqual(result.access_history[0].user.username, "officer-a")
+        self.assertEqual(
+            result.access_history[0].user.email,
+            "officer-a@example.test",
+        )
         self.assertTrue(result.registration_transaction.verified)
         self.assertEqual(len(result.access_history), 2)
         self.assertTrue(all(item.verified for item in result.access_history))
@@ -240,6 +255,79 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
             "private_key",
         ):
             self.assertNotIn(forbidden, serialized)
+
+    def test_access_history_uses_blockchain_order_not_database_time(self):
+        first_log, second_log = self.access_logs
+        first_log.action = AuditAction.VIEW
+        first_log.accessed_at = datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc)
+        second_log.accessed_at = datetime(2026, 8, 18, 9, 0, tzinfo=timezone.utc)
+        self.access_logs[:] = [second_log, first_log]
+        self.registration_tx.block_number = 100
+        self.access_transactions[0].block_number = 102
+        self.access_transactions[1].block_number = 105
+
+        chain_records = self.chain.get_access_by_session.side_effect.__self__
+        first_chain = chain_records[derive_access_session_ref(first_log.log_id)]
+        first_chain["action"] = AccessAction.VIEW
+        first_chain["occurred_at"] = int(first_log.accessed_at.timestamp())
+        second_chain = chain_records[derive_access_session_ref(second_log.log_id)]
+        second_chain["occurred_at"] = int(second_log.accessed_at.timestamp())
+
+        result = self.get_result()
+
+        self.assertEqual(result.registration_transaction.block_number, 100)
+        self.assertEqual(
+            [item.action for item in result.access_history],
+            [AuditAction.VIEW.value, AuditAction.DOWNLOAD.value],
+        )
+        self.assertEqual(
+            [item.transaction.block_number for item in result.access_history],
+            [102, 105],
+        )
+
+    def test_tampered_database_user_link_keeps_blockchain_resolved_actor(self):
+        self.access_logs[0].user_id = OFFICER_B_ID
+
+        result = self.get_result()
+
+        first = next(
+            item for item in result.access_history if item.access_log_id == ACCESS_A_ID
+        )
+        self.assertEqual(first.user.user_id, OFFICER_A_ID)
+        self.assertEqual(first.user.badge_number, "OF-001")
+        self.assertFalse(first.verification.officer_ref_matches)
+        self.assertFalse(first.verified)
+
+    def test_unknown_blockchain_actor_preserves_reference_without_profile(self):
+        unknown_user_id = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+        chain_records = self.chain.get_access_by_session.side_effect.__self__
+        chain_records[derive_access_session_ref(ACCESS_A_ID)]["officer_ref"] = (
+            derive_actor_ref(unknown_user_id)
+        )
+
+        result = self.get_result()
+
+        first = next(
+            item for item in result.access_history if item.access_log_id == ACCESS_A_ID
+        )
+        self.assertIsNone(first.user)
+        self.assertEqual(
+            first.blockchain.officer_ref,
+            derive_actor_ref(unknown_user_id),
+        )
+
+    def test_profile_changes_do_not_claim_on_chain_field_verification(self):
+        self.users[1].email = "current-profile@example.test"
+        self.users[1].badge_number = "CURRENT-009"
+
+        result = self.get_result()
+
+        first = next(
+            item for item in result.access_history if item.access_log_id == ACCESS_A_ID
+        )
+        self.assertTrue(first.verified)
+        self.assertEqual(first.user.email, "current-profile@example.test")
+        self.assertEqual(first.user.badge_number, "CURRENT-009")
 
     def test_watermarked_hash_is_never_used_as_registration_anchor(self):
         self.original_file.file_hash = "ef" * 32

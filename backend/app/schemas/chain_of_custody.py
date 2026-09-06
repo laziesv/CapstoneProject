@@ -21,6 +21,11 @@ class ChainUserIdentity(BaseModel):
     user_id: UUID
     display_name: str
     role: str
+    badge_number: str | None = None
+    username: str
+    email: str
+    full_name: str | None = None
+    rank: str | None = None
 
 
 class ChainTransactionMetadata(BaseModel):
