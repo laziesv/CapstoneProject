@@ -28,7 +28,7 @@ class BlockchainTransactionSummary(BaseModel):
     tx_hash: str
     from_address: str | None = None
     to_address: str | None = None
-    transaction_index: int
+    transaction_index: int | None = None
     is_registry_transaction: bool
 
 
@@ -39,6 +39,14 @@ class BlockchainBlockResponse(BaseModel):
     parent_hash: str
     transaction_count: int
     transactions: list[BlockchainTransactionSummary] = Field(default_factory=list)
+
+
+class BlockchainRelatedEvidence(BaseModel):
+    evidence_hash: str
+    uploader_ref: str
+    recorded_at: int
+    writer: str
+    uploader: BlockchainExplorerUser | None = None
 
 
 class BlockchainRegistryEvent(BaseModel):
@@ -54,8 +62,13 @@ class BlockchainRegistryEvent(BaseModel):
     writer: str
     tx_hash: str
     block_number: int
-    transaction_index: int
-    log_index: int
+    transaction_index: int | None = None
+    log_index: int | None = None
+    evidence_id: UUID | None = None
+    evidence_number: str | None = None
+    actor: BlockchainExplorerUser | None = None
+    uploader: BlockchainExplorerUser | None = None
+    related_evidence: BlockchainRelatedEvidence | None = None
 
 
 class BlockchainTransactionResponse(BaseModel):
@@ -64,7 +77,7 @@ class BlockchainTransactionResponse(BaseModel):
     block_number: int
     from_address: str | None = None
     to_address: str | None = None
-    transaction_index: int
+    transaction_index: int | None = None
     gas_used: int
     contract_address: str | None = None
     is_registry_transaction: bool
@@ -80,6 +93,7 @@ class BlockchainEvidenceRegistration(BaseModel):
     block_number: int | None = None
     transaction_index: int | None = None
     log_index: int | None = None
+    uploader: BlockchainExplorerUser | None = None
 
 
 class BlockchainAccessEvent(BaseModel):
@@ -122,5 +136,6 @@ class BlockchainAccessSessionResponse(BaseModel):
     evidence_id: UUID | None = None
     evidence_number: str | None = None
     actor: BlockchainExplorerUser | None = None
+    related_evidence: BlockchainRelatedEvidence | None = None
     database_access_log_found: bool = False
     database_access_log_id: UUID | None = None

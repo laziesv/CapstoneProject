@@ -180,13 +180,17 @@ function VerificationCheckCard({ check }: { check: VerificationCheckPresentation
 }
 
 function VerificationReport({ result }: { result: VerifyResult }) {
+  const hasOriginalHashMismatch = result.evidenceIntegrityStatus !== "VERIFIED"
+    || result.originalFileIntegrityStatus === "INTEGRITY_MISMATCH"
+    || result.databaseHashIntegrityStatus === "INTEGRITY_MISMATCH"
+    || result.watermarkHashIntegrityStatus === "INTEGRITY_MISMATCH";
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <ReportCard icon={<FileCheck2 className="h-5 w-5" />} title="ข้อมูลหลักฐาน">
         <DataRow label="หมายเลขหลักฐาน" value={result.evidenceNumber} />
         <DataRow label="ชื่อไฟล์ต้นฉบับ" value={result.originalFilename} />
         <DataRow label="เวลาอัปโหลด" value={formatForensicDateTime(result.uploadedAt)} />
-        <DataRow label="สถานะ Blockchain" value={result.blockchainVerified ? "ข้อมูลตรงกับ Blockchain" : "ไม่พบรายการบน Blockchain"} />
+        <DataRow label="สถานะ Blockchain" value={result.blockchainVerified ? "พบ EvidenceRecord บน Blockchain" : "ไม่พบรายการบน Blockchain"} />
         <div className="mt-4 grid gap-2">
           {result.dynamicMode === "canonical" && (
             <StatusText
@@ -212,14 +216,19 @@ function VerificationReport({ result }: { result: VerifyResult }) {
             {formatIntegrityState(result.evidenceIntegrityStatus)}
           </p>
         )}
+        {hasOriginalHashMismatch && (
+          <div className="mt-4 border-y border-warning/30 bg-warning-light/30 py-3">
+            <p className="px-3 text-sm font-semibold text-warning">ค่า SHA-256 ที่ใช้เปรียบเทียบ</p>
+            {result.dynamicMode === "canonical" && (
+              <DataRow label="ค่าแฮชที่อ่านจาก Dynamic Watermark" value={result.dynamicDecoded} copy />
+            )}
+            <DataRow label="ค่าแฮชไฟล์ต้นฉบับปัจจุบัน" value={result.currentOriginalHash} copy />
+            <DataRow label="ค่าแฮชในฐานข้อมูล" value={result.databaseOriginalHash} copy />
+            <DataRow label="ค่าแฮชอ้างอิงบน Blockchain" value={result.blockchainEvidenceHash} copy />
+          </div>
+        )}
         <TechnicalDetails>
           <DataRow label="Evidence ID" value={result.evidenceId} copy />
-          {result.dynamicMode === "canonical" && (
-            <DataRow label="ค่าแฮชจาก Watermark" value={result.dynamicDecoded} copy />
-          )}
-          <DataRow label="ค่าแฮชอ้างอิงบน Blockchain" value={result.blockchainEvidenceHash} copy />
-          <DataRow label="ค่าแฮชไฟล์ต้นฉบับปัจจุบัน" value={result.currentOriginalHash} copy />
-          <DataRow label="ค่าแฮชในฐานข้อมูล" value={result.databaseOriginalHash} copy />
           <div className="mt-4 grid grid-cols-2 gap-4 border-t border-border pt-4">
             <QrValue title="รหัสอ้างอิงหลักฐาน" png={result.staticQrPng} value={result.staticDecoded} />
             <QrValue title={dynamicWatermarkLabel(result.dynamicMode)} png={result.dynamicQrPng} value={result.dynamicDecoded} />
@@ -266,7 +275,7 @@ function VerificationReport({ result }: { result: VerifyResult }) {
           {result.databaseIntegrityState === "INTEGRITY_MISMATCH" && (
             <p className="mt-4 flex items-start gap-2 text-sm text-warning">
               <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
-              พบข้อมูลไม่ตรงกับ Blockchain แต่รายการดาวน์โหลดบน Blockchain ยังคงได้รับการยืนยัน
+              พบรายการบน Blockchain แต่ข้อมูลปัจจุบันในระบบไม่ตรงกับข้อมูลอ้างอิง
             </p>
           )}
 

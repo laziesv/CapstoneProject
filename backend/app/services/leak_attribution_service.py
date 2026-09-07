@@ -628,7 +628,7 @@ class LeakAttributionService:
                 IntegrityMismatch(
                     field="transaction_link",
                     database_value=None,
-                    blockchain_value="confirmed V3 access transaction",
+                    blockchain_value="พบรายการบน Blockchain",
                 ),
             ]
         comparisons = (
@@ -667,7 +667,7 @@ class LeakAttributionService:
             (
                 "transaction_link",
                 transaction.tx_hash if transaction is not None else None,
-                "confirmed V3 access transaction",
+                "พบรายการบน Blockchain",
                 verification.transaction_link_matches,
             ),
         )

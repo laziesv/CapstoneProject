@@ -41,3 +41,13 @@ export function blockchainExplorerHref(
 export function isBlockchainSearchType(value: string | null): value is BlockchainSearchType {
   return ["block", "transaction", "evidence", "evidence-ref", "access-session"].includes(value || "");
 }
+
+export function compactBlockchainValue(value: string): string {
+  return value.startsWith("0x") && value.length > 14
+    ? `${value.slice(0, 6)}...${value.slice(-4)}`
+    : value;
+}
+
+export function blockchainIndexValue(value: number | null | undefined): string {
+  return value === null || value === undefined ? "—" : String(value);
+}

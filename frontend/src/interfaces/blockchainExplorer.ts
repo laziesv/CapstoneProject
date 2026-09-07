@@ -21,7 +21,7 @@ export interface BlockchainTransactionSummary {
   tx_hash: string;
   from_address: string | null;
   to_address: string | null;
-  transaction_index: number;
+  transaction_index: number | null;
   is_registry_transaction: boolean;
 }
 
@@ -47,8 +47,13 @@ export interface BlockchainRegistryEvent {
   writer: string;
   tx_hash: string;
   block_number: number;
-  transaction_index: number;
-  log_index: number;
+  transaction_index: number | null;
+  log_index: number | null;
+  evidence_id: string | null;
+  evidence_number: string | null;
+  actor: BlockchainExplorerUser | null;
+  uploader: BlockchainExplorerUser | null;
+  related_evidence: BlockchainRelatedEvidence | null;
 }
 
 export interface BlockchainTransactionResult {
@@ -57,7 +62,7 @@ export interface BlockchainTransactionResult {
   block_number: number;
   from_address: string | null;
   to_address: string | null;
-  transaction_index: number;
+  transaction_index: number | null;
   gas_used: number;
   contract_address: string | null;
   is_registry_transaction: boolean;
@@ -71,6 +76,14 @@ export interface BlockchainExplorerUser {
   email: string | null;
   full_name: string | null;
   rank: string | null;
+}
+
+export interface BlockchainRelatedEvidence {
+  evidence_hash: string;
+  uploader_ref: string;
+  recorded_at: number;
+  writer: string;
+  uploader: BlockchainExplorerUser | null;
 }
 
 export interface BlockchainAccessEvent {
@@ -101,6 +114,7 @@ export interface BlockchainEvidenceResult {
     block_number: number | null;
     transaction_index: number | null;
     log_index: number | null;
+    uploader: BlockchainExplorerUser | null;
   };
   access_history: BlockchainAccessEvent[];
   scan_from_block: number;
@@ -122,6 +136,7 @@ export interface BlockchainAccessSessionResult {
   evidence_id: string | null;
   evidence_number: string | null;
   actor: BlockchainExplorerUser | null;
+  related_evidence: BlockchainRelatedEvidence | null;
   database_access_log_found: boolean;
   database_access_log_id: string | null;
 }

@@ -298,7 +298,7 @@ class BlockchainIntegrationService:
                 "tx_hash": self._hex_value(tx["hash"]),
                 "from_address": tx.get("from"),
                 "to_address": tx.get("to"),
-                "transaction_index": int(tx.get("transactionIndex", 0)),
+                "transaction_index": self._optional_int(tx.get("transactionIndex")),
                 "is_registry_transaction": self._is_registry_address(tx.get("to")),
             }
             for tx in block.get("transactions", [])
@@ -329,7 +329,7 @@ class BlockchainIntegrationService:
             "block_number": int(receipt["blockNumber"]),
             "from_address": transaction.get("from"),
             "to_address": transaction.get("to"),
-            "transaction_index": int(receipt["transactionIndex"]),
+            "transaction_index": self._optional_int(receipt.get("transactionIndex")),
             "gas_used": int(receipt["gasUsed"]),
             "contract_address": (
                 self._settings.contract_address
@@ -437,8 +437,10 @@ class BlockchainIntegrationService:
                     "evidence_ref": bytes32_to_hex(args["evidenceRef"]),
                     "tx_hash": self._hex_value(event["transactionHash"]),
                     "block_number": int(event["blockNumber"]),
-                    "transaction_index": int(event["transactionIndex"]),
-                    "log_index": int(event["logIndex"]),
+                    "transaction_index": self._optional_int(
+                        event.get("transactionIndex")
+                    ),
+                    "log_index": self._optional_int(event.get("logIndex")),
                     "recorded_at": int(args["recordedAt"]),
                     "writer": args["writer"],
                 }
@@ -461,8 +463,8 @@ class BlockchainIntegrationService:
             decoded_events,
             key=lambda item: (
                 item["block_number"],
-                item["transaction_index"],
-                item["log_index"],
+                self._sortable_index(item["transaction_index"]),
+                self._sortable_index(item["log_index"]),
             ),
         )
 
@@ -477,6 +479,16 @@ class BlockchainIntegrationService:
     def _hex_value(value: Any) -> str:
         result = value.hex() if hasattr(value, "hex") else str(value)
         return result if result.startswith("0x") else f"0x{result}"
+
+    @staticmethod
+    def _optional_int(value: Any) -> int | None:
+        # การเชื่อมต่อ Blockchain: ค่า index ที่ไม่มีต้องคงเป็น None
+        # เพื่อไม่ทำให้ UI เข้าใจผิดว่าเป็น transaction/log ลำดับที่ 0
+        return None if value is None else int(value)
+
+    @staticmethod
+    def _sortable_index(value: int | None) -> int:
+        return value if value is not None else 2**63 - 1
 
     def _require_write_enabled(self) -> None:
         if not self._settings.enabled:

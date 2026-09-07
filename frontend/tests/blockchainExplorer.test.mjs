@@ -4,7 +4,9 @@ import test from "node:test";
 
 import {
   blockchainExplorerHref,
+  blockchainIndexValue,
   blockchainExplorerPath,
+  compactBlockchainValue,
   isBlockchainSearchType,
 } from "../src/utils/blockchainExplorer.ts";
 
@@ -35,6 +37,14 @@ test("creates stable Explorer deep links", () => {
   assert.equal(isBlockchainSearchType("wallet"), false);
 });
 
+test("formats blockchain references and indices without fabricating zero", () => {
+  assert.equal(compactBlockchainValue(`0x${"5e18"}${"a".repeat(56)}ae53`), "0x5e18...ae53");
+  assert.equal(blockchainIndexValue(0), "0");
+  assert.equal(blockchainIndexValue(7), "7");
+  assert.equal(blockchainIndexValue(null), "—");
+  assert.equal(blockchainIndexValue(undefined), "—");
+});
+
 test("admin navigation includes the read-only Blockchain Explorer", async () => {
   const source = await readFile(new URL("../src/components/layout/Sidebar.tsx", import.meta.url), "utf8");
   assert.match(source, /href: "\/blockchain"/);
@@ -49,6 +59,26 @@ test("Explorer exposes explicit selectors and separate loading/error results", a
   assert.match(source, /กำลังอ่านข้อมูลจาก Blockchain/);
   assert.match(source, /userFacingApiError/);
   assert.match(source, /URLSearchParams\(window\.location\.search\)/);
+  assert.match(source, /ข้อมูลหลักฐานที่เกี่ยวข้อง/);
+  assert.match(source, /ข้อมูลนี้มาจาก EvidenceRecord ของหลักฐานที่เกี่ยวข้อง/);
+  assert.match(source, /ไม่พบข้อมูล EvidenceRecord/);
+  assert.match(source, /ข้อมูลโปรไฟล์แสดงจากข้อมูลผู้ใช้ปัจจุบันในระบบ/);
+  assert.match(source, /รายละเอียดทางเทคนิค/);
+  assert.match(source, /คัดลอกค่าเต็ม/);
+});
+
+test("integrity mismatch shows every hash including the Blockchain reference in primary UI", async () => {
+  const source = await readFile(new URL("../src/app/(protected)/(admin)/verify/page.tsx", import.meta.url), "utf8");
+  for (const label of [
+    "ค่าแฮชไฟล์ต้นฉบับปัจจุบัน",
+    "ค่าแฮชในฐานข้อมูล",
+    "ค่าแฮชอ้างอิงบน Blockchain",
+    "ค่าแฮชที่อ่านจาก Dynamic Watermark",
+  ]) {
+    assert.match(source, new RegExp(label));
+  }
+  assert.doesNotMatch(source, /confirmed V3 access transaction/i);
+  assert.match(source, /พบรายการบน Blockchain แต่ข้อมูลปัจจุบันในระบบไม่ตรงกับข้อมูลอ้างอิง/);
 });
 
 test("personalized verification renders chain history and matched download marker", async () => {

@@ -16,10 +16,11 @@ from app.deps import get_admin_user, get_current_user
 from app.repositories.access_log_repository import AccessLogRepository
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.user_repository import UserRepository
-from app.routes.blockchain import block, transaction
+from app.routes.blockchain import block, router, transaction
 from app.schemas.blockchain_explorer import (
     BlockchainAccessSessionResponse,
     BlockchainEvidenceResponse,
+    BlockchainTransactionResponse,
 )
 from app.services.blockchain_explorer_service import (
     BlockchainExplorerNotFoundError,
@@ -71,7 +72,7 @@ class BlockchainExplorerServiceTests(unittest.TestCase):
         )
         self.chain.get_evidence.return_value = {
             "evidence_hash": "0x" + "aa" * 32,
-            "uploader_ref": "0x" + "bb" * 32,
+            "uploader_ref": OFFICER_REF,
             "recorded_at": 1_700_000_000,
             "writer": "0x" + "44" * 20,
             "exists": True,
@@ -100,6 +101,7 @@ class BlockchainExplorerServiceTests(unittest.TestCase):
         self.chain.get_evidence_history_by_ref.assert_called_once_with(EVIDENCE_REF)
         self.assertEqual(result["evidence_ref"], EVIDENCE_REF)
         self.assertEqual(result["evidence_number"], "EV-EXPLORER-1")
+        self.assertEqual(result["registration"]["uploader"]["user_id"], USER_ID)
         self.assertEqual([item["transaction_index"] for item in result["access_history"]], [0, 1])
         BlockchainEvidenceResponse(**result)
 
@@ -140,7 +142,122 @@ class BlockchainExplorerServiceTests(unittest.TestCase):
         self.assertFalse(result["database_access_log_found"])
         self.assertEqual(result["actor"]["user_id"], USER_ID)
         self.assertEqual(result["tx_hash"], access_event(20, 0)["tx_hash"])
+        self.assertEqual(result["related_evidence"]["evidence_hash"], "0x" + "aa" * 32)
+        self.assertEqual(result["related_evidence"]["uploader"]["user_id"], USER_ID)
         BlockchainAccessSessionResponse(**result)
+
+    def test_access_transaction_enriches_related_evidence_and_profiles(self):
+        event = access_event(20, 0)
+        self.chain.get_transaction.return_value = {
+            "tx_hash": event["tx_hash"],
+            "status": "confirmed",
+            "block_number": 20,
+            "from_address": "0x" + "11" * 20,
+            "to_address": "0x" + "22" * 20,
+            "transaction_index": 0,
+            "gas_used": 12345,
+            "contract_address": "0x" + "22" * 20,
+            "is_registry_transaction": True,
+            "registry_events": [{**event, "event_type": "EvidenceAccessRecorded"}],
+        }
+        with (
+            patch.object(EvidenceRepository, "get_all", return_value=[self.evidence]),
+            patch.object(UserRepository, "list", return_value=[self.user]),
+        ):
+            result = self.service.transaction(self.db, event["tx_hash"])
+
+        enriched = result["registry_events"][0]
+        self.assertEqual(enriched["evidence_id"], EVIDENCE_ID)
+        self.assertEqual(enriched["actor"]["user_id"], USER_ID)
+        self.assertEqual(enriched["related_evidence"]["evidence_hash"], "0x" + "aa" * 32)
+        self.assertEqual(enriched["related_evidence"]["uploader_ref"], OFFICER_REF)
+        self.assertEqual(enriched["related_evidence"]["uploader"]["user_id"], USER_ID)
+        self.chain.get_evidence.assert_called_once_with(EVIDENCE_REF)
+        BlockchainTransactionResponse(**result)
+
+    def test_registration_transaction_resolves_uploader_without_related_read(self):
+        event = {
+            **access_event(19, 0),
+            "event_type": "EvidenceRecorded",
+            "evidence_hash": "0x" + "aa" * 32,
+            "uploader_ref": OFFICER_REF,
+            "officer_ref": None,
+            "access_session_ref": None,
+            "action": None,
+            "occurred_at": None,
+        }
+        self.chain.get_transaction.return_value = {
+            "tx_hash": event["tx_hash"],
+            "status": "confirmed",
+            "block_number": 19,
+            "from_address": "0x" + "11" * 20,
+            "to_address": "0x" + "22" * 20,
+            "transaction_index": 0,
+            "gas_used": 12345,
+            "contract_address": "0x" + "22" * 20,
+            "is_registry_transaction": True,
+            "registry_events": [event],
+        }
+        with (
+            patch.object(EvidenceRepository, "get_all", return_value=[self.evidence]),
+            patch.object(UserRepository, "list", return_value=[self.user]),
+        ):
+            result = self.service.transaction(self.db, event["tx_hash"])
+
+        enriched = result["registry_events"][0]
+        self.assertEqual(enriched["uploader"]["user_id"], USER_ID)
+        self.assertNotIn("related_evidence", enriched)
+        self.chain.get_evidence.assert_not_called()
+        BlockchainTransactionResponse(**result)
+
+    def test_access_transaction_keeps_refs_when_profiles_cannot_be_resolved(self):
+        event = access_event(20, 3)
+        self.chain.get_transaction.return_value = {
+            "tx_hash": event["tx_hash"],
+            "status": "confirmed",
+            "block_number": 20,
+            "from_address": None,
+            "to_address": None,
+            "transaction_index": 3,
+            "gas_used": 1,
+            "contract_address": None,
+            "is_registry_transaction": True,
+            "registry_events": [{**event, "event_type": "EvidenceAccessRecorded"}],
+        }
+        with (
+            patch.object(EvidenceRepository, "get_all", return_value=[]),
+            patch.object(UserRepository, "list", return_value=[]),
+        ):
+            result = self.service.transaction(self.db, event["tx_hash"])
+
+        enriched = result["registry_events"][0]
+        self.assertEqual(enriched["officer_ref"], OFFICER_REF)
+        self.assertIsNone(enriched["actor"])
+        self.assertEqual(enriched["related_evidence"]["uploader_ref"], OFFICER_REF)
+        self.assertIsNone(enriched["related_evidence"]["uploader"])
+
+    def test_access_transaction_reports_missing_related_evidence_record(self):
+        event = access_event(20, 0)
+        self.chain.get_transaction.return_value = {
+            "tx_hash": event["tx_hash"],
+            "status": "confirmed",
+            "block_number": 20,
+            "from_address": None,
+            "to_address": None,
+            "transaction_index": 0,
+            "gas_used": 1,
+            "contract_address": None,
+            "is_registry_transaction": True,
+            "registry_events": [{**event, "event_type": "EvidenceAccessRecorded"}],
+        }
+        self.chain.get_evidence.return_value = {"exists": False}
+        with (
+            patch.object(EvidenceRepository, "get_all", return_value=[]),
+            patch.object(UserRepository, "list", return_value=[]),
+        ):
+            result = self.service.transaction(self.db, event["tx_hash"])
+
+        self.assertIsNone(result["registry_events"][0]["related_evidence"])
 
     def test_access_session_reports_optional_access_log(self):
         access_log = SimpleNamespace(log_id=LOG_ID)
@@ -169,7 +286,7 @@ class BlockchainExplorerServiceTests(unittest.TestCase):
         with self.assertRaises(BlockchainExplorerNotFoundError):
             self.service.block(999)
         with self.assertRaises(BlockchainExplorerNotFoundError):
-            self.service.transaction("0x" + "aa" * 32)
+            self.service.transaction(self.db, "0x" + "aa" * 32)
 
     def test_blockchain_failure_is_service_unavailable(self):
         self.chain.get_block.side_effect = RuntimeError("RPC unavailable")
@@ -181,6 +298,15 @@ class BlockchainExplorerRouteTests(unittest.TestCase):
     def test_block_route_requires_admin_dependency(self):
         dependency = inspect.signature(block).parameters["_"].default
         self.assertIs(dependency.dependency, get_admin_user)
+
+    def test_transaction_route_is_admin_only_and_explorer_is_read_only(self):
+        dependency = inspect.signature(transaction).parameters["_"].default
+        self.assertIs(dependency.dependency, get_admin_user)
+        explorer_routes = [
+            route for route in router.routes if route.path.startswith("/blockchain")
+        ]
+        self.assertTrue(explorer_routes)
+        self.assertTrue(all(route.methods == {"GET"} for route in explorer_routes))
 
     def test_admin_block_lookup_success(self):
         expected = {"block_number": 20}
@@ -202,7 +328,11 @@ class BlockchainExplorerRouteTests(unittest.TestCase):
         service.transaction.side_effect = BlockchainExplorerNotFoundError("missing")
         with patch("app.routes.blockchain.BlockchainExplorerService", return_value=service):
             with self.assertRaises(HTTPException) as raised:
-                transaction("0x" + "aa" * 32, SimpleNamespace(role="admin"))
+                transaction(
+                    "0x" + "aa" * 32,
+                    Mock(),
+                    SimpleNamespace(role="admin"),
+                )
         self.assertEqual(raised.exception.status_code, 404)
 
     def test_unavailable_blockchain_maps_to_503(self):

@@ -47,11 +47,40 @@ class BlockchainExplorerService:
             raise BlockchainExplorerNotFoundError("Block was not found")
         return result
 
-    def transaction(self, tx_hash: str) -> dict[str, Any]:
+    def transaction(self, db: Session, tx_hash: str) -> dict[str, Any]:
         result = self._read(self._blockchain.get_transaction, tx_hash)
         if result is None:
             raise BlockchainExplorerNotFoundError("Transaction was not found")
-        return result
+        events = result.get("registry_events", [])
+        if not events:
+            return result
+
+        users_by_ref = self._users_by_ref(db)
+        evidence_by_ref = self._evidence_by_ref(db)
+        related_records: dict[str, dict[str, Any] | None] = {}
+        enriched_events = []
+        for raw_event in events:
+            event = {**raw_event}
+            evidence_ref = normalize_bytes32(event["evidence_ref"], "evidence_ref")
+            evidence = evidence_by_ref.get(evidence_ref)
+            event.update(
+                evidence_id=evidence.evidence_id if evidence else None,
+                evidence_number=evidence.evidence_number if evidence else None,
+            )
+            if event["event_type"] == "EvidenceRecorded":
+                uploader_ref = normalize_bytes32(event["uploader_ref"], "uploader_ref")
+                event["uploader"] = self._user_payload(users_by_ref.get(uploader_ref))
+            else:
+                officer_ref = normalize_bytes32(event["officer_ref"], "officer_ref")
+                event["actor"] = self._user_payload(users_by_ref.get(officer_ref))
+                if evidence_ref not in related_records:
+                    related_records[evidence_ref] = self._related_evidence(
+                        evidence_ref,
+                        users_by_ref,
+                    )
+                event["related_evidence"] = related_records[evidence_ref]
+            enriched_events.append(event)
+        return {**result, "registry_events": enriched_events}
 
     def evidence_by_id(self, db: Session, evidence_id: UUID) -> dict[str, Any]:
         evidence = EvidenceRepository.get_by_id(db, evidence_id)
@@ -100,6 +129,7 @@ class BlockchainExplorerService:
         evidence_ref = normalize_bytes32(record["evidence_ref"], "evidence_ref")
         officer_ref = normalize_bytes32(record["officer_ref"], "officer_ref")
         evidence = self._find_evidence_by_ref(db, evidence_ref)
+        users_by_ref = self._users_by_ref(db)
         access_logs, _ = AccessLogRepository.list(db, exclude_query=True)
         matching_logs = [
             access_log
@@ -121,7 +151,11 @@ class BlockchainExplorerService:
             "log_index": event.get("log_index") if event else None,
             "evidence_id": evidence.evidence_id if evidence else None,
             "evidence_number": evidence.evidence_number if evidence else None,
-            "actor": self._user_payload(self._find_user_by_ref(db, officer_ref)),
+            "actor": self._user_payload(users_by_ref.get(officer_ref)),
+            "related_evidence": self._related_evidence(
+                evidence_ref,
+                users_by_ref,
+            ),
             "database_access_log_found": access_log is not None,
             "database_access_log_id": access_log.log_id if access_log else None,
         }
@@ -156,9 +190,10 @@ class BlockchainExplorerService:
             ),
             "log_index": registration_event.get("log_index") if registration_event else None,
         }
-        users_by_ref = {
-            derive_actor_ref(user.user_id): user for user in UserRepository.list(db)
-        }
+        users_by_ref = self._users_by_ref(db)
+        registration["uploader"] = self._user_payload(
+            users_by_ref.get(normalize_bytes32(record["uploader_ref"], "uploader_ref"))
+        )
         access_history = []
         for event in custody.get("access_history", []):
             officer_ref = normalize_bytes32(event["officer_ref"], "officer_ref")
@@ -189,13 +224,35 @@ class BlockchainExplorerService:
             None,
         )
 
-    def _find_user_by_ref(self, db: Session, officer_ref: str) -> Any:
-        users = [
-            user
-            for user in UserRepository.list(db)
-            if derive_actor_ref(user.user_id) == officer_ref
-        ]
-        return users[0] if len(users) == 1 else None
+    @staticmethod
+    def _users_by_ref(db: Session) -> dict[str, Any]:
+        return {
+            derive_actor_ref(user.user_id): user for user in UserRepository.list(db)
+        }
+
+    @staticmethod
+    def _evidence_by_ref(db: Session) -> dict[str, Any]:
+        return {
+            derive_evidence_ref(evidence.evidence_id): evidence
+            for evidence in EvidenceRepository.get_all(db)
+        }
+
+    def _related_evidence(
+        self,
+        evidence_ref: str,
+        users_by_ref: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        record = self._read(self._blockchain.get_evidence, evidence_ref)
+        if not record or not record.get("exists"):
+            return None
+        uploader_ref = normalize_bytes32(record["uploader_ref"], "uploader_ref")
+        return {
+            "evidence_hash": record["evidence_hash"],
+            "uploader_ref": uploader_ref,
+            "recorded_at": int(record["recorded_at"]),
+            "writer": str(record["writer"]),
+            "uploader": self._user_payload(users_by_ref.get(uploader_ref)),
+        }
 
     @staticmethod
     def _user_payload(user: Any) -> dict[str, Any] | None:

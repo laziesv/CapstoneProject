@@ -35,8 +35,12 @@ def block(block_number: int, _: User = Depends(get_admin_user)):
 
 
 @router.get("/transaction/{tx_hash}", response_model=BlockchainTransactionResponse)
-def transaction(tx_hash: str, _: User = Depends(get_admin_user)):
-    return _call(BlockchainExplorerService().transaction, tx_hash)
+def transaction(
+    tx_hash: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_admin_user),
+):
+    return _call(BlockchainExplorerService().transaction, db, tx_hash)
 
 
 @router.get("/evidence/{evidence_id}", response_model=BlockchainEvidenceResponse)
