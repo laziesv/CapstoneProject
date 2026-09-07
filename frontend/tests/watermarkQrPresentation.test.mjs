@@ -74,11 +74,11 @@ test("Verify displays decoded values before QR images returned by the backend", 
   assert.doesNotMatch(verifySource, /รหัสอ้างอิงหลักฐาน.*QrValue|รหัสติดตามรอบการดาวน์โหลด.*QrValue/s);
 });
 
-test("long watermark values are constrained, copyable, and expandable", () => {
+test("long watermark values are constrained, copyable, and available on hover", () => {
   assert.match(qrPresentationSource, /truncate font-mono/);
   assert.match(qrPresentationSource, /copyTextWithFeedback\(value\)/);
-  assert.match(qrPresentationSource, /ดูค่าเต็ม/);
-  assert.match(qrPresentationSource, /break-all font-mono/);
+  assert.match(qrPresentationSource, /title=\{value \?\? undefined\}/);
+  assert.doesNotMatch(qrPresentationSource, /ดูค่าเต็ม/);
   assert.match(qrPresentationSource, /max-w-full/);
 });
 

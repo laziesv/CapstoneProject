@@ -8,6 +8,15 @@ export interface DownloadErrorDialogContent {
   title: string;
   message: string;
   kind: "integrity" | "blockchain" | "general";
+  hashComparison?: EvidenceHashComparison;
+}
+
+export interface EvidenceHashComparison {
+  currentOriginalHash: string | null;
+  databaseHash: string | null;
+  blockchainEvidenceHash: string | null;
+  currentMatchesBlockchain: boolean | null;
+  databaseMatchesBlockchain: boolean | null;
 }
 
 interface DownloadErrorLike {
@@ -120,9 +129,12 @@ export function downloadErrorDialog(
       typeof mismatchType === "string"
       && mismatchType in INTEGRITY_MESSAGES
     ) {
-      return INTEGRITY_MESSAGES[
-        mismatchType as EvidenceIntegrityMismatchType
-      ];
+      return {
+        ...INTEGRITY_MESSAGES[
+          mismatchType as EvidenceIntegrityMismatchType
+        ],
+        hashComparison: integrityHashComparison(error.details),
+      };
     }
     return {
       title: "พบความผิดปกติของข้อมูลหลักฐาน",
@@ -137,4 +149,30 @@ export function downloadErrorDialog(
     message: feedback.message,
     kind: feedback.kind === "blockchain" ? "blockchain" : "general",
   };
+}
+
+function integrityHashComparison(
+  details: Record<string, unknown> | null | undefined,
+): EvidenceHashComparison | undefined {
+  if (!details) return undefined;
+  const currentOriginalHash = nullableString(details.current_original_hash);
+  const databaseHash = nullableString(details.database_hash);
+  const blockchainEvidenceHash = nullableString(details.blockchain_evidence_hash);
+  if (!currentOriginalHash && !databaseHash && !blockchainEvidenceHash) return undefined;
+
+  return {
+    currentOriginalHash,
+    databaseHash,
+    blockchainEvidenceHash,
+    currentMatchesBlockchain: nullableBoolean(details.current_matches_blockchain),
+    databaseMatchesBlockchain: nullableBoolean(details.database_matches_blockchain),
+  };
+}
+
+function nullableString(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+
+function nullableBoolean(value: unknown): boolean | null {
+  return typeof value === "boolean" ? value : null;
 }

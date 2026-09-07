@@ -14,6 +14,7 @@ import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { ChainOfCustodyPanel } from "@/components/evidence/ChainOfCustodyPanel";
 import { OperationToast } from "@/components/feedback/OperationToast";
 import { WatermarkQrPresentation } from "@/components/evidence/WatermarkQrPresentation";
+import { EvidenceHashComparison } from "@/components/evidence/EvidenceHashComparison";
 import {
   downloadErrorDialog,
   type DownloadErrorDialogContent,
@@ -339,7 +340,7 @@ function DownloadErrorModal({
       <section
         aria-labelledby="download-error-title"
         aria-modal="true"
-        className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-xl"
         role="dialog"
       >
         <div className="flex items-start justify-between gap-4">
@@ -354,6 +355,9 @@ function DownloadErrorModal({
             <X className="h-5 w-5" />
           </button>
         </div>
+        {content.kind === "integrity" && content.hashComparison && (
+          <EvidenceHashComparison comparison={content.hashComparison} />
+        )}
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           {onViewChainOfCustody && content.kind === "integrity" && (
             <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-hover" onClick={onViewChainOfCustody}>

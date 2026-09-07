@@ -78,12 +78,6 @@ function WatermarkValue({
       </div>
       <p className="truncate font-mono text-xs text-text-secondary" title={value ?? undefined}>{value || "—"}</p>
       <p className="mt-1 text-xs text-muted">{description}</p>
-      {value && (
-        <details className="mt-1 text-xs text-muted">
-          <summary className="cursor-pointer hover:text-primary">ดูค่าเต็ม</summary>
-          <p className="mt-1 break-all font-mono text-[10px] leading-5 text-text-secondary">{value}</p>
-        </details>
-      )}
     </div>
   );
 }

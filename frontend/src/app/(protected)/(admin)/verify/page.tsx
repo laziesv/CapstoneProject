@@ -206,14 +206,11 @@ function VerificationCheckCard({ check }: { check: VerificationCheckPresentation
 }
 
 function VerificationReport({ result }: { result: VerifyResult }) {
-  const hasOriginalHashMismatch = result.evidenceIntegrityStatus !== "VERIFIED"
-    || result.originalFileIntegrityStatus === "INTEGRITY_MISMATCH"
-    || result.databaseHashIntegrityStatus === "INTEGRITY_MISMATCH"
-    || result.watermarkHashIntegrityStatus === "INTEGRITY_MISMATCH";
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <ReportCard icon={<FileCheck2 className="h-5 w-5" />} title="ข้อมูลหลักฐาน">
         <DataRow label="หมายเลขหลักฐาน" value={result.evidenceNumber} />
+        <DataRow label="Evidence ID" value={result.evidenceId} copy />
         <DataRow label="ชื่อไฟล์ต้นฉบับ" value={result.originalFilename} />
         <DataRow label="เวลาอัปโหลด" value={formatForensicDateTime(result.uploadedAt)} />
         <DataRow label="สถานะ Blockchain" value={result.blockchainVerified ? "พบ EvidenceRecord บน Blockchain" : "ไม่พบรายการบน Blockchain"} />
@@ -253,20 +250,6 @@ function VerificationReport({ result }: { result: VerifyResult }) {
             {formatIntegrityState(result.evidenceIntegrityStatus)}
           </p>
         )}
-        {hasOriginalHashMismatch && (
-          <div className="mt-4 border-y border-warning/30 bg-warning-light/30 py-3">
-            <p className="px-3 text-sm font-semibold text-warning">ค่า SHA-256 ที่ใช้เปรียบเทียบ</p>
-            {result.dynamicMode === "canonical" && (
-              <DataRow label="ค่าแฮชที่อ่านจาก Dynamic Watermark" value={result.dynamicDecoded} copy />
-            )}
-            <DataRow label="ค่าแฮชไฟล์ต้นฉบับปัจจุบัน" value={result.currentOriginalHash} copy />
-            <DataRow label="ค่าแฮชในฐานข้อมูล" value={result.databaseOriginalHash} copy />
-            <DataRow label="ค่าแฮชอ้างอิงบน Blockchain" value={result.blockchainEvidenceHash} copy />
-          </div>
-        )}
-        <TechnicalDetails>
-          <DataRow label="Evidence ID" value={result.evidenceId} copy />
-        </TechnicalDetails>
         {result.originalIntegrityMismatches.length > 0 && (
           <IntegrityMismatchTable mismatches={result.originalIntegrityMismatches} />
         )}

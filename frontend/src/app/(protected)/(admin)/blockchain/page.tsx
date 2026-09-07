@@ -215,23 +215,19 @@ function BlockResult({ data }: { data: BlockchainBlockResult }) {
 
 function TransactionResult({ data }: { data: BlockchainTransactionResult }) {
   return (
-    <ResultSection title="Transaction" icon={<Database className="h-5 w-5" />}>
-      <SemanticSection title="Blockchain">
+    <ResultSection title="Blockchain Transaction" icon={<Database className="h-5 w-5" />}>
+      <SemanticSection title="ข้อมูลธุรกรรมบน Blockchain">
         <KeyValueGrid rows={[
-          ["Block Number", String(data.block_number)],
           ["Transaction Hash", data.tx_hash],
-          ["สถานะธุรกรรม", data.status],
-        ]} />
-      </SemanticSection>
-      <TechnicalDetails>
-        <KeyValueGrid rows={[
+          ["Block Number", String(data.block_number)],
           ["Transaction Index", blockchainIndexValue(data.transaction_index)],
+          ["สถานะธุรกรรม", data.status],
           ["From", data.from_address],
           ["To", data.to_address],
           ["Gas Used", String(data.gas_used)],
           ["Contract Address", data.contract_address],
         ]} />
-      </TechnicalDetails>
+      </SemanticSection>
       <h3 className="mt-6 text-sm font-semibold">ข้อมูลที่บันทึกใน EvidenceRegistryV3</h3>
       {data.registry_events.length === 0 ? <EmptyRows text="ไม่พบ Event ของ EvidenceRegistryV3 ใน Transaction นี้" /> : data.registry_events.map((event) => <RegistryEvent key={`${event.tx_hash}-${event.log_index}`} event={event} />)}
     </ResultSection>
@@ -243,44 +239,49 @@ function RegistryEvent({ event }: { event: BlockchainRegistryEvent }) {
   return (
     <article className="mt-4 border-l-2 border-primary pl-4">
       <p className="text-sm font-semibold">{isRegistration ? "ลงทะเบียนหลักฐาน" : formatForensicAction(event.action)}</p>
-      <SemanticSection title="ข้อมูลหลักฐาน">
+      {isRegistration ? (
+        <SemanticSection title="EvidenceRecorded Event">
+          <KeyValueGrid rows={[
+            ["Evidence Ref", event.evidence_ref],
+            ["Evidence Hash", event.evidence_hash],
+            ["Uploader Ref", event.uploader_ref],
+            ["Transaction Hash", event.tx_hash],
+            ["Block Number", String(event.block_number)],
+            ["Recorded At", formatForensicUnixTime(event.recorded_at)],
+            ["Transaction Index", blockchainIndexValue(event.transaction_index)],
+            ["Log Index", blockchainIndexValue(event.log_index)],
+            ["Writer", event.writer],
+          ]} />
+        </SemanticSection>
+      ) : (
+        <SemanticSection title="EvidenceAccessRecorded Event">
+          <KeyValueGrid rows={[
+            ["Evidence Ref", event.evidence_ref],
+            ["Officer Ref", event.officer_ref],
+            ["Access Session Ref", event.access_session_ref],
+            ["Action", formatForensicAction(event.action)],
+            ["Occurred At", formatForensicUnixTime(event.occurred_at)],
+            ["Recorded At", formatForensicUnixTime(event.recorded_at)],
+            ["Transaction Hash", event.tx_hash],
+            ["Block Number", String(event.block_number)],
+            ["Transaction Index", blockchainIndexValue(event.transaction_index)],
+            ["Log Index", blockchainIndexValue(event.log_index)],
+            ["Writer", event.writer],
+          ]} />
+        </SemanticSection>
+      )}
+      <SemanticSection title="ข้อมูลอ้างอิงในระบบ">
         <KeyValueGrid rows={[
           ["Evidence Number", event.evidence_number],
           ["Evidence ID", event.evidence_id],
-          ["Evidence Ref", event.evidence_ref],
-          ...(isRegistration ? [["Evidence Hash", event.evidence_hash] as ValueRow] : []),
         ]} />
       </SemanticSection>
-      {isRegistration ? (
-        <ProfileSection title="ผู้อัปโหลด" profile={event.uploader} reference={event.uploader_ref} />
-      ) : (
-        <>
-          <ProfileSection title="ผู้ดำเนินการ" profile={event.actor} reference={event.officer_ref} />
-          <SemanticSection title="ข้อมูลการเข้าถึง">
-            <KeyValueGrid rows={[
-              ["Action", formatForensicAction(event.action)],
-              ["Access Session Ref", event.access_session_ref],
-              ["Occurred At", formatForensicUnixTime(event.occurred_at)],
-              ["Recorded At", formatForensicUnixTime(event.recorded_at)],
-            ]} />
-          </SemanticSection>
-          <RelatedEvidence record={event.related_evidence} />
-        </>
-      )}
-      <SemanticSection title="Blockchain">
-        <KeyValueGrid rows={[
-          ["Block Number", String(event.block_number)],
-          ["Transaction Hash", event.tx_hash],
-        ]} />
-      </SemanticSection>
-      <TechnicalDetails>
-        <KeyValueGrid rows={[
-          [isRegistration ? "Uploader Ref" : "Officer Ref", isRegistration ? event.uploader_ref : event.officer_ref],
-          ["Transaction Index", blockchainIndexValue(event.transaction_index)],
-          ["Log Index", blockchainIndexValue(event.log_index)],
-          ["Writer", event.writer],
-        ]} />
-      </TechnicalDetails>
+      <ProfileSection
+        title={isRegistration ? "ผู้อัปโหลด" : "ผู้ดำเนินการ"}
+        profile={isRegistration ? event.uploader : event.actor}
+        reference={isRegistration ? event.uploader_ref : event.officer_ref}
+      />
+      {!isRegistration && <RelatedEvidence record={event.related_evidence} />}
     </article>
   );
 }
@@ -288,23 +289,25 @@ function RegistryEvent({ event }: { event: BlockchainRegistryEvent }) {
 function EvidenceResult({ data }: { data: BlockchainEvidenceResult }) {
   return (
     <ResultSection title="EvidenceRegistryV3 Evidence" icon={<FileSearch className="h-5 w-5" />}>
-      <SemanticSection title="ข้อมูลหลักฐาน">
+      <SemanticSection title="EvidenceRecord บน Blockchain">
         <KeyValueGrid rows={[
-          ["เลขหลักฐาน", data.evidence_number], ["Evidence ID", data.evidence_id],
-          ["Evidence Ref", data.evidence_ref], ["Evidence Hash", data.registration.evidence_hash],
+          ["Evidence Ref", data.evidence_ref],
+          ["Evidence Hash", data.registration.evidence_hash],
+          ["Uploader Ref", data.registration.uploader_ref],
+          ["Transaction Hash", data.registration.tx_hash],
+          ["Block Number", numberValue(data.registration.block_number)],
+          ["Recorded At", formatForensicUnixTime(data.registration.recorded_at)],
+        ]} />
+      </SemanticSection>
+      <SemanticSection title="ข้อมูลอ้างอิงในระบบ">
+        <KeyValueGrid rows={[
+          ["เลขหลักฐาน", data.evidence_number],
+          ["Evidence ID", data.evidence_id],
         ]} />
       </SemanticSection>
       <ProfileSection title="ผู้อัปโหลด" profile={data.registration.uploader} reference={data.registration.uploader_ref} />
-      <SemanticSection title="Blockchain">
-        <KeyValueGrid rows={[
-          ["เวลาบันทึก", formatForensicUnixTime(data.registration.recorded_at)],
-          ["Transaction Hash", data.registration.tx_hash],
-          ["Block Number", numberValue(data.registration.block_number)],
-        ]} />
-      </SemanticSection>
       <TechnicalDetails>
         <KeyValueGrid rows={[
-          ["Uploader Ref", data.registration.uploader_ref],
           ["Transaction Index", blockchainIndexValue(data.registration.transaction_index)],
           ["Log Index", blockchainIndexValue(data.registration.log_index)],
           ["Writer", data.registration.writer],
@@ -320,33 +323,29 @@ function EvidenceResult({ data }: { data: BlockchainEvidenceResult }) {
 function SessionResult({ data }: { data: BlockchainAccessSessionResult }) {
   return (
     <ResultSection title="Access Session" icon={<CheckCircle2 className="h-5 w-5" />}>
-      <SemanticSection title="ข้อมูลหลักฐาน">
+      <SemanticSection title="EvidenceAccessRecorded Event">
+        <KeyValueGrid rows={[
+          ["Evidence Ref", data.evidence_ref],
+          ["Officer Ref", data.officer_ref],
+          ["Access Session Ref", data.access_session_ref],
+          ["Action", formatForensicAction(data.action)],
+          ["Occurred At", formatForensicUnixTime(data.occurred_at)],
+          ["Recorded At", formatForensicUnixTime(data.recorded_at)],
+          ["Transaction Hash", data.tx_hash],
+          ["Block Number", numberValue(data.block_number)],
+        ]} />
+      </SemanticSection>
+      <SemanticSection title="ข้อมูลอ้างอิงในระบบ">
         <KeyValueGrid rows={[
           ["Evidence Number", data.evidence_number],
           ["Evidence ID", data.evidence_id],
-          ["Evidence Ref", data.evidence_ref],
-        ]} />
-      </SemanticSection>
-      <ProfileSection title="ผู้ดำเนินการ" profile={data.actor} reference={data.officer_ref} />
-      <SemanticSection title="ข้อมูลการเข้าถึง">
-        <KeyValueGrid rows={[
-          ["Action", formatForensicAction(data.action)],
-          ["Access Session Ref", data.access_session_ref],
-          ["Occurred At", formatForensicUnixTime(data.occurred_at)],
-          ["Recorded At", formatForensicUnixTime(data.recorded_at)],
           ["AccessLog ปัจจุบัน", data.database_access_log_found ? data.database_access_log_id : "ไม่พบ (ข้อมูลบน Blockchain ยังอยู่)"],
         ]} />
       </SemanticSection>
+      <ProfileSection title="ผู้ดำเนินการ" profile={data.actor} reference={data.officer_ref} />
       <RelatedEvidence record={data.related_evidence} />
-      <SemanticSection title="Blockchain">
-        <KeyValueGrid rows={[
-          ["Block Number", numberValue(data.block_number)],
-          ["Transaction Hash", data.tx_hash],
-        ]} />
-      </SemanticSection>
       <TechnicalDetails>
         <KeyValueGrid rows={[
-          ["Officer Ref", data.officer_ref],
           ["Transaction Index", blockchainIndexValue(data.transaction_index)],
           ["Log Index", blockchainIndexValue(data.log_index)],
           ["Writer", data.writer],
@@ -381,17 +380,11 @@ function ValueDisplay({ value }: { value: string | null | undefined }) {
   if (!value) return <p className="mt-1 text-sm text-muted">—</p>;
   if (!value.startsWith("0x") || value.length <= 14) return <p className="mt-1 break-all font-mono text-sm">{value}</p>;
   return (
-    <div className="mt-1">
-      <div className="flex items-center gap-2">
-        <code className="text-sm">{compactBlockchainValue(value)}</code>
-        <button type="button" title="คัดลอกค่าเต็ม" aria-label="คัดลอกค่าเต็ม" onClick={() => void copyTextWithFeedback(value)} className="text-muted hover:text-primary">
-          <Copy className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <details className="mt-1 text-xs text-muted">
-        <summary className="cursor-pointer hover:text-primary">ดูค่าเต็ม</summary>
-        <p className="mt-1 break-all font-mono">{value}</p>
-      </details>
+    <div className="mt-1 flex items-center gap-2">
+      <code className="text-sm" title={value}>{compactBlockchainValue(value)}</code>
+      <button type="button" title="คัดลอกค่า" aria-label="คัดลอกค่า" onClick={() => void copyTextWithFeedback(value)} className="text-muted hover:text-primary">
+        <Copy className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
@@ -409,7 +402,7 @@ function ProfileSection({ title, profile, reference }: { title: string; profile:
         ["Email", profile.email],
       ]} /> : <p className="text-sm text-muted">ไม่สามารถระบุโปรไฟล์ผู้ใช้ปัจจุบันได้</p>}
       {!profile && reference && <ValueDisplay value={reference} />}
-      <p className="mt-3 text-xs text-muted">ข้อมูลโปรไฟล์แสดงจากข้อมูลผู้ใช้ปัจจุบันในระบบ Blockchain ใช้ User Reference สำหรับอ้างอิงผู้ดำเนินการ</p>
+      <p className="mt-3 text-xs text-muted">ข้อมูลโปรไฟล์เป็นข้อมูลผู้ใช้ปัจจุบันจากระบบ ส่วน Blockchain อ้างอิงผู้ดำเนินการผ่าน User Reference</p>
     </SemanticSection>
   );
 }

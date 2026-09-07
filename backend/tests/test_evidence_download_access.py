@@ -97,6 +97,24 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             )
         return result, stage_log, stage_transaction
 
+    @staticmethod
+    def mismatch_integrity(
+        status,
+        *,
+        current_hash="cd" * 32,
+        database_hash="ab" * 32,
+        blockchain_hash="ab" * 32,
+    ):
+        return SimpleNamespace(
+            verified=False,
+            status=status,
+            current_file_hash=current_hash,
+            database_hash=database_hash,
+            blockchain_hash=blockchain_hash,
+            current_matches_blockchain=current_hash == blockchain_hash,
+            database_matches_blockchain=database_hash == blockchain_hash,
+        )
+
     def test_success_stages_one_log_one_chain_call_and_one_transaction(self):
         result, stage_log, stage_transaction = self.prepare()
 
@@ -257,9 +275,8 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.db.commit.assert_not_called()
 
     def test_changed_original_file_blocks_before_any_download_write(self):
-        self.integrity.verify.return_value = SimpleNamespace(
-            verified=False,
-            status="ORIGINAL_FILE_MISMATCH",
+        self.integrity.verify.return_value = self.mismatch_integrity(
+            "ORIGINAL_FILE_MISMATCH",
         )
 
         with self.assertRaises(HTTPException) as raised:
@@ -274,6 +291,11 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             raised.exception.detail["mismatch_type"],
             "ORIGINAL_FILE_MISMATCH",
         )
+        self.assertEqual(raised.exception.detail["current_original_hash"], "cd" * 32)
+        self.assertEqual(raised.exception.detail["database_hash"], "ab" * 32)
+        self.assertEqual(raised.exception.detail["blockchain_evidence_hash"], "ab" * 32)
+        self.assertFalse(raised.exception.detail["current_matches_blockchain"])
+        self.assertTrue(raised.exception.detail["database_matches_blockchain"])
         self.stage_log.assert_not_called()
         self.watermark.create_personalized_copy.assert_not_called()
         self.blockchain.record_access.assert_not_called()
@@ -281,23 +303,20 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.db.commit.assert_not_called()
 
     def test_changed_database_hash_blocks_before_personalization(self):
-        self.integrity.verify.return_value = SimpleNamespace(
-            verified=False,
-            status="DATABASE_HASH_MISMATCH",
+        self.integrity.verify.return_value = self.mismatch_integrity(
+            "DATABASE_HASH_MISMATCH",
+            current_hash="ab" * 32,
+            database_hash="ef" * 32,
         )
 
         with self.assertRaises(HTTPException) as raised:
             self.prepare()
 
         self.assertEqual(raised.exception.status_code, 409)
-        self.assertEqual(
-            raised.exception.detail,
-            {
-                "code": "EVIDENCE_INTEGRITY_MISMATCH",
-                "mismatch_type": "DATABASE_HASH_MISMATCH",
-                "message": "ค่าแฮชไฟล์ต้นฉบับในฐานข้อมูลไม่ตรงกับ Blockchain",
-            },
-        )
+        self.assertEqual(raised.exception.detail["database_hash"], "ef" * 32)
+        self.assertEqual(raised.exception.detail["blockchain_evidence_hash"], "ab" * 32)
+        self.assertTrue(raised.exception.detail["current_matches_blockchain"])
+        self.assertFalse(raised.exception.detail["database_matches_blockchain"])
         self.stage_log.assert_not_called()
         self.watermark.create_personalized_copy.assert_not_called()
         self.blockchain.record_access.assert_not_called()
@@ -305,9 +324,9 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.db.commit.assert_not_called()
 
     def test_original_and_database_mismatch_returns_combined_reason(self):
-        self.integrity.verify.return_value = SimpleNamespace(
-            verified=False,
-            status="ORIGINAL_AND_DATABASE_HASH_MISMATCH",
+        self.integrity.verify.return_value = self.mismatch_integrity(
+            "ORIGINAL_AND_DATABASE_HASH_MISMATCH",
+            database_hash="ef" * 32,
         )
 
         with self.assertRaises(HTTPException) as raised:
@@ -322,6 +341,11 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             "ไฟล์ต้นฉบับปัจจุบันและค่าแฮชในฐานข้อมูล",
             raised.exception.detail["message"],
         )
+        self.assertEqual(raised.exception.detail["current_original_hash"], "cd" * 32)
+        self.assertEqual(raised.exception.detail["database_hash"], "ef" * 32)
+        self.assertEqual(raised.exception.detail["blockchain_evidence_hash"], "ab" * 32)
+        self.assertFalse(raised.exception.detail["current_matches_blockchain"])
+        self.assertFalse(raised.exception.detail["database_matches_blockchain"])
         self.stage_log.assert_not_called()
         self.watermark.create_personalized_copy.assert_not_called()
         self.blockchain.record_access.assert_not_called()
