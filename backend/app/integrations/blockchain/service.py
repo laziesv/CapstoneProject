@@ -11,7 +11,13 @@ from blockchain_client import (
     derive_actor_ref,
     derive_evidence_ref,
 )
-from blockchain_client.references import normalize_bytes32
+from blockchain_client.references import (
+    bytes32_to_hex,
+    normalize_bytes32,
+    normalize_tx_hash,
+)
+from web3.exceptions import BlockNotFound, TransactionNotFound
+from web3.logs import DISCARD
 
 from app.integrations.blockchain.config import BlockchainSettings
 from app.integrations.blockchain.provider import get_blockchain_client
@@ -38,6 +44,10 @@ class BlockchainIntegrationService:
     @property
     def contract_address(self) -> str | None:
         return self._settings.contract_address
+
+    @property
+    def deployment_block(self) -> int:
+        return self._settings.deployment_block
 
     def health_check(self) -> dict[str, Any]:
         """Return non-sensitive connectivity and deployment health."""
@@ -129,11 +139,24 @@ class BlockchainIntegrationService:
         """Return registration and access events for one evidence reference."""
 
         evidence_ref = derive_evidence_ref(evidence_id)
+        return self.get_evidence_history_by_ref(
+            evidence_ref,
+            access_session_ref=access_session_ref,
+        )
+
+    def get_evidence_history_by_ref(
+        self,
+        evidence_ref: str,
+        access_session_ref: str | None = None,
+    ) -> dict[str, Any]:
+        """Return V3 registration and access events for one evidence ref."""
+
+        canonical_evidence_ref = normalize_bytes32(evidence_ref, "evidence_ref")
         if not self._settings.enabled:
             # Blockchain integration: Disabled reads return no chain data or RPC calls.
             return {
                 "enabled": False,
-                "evidence_ref": evidence_ref,
+                "evidence_ref": canonical_evidence_ref,
                 "registration": None,
                 "matched_access": None,
                 "access_history": [],
@@ -156,7 +179,7 @@ class BlockchainIntegrationService:
         # RPC ของ Besu และเริ่มอ่านจาก deployment block ของสัญญา V3 เท่านั้น
         for from_block, to_block in self._event_scan_ranges(latest_block):
             chunk_registration = client.get_evidence_record_event(
-                evidence_ref,
+                canonical_evidence_ref,
                 from_block=from_block,
                 to_block=to_block,
             )
@@ -168,7 +191,7 @@ class BlockchainIntegrationService:
                 registration_event = chunk_registration
             access_events.extend(
                 client.list_access_events(
-                    evidence_ref,
+                    canonical_evidence_ref,
                     from_block=from_block,
                     to_block=to_block,
                 )
@@ -197,19 +220,7 @@ class BlockchainIntegrationService:
             else None
         )
         access_history = [
-            {
-                "evidence_ref": event.evidence_ref,
-                "officer_ref": event.officer_ref,
-                "access_session_ref": event.access_session_ref,
-                "action": event.action,
-                "occurred_at": event.occurred_at,
-                "tx_hash": event.tx_hash,
-                "block_number": event.block_number,
-                "transaction_index": event.transaction_index,
-                "log_index": event.log_index,
-                "recorded_at": event.recorded_at,
-                "writer": event.writer,
-            }
+            self._map_access_event(event)
             for event in access_events
         ]
         matched_access = next(
@@ -222,7 +233,7 @@ class BlockchainIntegrationService:
         )
         return {
             "enabled": True,
-            "evidence_ref": evidence_ref,
+            "evidence_ref": canonical_evidence_ref,
             "registration": registration,
             "matched_access": matched_access,
             "access_history": access_history,
@@ -231,6 +242,102 @@ class BlockchainIntegrationService:
                 "to_block": latest_block,
                 "chunk_size": self._event_scan_chunk_size,
             },
+        }
+
+    def get_access_event_by_session(
+        self,
+        access_session_ref: str,
+    ) -> dict[str, Any] | None:
+        """Locate one indexed V3 access event without scanning from block zero."""
+
+        if not self._settings.enabled:
+            raise RuntimeError("blockchain integration is disabled")
+        canonical_ref = normalize_bytes32(access_session_ref, "access_session_ref")
+        client = self._client_provider()
+        health = client.health_check()
+        if not health.connected or health.latest_block is None:
+            raise RuntimeError("unable to determine latest Blockchain block")
+
+        matched_event = None
+        for from_block, to_block in self._event_scan_ranges(int(health.latest_block)):
+            event = client.get_access_event_by_session(
+                canonical_ref,
+                from_block=from_block,
+                to_block=to_block,
+            )
+            if event is not None:
+                if matched_event is not None:
+                    raise RuntimeError(
+                        "multiple EvidenceAccessRecorded events found for access_session_ref"
+                    )
+                matched_event = event
+        return self._map_access_event(matched_event) if matched_event else None
+
+    def get_network_overview(self) -> dict[str, Any]:
+        """Return safe V3 network metadata for the admin explorer."""
+
+        return {
+            **self.health_check(),
+            "network": "Hyperledger Besu",
+            "consensus": "QBFT",
+            "deployment_block": self._settings.deployment_block,
+        }
+
+    def get_block(self, block_number: int) -> dict[str, Any] | None:
+        """Read one Besu block and a compact transaction summary."""
+
+        if isinstance(block_number, bool) or block_number < 0:
+            raise ValueError("block_number must be >= 0")
+        client = self._read_client()
+        try:
+            block = client.web3.eth.get_block(block_number, full_transactions=True)
+        except BlockNotFound:
+            return None
+        transactions = [
+            {
+                "tx_hash": self._hex_value(tx["hash"]),
+                "from_address": tx.get("from"),
+                "to_address": tx.get("to"),
+                "transaction_index": int(tx.get("transactionIndex", 0)),
+                "is_registry_transaction": self._is_registry_address(tx.get("to")),
+            }
+            for tx in block.get("transactions", [])
+        ]
+        return {
+            "block_number": int(block["number"]),
+            "block_hash": self._hex_value(block["hash"]),
+            "timestamp": int(block["timestamp"]),
+            "parent_hash": self._hex_value(block["parentHash"]),
+            "transaction_count": len(transactions),
+            "transactions": transactions,
+        }
+
+    def get_transaction(self, tx_hash: str) -> dict[str, Any] | None:
+        """Read a transaction, receipt, and decoded V3 registry events."""
+
+        canonical_hash = normalize_tx_hash(tx_hash)
+        client = self._read_client()
+        try:
+            transaction = client.web3.eth.get_transaction(canonical_hash)
+            receipt = client.web3.eth.get_transaction_receipt(canonical_hash)
+        except TransactionNotFound:
+            return None
+        is_registry_transaction = self._is_registry_address(transaction.get("to"))
+        return {
+            "tx_hash": self._hex_value(transaction["hash"]),
+            "status": "confirmed" if int(receipt["status"]) == 1 else "failed",
+            "block_number": int(receipt["blockNumber"]),
+            "from_address": transaction.get("from"),
+            "to_address": transaction.get("to"),
+            "transaction_index": int(receipt["transactionIndex"]),
+            "gas_used": int(receipt["gasUsed"]),
+            "contract_address": (
+                self._settings.contract_address
+                if is_registry_transaction
+                else None
+            ),
+            "is_registry_transaction": is_registry_transaction,
+            "registry_events": self._decode_registry_events(client, receipt),
         }
 
     def _event_scan_ranges(self, latest_block: int) -> list[tuple[int, int]]:
@@ -291,6 +398,85 @@ class BlockchainIntegrationService:
             "writer": record["writer"],
             "exists": record["exists"],
         }
+
+    def _read_client(self) -> BlockchainClient:
+        if not self._settings.enabled:
+            raise RuntimeError("blockchain integration is disabled")
+        client = self._client_provider()
+        client.validate_connection()
+        return client
+
+    @staticmethod
+    def _map_access_event(event: Any) -> dict[str, Any]:
+        return {
+            "evidence_ref": event.evidence_ref,
+            "officer_ref": event.officer_ref,
+            "access_session_ref": event.access_session_ref,
+            "action": event.action,
+            "occurred_at": event.occurred_at,
+            "tx_hash": event.tx_hash,
+            "block_number": event.block_number,
+            "transaction_index": event.transaction_index,
+            "log_index": event.log_index,
+            "recorded_at": event.recorded_at,
+            "writer": event.writer,
+        }
+
+    def _decode_registry_events(
+        self,
+        client: BlockchainClient,
+        receipt: Any,
+    ) -> list[dict[str, Any]]:
+        decoded_events: list[dict[str, Any]] = []
+        for event_name in ("EvidenceRecorded", "EvidenceAccessRecorded"):
+            event_reader = getattr(client.contract.events, event_name)()
+            for event in event_reader.process_receipt(receipt, errors=DISCARD):
+                args = event["args"]
+                normalized = {
+                    "event_type": event_name,
+                    "evidence_ref": bytes32_to_hex(args["evidenceRef"]),
+                    "tx_hash": self._hex_value(event["transactionHash"]),
+                    "block_number": int(event["blockNumber"]),
+                    "transaction_index": int(event["transactionIndex"]),
+                    "log_index": int(event["logIndex"]),
+                    "recorded_at": int(args["recordedAt"]),
+                    "writer": args["writer"],
+                }
+                if event_name == "EvidenceRecorded":
+                    normalized.update(
+                        evidence_hash=bytes32_to_hex(args["evidenceHash"]),
+                        uploader_ref=bytes32_to_hex(args["uploaderRef"]),
+                    )
+                else:
+                    normalized.update(
+                        officer_ref=bytes32_to_hex(args["officerRef"]),
+                        access_session_ref=bytes32_to_hex(
+                            args["accessSessionRef"]
+                        ),
+                        action=AccessAction(int(args["action"])).name,
+                        occurred_at=int(args["occurredAt"]),
+                    )
+                decoded_events.append(normalized)
+        return sorted(
+            decoded_events,
+            key=lambda item: (
+                item["block_number"],
+                item["transaction_index"],
+                item["log_index"],
+            ),
+        )
+
+    def _is_registry_address(self, address: Any) -> bool:
+        return bool(
+            address
+            and self._settings.contract_address
+            and str(address).lower() == self._settings.contract_address.lower()
+        )
+
+    @staticmethod
+    def _hex_value(value: Any) -> str:
+        result = value.hex() if hasattr(value, "hex") else str(value)
+        return result if result.startswith("0x") else f"0x{result}"
 
     def _require_write_enabled(self) -> None:
         if not self._settings.enabled:

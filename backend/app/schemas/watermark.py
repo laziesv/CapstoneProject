@@ -16,6 +16,21 @@ class WatermarkUserProfile(BaseModel):
     rank: str | None = None
 
 
+class WatermarkBlockchainAccessEvent(BaseModel):
+    evidence_ref: str
+    officer_ref: str
+    access_session_ref: str
+    action: str
+    occurred_at: int
+    recorded_at: int
+    writer: str
+    tx_hash: str
+    block_number: int
+    transaction_index: int | None = None
+    log_index: int | None = None
+    matched: bool = False
+
+
 class WatermarkExtractResponse(BaseModel):
     """ผลการถอดลายน้ำจากภาพที่อัปโหลด — ระบบลองเทียบกับทุกหลักฐานจนเจอตัวที่ตรง (blind)"""
     found: bool                       # เจอหลักฐานที่ลายน้ำตรงไหม
@@ -84,3 +99,7 @@ class WatermarkExtractResponse(BaseModel):
     database_access_action: str | None = None
     database_accessed_at: datetime | None = None
     blockchain_occurred_at: int | None = None
+    blockchain_officer_ref: str | None = None
+    blockchain_access_history: list[WatermarkBlockchainAccessEvent] = Field(
+        default_factory=list
+    )

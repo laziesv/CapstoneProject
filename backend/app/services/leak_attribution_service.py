@@ -60,6 +60,26 @@ class BlockchainAccessAttribution:
     occurred_at: int
     recorded_at: int
     writer: str
+    tx_hash: str
+    block_number: int
+    transaction_index: int | None
+    log_index: int | None
+
+
+@dataclass(frozen=True)
+class BlockchainAccessHistoryEvent:
+    evidence_ref: str
+    officer_ref: str
+    access_session_ref: str
+    action: str
+    occurred_at: int
+    recorded_at: int
+    writer: str
+    tx_hash: str
+    block_number: int
+    transaction_index: int | None
+    log_index: int | None
+    matched: bool
 
 
 @dataclass(frozen=True)
@@ -110,6 +130,7 @@ class LeakAttributionResult:
     verification: AttributionVerification
     database_integrity_state: str
     mismatches: tuple[IntegrityMismatch, ...]
+    blockchain_access_history: tuple[BlockchainAccessHistoryEvent, ...]
 
 
 class LeakAttributionService:
@@ -167,6 +188,12 @@ class LeakAttributionService:
             raise AttributionEvidenceMismatchError(
                 "Blockchain session belongs to different evidence"
             )
+
+        blockchain_history, matched_event = self._read_blockchain_history(
+            evidence_ref=evidence_ref,
+            officer_ref=officer_ref,
+            access_session_ref=canonical_ref,
+        )
 
         matches = self._find_access_log_matches(db, canonical_ref)
         if expected_evidence_id is None:
@@ -277,6 +304,10 @@ class LeakAttributionService:
                     "recorded_at",
                 ),
                 writer=chain_record["writer"],
+                tx_hash=matched_event.tx_hash,
+                block_number=matched_event.block_number,
+                transaction_index=matched_event.transaction_index,
+                log_index=matched_event.log_index,
             ),
             evidence=EvidenceAttribution(
                 evidence_id=evidence.evidence_id,
@@ -317,6 +348,7 @@ class LeakAttributionService:
                 "VERIFIED" if database_verified else "INTEGRITY_MISMATCH"
             ),
             mismatches=tuple(mismatches),
+            blockchain_access_history=blockchain_history,
         )
 
     def analyze_personalized_copy(
@@ -331,6 +363,139 @@ class LeakAttributionService:
             original_path=original_path,
         )
         return self.resolve_by_access_session_ref(db, access_session_ref)
+
+    def _read_blockchain_history(
+        self,
+        *,
+        evidence_ref: str,
+        officer_ref: str,
+        access_session_ref: str,
+    ) -> tuple[tuple[BlockchainAccessHistoryEvent, ...], BlockchainAccessHistoryEvent]:
+        try:
+            custody = self._blockchain.get_evidence_history_by_ref(
+                evidence_ref,
+                access_session_ref=access_session_ref,
+            )
+        except Exception as exc:
+            raise BlockchainAttributionReadError(
+                "Unable to read access history from Blockchain"
+            ) from exc
+
+        matched_record = custody.get("matched_access")
+        if matched_record is None:
+            raise AttributionIntegrityError(
+                "Blockchain access event was not found for session"
+            )
+        matched_event = self._history_event(
+            matched_record,
+            matched_ref=access_session_ref,
+        )
+        if (
+            matched_event.evidence_ref != evidence_ref
+            or matched_event.officer_ref != officer_ref
+            or matched_event.action != AuditAction.DOWNLOAD.value
+        ):
+            raise AttributionIntegrityError(
+                "Blockchain access event does not match session state"
+            )
+
+        history = []
+        for record in custody.get("access_history", []):
+            event = self._history_event(record, matched_ref=access_session_ref)
+            if (
+                event.evidence_ref == evidence_ref
+                and event.officer_ref == officer_ref
+                and self._is_at_or_before(event, matched_event)
+            ):
+                history.append(event)
+        history.sort(key=self._event_sort_key)
+        return tuple(history), matched_event
+
+    def _history_event(
+        self,
+        record: dict[str, Any],
+        *,
+        matched_ref: str,
+    ) -> BlockchainAccessHistoryEvent:
+        session_ref = self._normalize_chain_ref(
+            record.get("access_session_ref"),
+            "access_session_ref",
+        )
+        return BlockchainAccessHistoryEvent(
+            evidence_ref=self._normalize_chain_ref(
+                record.get("evidence_ref"),
+                "evidence_ref",
+            ),
+            officer_ref=self._normalize_chain_ref(
+                record.get("officer_ref"),
+                "officer_ref",
+            ),
+            access_session_ref=session_ref,
+            action=self._normalize_chain_action(record.get("action")),
+            occurred_at=self._normalize_chain_timestamp(
+                record.get("occurred_at"),
+                "occurred_at",
+            ),
+            recorded_at=self._normalize_chain_timestamp(
+                record.get("recorded_at"),
+                "recorded_at",
+            ),
+            writer=str(record.get("writer") or ""),
+            tx_hash=str(record.get("tx_hash") or ""),
+            block_number=int(record["block_number"]),
+            transaction_index=(
+                int(record["transaction_index"])
+                if record.get("transaction_index") is not None
+                else None
+            ),
+            log_index=(
+                int(record["log_index"])
+                if record.get("log_index") is not None
+                else None
+            ),
+            matched=session_ref == matched_ref,
+        )
+
+    @staticmethod
+    def _event_sort_key(
+        event: BlockchainAccessHistoryEvent,
+    ) -> tuple[int, int, int, int, int]:
+        # การตรวจสอบเชิงนิติพิสูจน์: ใช้ลำดับบน Blockchain เป็นหลัก และใช้
+        # recorded_at เป็น fallback เมื่อข้อมูล index จาก RPC ไม่สมบูรณ์
+        if event.transaction_index is None or event.log_index is None:
+            return (event.block_number, 1, event.recorded_at, 0, 0)
+        return (
+            event.block_number,
+            0,
+            event.transaction_index,
+            event.log_index,
+            event.recorded_at,
+        )
+
+    @staticmethod
+    def _is_at_or_before(
+        event: BlockchainAccessHistoryEvent,
+        matched: BlockchainAccessHistoryEvent,
+    ) -> bool:
+        if (
+            event.transaction_index is not None
+            and event.log_index is not None
+            and matched.transaction_index is not None
+            and matched.log_index is not None
+        ):
+            return (
+                event.block_number,
+                event.transaction_index,
+                event.log_index,
+            ) <= (
+                matched.block_number,
+                matched.transaction_index,
+                matched.log_index,
+            )
+        return (event.block_number, event.recorded_at) <= (
+            matched.block_number,
+            matched.recorded_at,
+        )
 
     @staticmethod
     def _normalize_access_session_ref(value: str) -> str:

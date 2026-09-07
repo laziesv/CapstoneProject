@@ -38,6 +38,9 @@ CONTRACT_ADDRESS = "0x" + "11" * 20
 EVIDENCE_ID = UUID("11111111-1111-4111-8111-111111111111")
 USER_ID = UUID("22222222-2222-4222-8222-222222222222")
 ACCESS_LOG_ID = UUID("33333333-3333-4333-8333-333333333333")
+VIEW_LOG_ID = UUID("33333333-3333-4333-8333-333333333334")
+LATER_LOG_ID = UUID("33333333-3333-4333-8333-333333333335")
+OTHER_USER_ID = UUID("22222222-2222-4222-8222-222222222223")
 TX_INTERNAL_ID = UUID("44444444-4444-4444-8444-444444444444")
 SESSION_REF = derive_access_session_ref(ACCESS_LOG_ID)
 EVIDENCE_REF = derive_evidence_ref(EVIDENCE_ID)
@@ -88,12 +91,62 @@ class LeakAttributionServiceTests(unittest.TestCase):
             "recorded_at": 1787018400,
             "writer": "0x" + "22" * 20,
         }
+        prior_view = self._chain_event(
+            VIEW_LOG_ID,
+            officer_ref=OFFICER_REF,
+            action=AccessAction.VIEW,
+            block_number=8122,
+        )
+        matched_download = self._chain_event(
+            ACCESS_LOG_ID,
+            officer_ref=OFFICER_REF,
+            action=AccessAction.DOWNLOAD,
+            block_number=8123,
+        )
+        later_view = self._chain_event(
+            LATER_LOG_ID,
+            officer_ref=OFFICER_REF,
+            action=AccessAction.VIEW,
+            block_number=8124,
+        )
+        other_actor = self._chain_event(
+            UUID(int=20),
+            officer_ref=derive_actor_ref(OTHER_USER_ID),
+            action=AccessAction.VIEW,
+            block_number=8121,
+        )
+        self.chain.get_evidence_history_by_ref.return_value = {
+            "matched_access": matched_download,
+            "access_history": [later_view, matched_download, other_actor, prior_view],
+        }
         self.db.query.return_value.all.return_value = [self.access_log]
         self.watermark = Mock()
         self.service = LeakAttributionService(
             blockchain_service=self.chain,
             watermark_service=self.watermark,
         )
+
+    @staticmethod
+    def _chain_event(
+        log_id,
+        *,
+        officer_ref,
+        action,
+        block_number,
+    ):
+        return {
+            "evidence_ref": EVIDENCE_REF,
+            "officer_ref": officer_ref,
+            "access_session_ref": derive_access_session_ref(log_id),
+            "action": action,
+            "occurred_at": OCCURRED_AT + block_number - 8123,
+            "recorded_at": OCCURRED_AT + block_number - 8123,
+            "writer": "0x" + "22" * 20,
+            "tx_hash": "0x" + f"{block_number:064x}",
+            "block_number": block_number,
+            "transaction_index": 0,
+            "log_index": 0,
+        }
 
     @contextmanager
     def local_records(self, *, transaction=None, evidence=None, user=None):
@@ -147,7 +200,17 @@ class LeakAttributionServiceTests(unittest.TestCase):
         self.assertTrue(result.verification.transaction_link_matches)
         self.assertEqual(result.database_integrity_state, "VERIFIED")
         self.assertEqual(result.mismatches, ())
+        self.assertEqual(
+            [event.action for event in result.blockchain_access_history],
+            ["VIEW", "DOWNLOAD"],
+        )
+        self.assertTrue(result.blockchain_access_history[-1].matched)
+        self.assertEqual(result.blockchain.tx_hash, result.blockchain_access_history[-1].tx_hash)
         self.chain.get_access_by_session.assert_called_once_with(SESSION_REF)
+        self.chain.get_evidence_history_by_ref.assert_called_once_with(
+            EVIDENCE_REF,
+            access_session_ref=SESSION_REF,
+        )
         self.assertFalse(self.chain.record_access.called)
         self.assertFalse(self.chain.record_evidence.called)
 
@@ -184,6 +247,7 @@ class LeakAttributionServiceTests(unittest.TestCase):
         with self.assertRaises(BlockchainAccessSessionNotFoundError):
             self.service.resolve_by_access_session_ref(self.db, SESSION_REF)
         self.db.query.assert_not_called()
+        self.chain.get_evidence_history_by_ref.assert_not_called()
 
     def test_blockchain_read_failure_is_distinct(self):
         self.chain.get_access_by_session.side_effect = RuntimeError("RPC unavailable")
@@ -210,6 +274,7 @@ class LeakAttributionServiceTests(unittest.TestCase):
         self.assertIsNone(result.database_user)
         self.assertIsNone(result.transaction)
         self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
+        self.assertEqual(len(result.blockchain_access_history), 2)
 
     def test_missing_actor_profile_keeps_verified_chain_session(self):
         with self.local_records(user=None), patch.object(
@@ -271,6 +336,23 @@ class LeakAttributionServiceTests(unittest.TestCase):
         self.assertEqual(result.database_user.user_id, tampered_user_id)
         self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
         self.assertIn("officer_ref", {item.field for item in result.mismatches})
+        self.assertEqual(len(result.blockchain_access_history), 2)
+
+    def test_db_evidence_link_tamper_does_not_change_chain_history(self):
+        self.access_log.evidence_id = UUID(int=15)
+        with self.local_records():
+            result = self.service.resolve_by_access_session_ref(
+                self.db,
+                SESSION_REF,
+                expected_evidence_id=EVIDENCE_ID,
+            )
+
+        self.assertTrue(result.matched)
+        self.assertEqual(result.database_integrity_state, "INTEGRITY_MISMATCH")
+        self.assertEqual(
+            [event.action for event in result.blockchain_access_history],
+            ["VIEW", "DOWNLOAD"],
+        )
 
     def test_chain_evidence_mismatch_fails_before_local_metadata(self):
         self.chain.get_access_by_session.return_value["evidence_ref"] = (
@@ -283,6 +365,7 @@ class LeakAttributionServiceTests(unittest.TestCase):
                 expected_evidence_id=EVIDENCE_ID,
             )
         self.db.query.assert_not_called()
+        self.chain.get_evidence_history_by_ref.assert_not_called()
 
     def test_transaction_mismatches_are_reported_without_hiding_session(self):
         mismatches = (
@@ -308,6 +391,7 @@ class LeakAttributionServiceTests(unittest.TestCase):
 
         with self.assertRaisesRegex(AttributionIntegrityError, "not DOWNLOAD"):
             self.resolve()
+        self.chain.get_evidence_history_by_ref.assert_not_called()
 
     def test_occurred_at_tamper_keeps_session_and_reports_timestamp_diff(self):
         self.chain.get_access_by_session.return_value["occurred_at"] += 1
@@ -329,6 +413,10 @@ class LeakAttributionServiceTests(unittest.TestCase):
         mismatch = next(item for item in result.mismatches if item.field == "action")
         self.assertEqual(mismatch.database_value, AuditAction.VIEW.value)
         self.assertEqual(mismatch.blockchain_value, AuditAction.DOWNLOAD.value)
+        self.assertEqual(
+            [event.action for event in result.blockchain_access_history],
+            ["VIEW", "DOWNLOAD"],
+        )
 
     def test_image_composition_extracts_then_resolves_matching_session(self):
         self.watermark.extract_access_session_ref.return_value = SESSION_REF

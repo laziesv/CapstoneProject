@@ -56,6 +56,8 @@ function toVerifyResult(dto: WatermarkVerifyApiResponse): VerifyResult {
     databaseAccessAction: dto.database_access_action,
     databaseAccessedAt: dto.database_accessed_at,
     blockchainOccurredAt: dto.blockchain_occurred_at,
+    blockchainOfficerRef: dto.blockchain_officer_ref,
+    blockchainAccessHistory: dto.blockchain_access_history,
   };
 }
 

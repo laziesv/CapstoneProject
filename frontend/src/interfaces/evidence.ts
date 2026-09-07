@@ -216,6 +216,23 @@ export interface WatermarkVerifyApiResponse {
   database_access_action: string | null;
   database_accessed_at: string | null;
   blockchain_occurred_at: number | null;
+  blockchain_officer_ref: string | null;
+  blockchain_access_history: WatermarkBlockchainAccessEvent[];
+}
+
+export interface WatermarkBlockchainAccessEvent {
+  evidence_ref: string;
+  officer_ref: string;
+  access_session_ref: string;
+  action: string;
+  occurred_at: number;
+  recorded_at: number;
+  writer: string;
+  tx_hash: string;
+  block_number: number;
+  transaction_index: number | null;
+  log_index: number | null;
+  matched: boolean;
 }
 
 export interface WatermarkVerificationUser {
@@ -286,6 +303,8 @@ export interface VerifyResult {
   databaseAccessAction: string | null;
   databaseAccessedAt: string | null;
   blockchainOccurredAt: number | null;
+  blockchainOfficerRef: string | null;
+  blockchainAccessHistory: WatermarkBlockchainAccessEvent[];
 }
 
 export interface AccessLog {

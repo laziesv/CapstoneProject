@@ -220,13 +220,23 @@ class WatermarkService:
                     else None
                 ),
                 "access_tx_hash": (
-                    attribution.transaction.tx_hash
-                    if attribution and attribution.transaction
+                    getattr(attribution.blockchain, "tx_hash", None)
+                    or (
+                        attribution.transaction.tx_hash
+                        if attribution and attribution.transaction
+                        else None
+                    )
+                    if attribution
                     else None
                 ),
                 "access_block_number": (
-                    attribution.transaction.block_number
-                    if attribution and attribution.transaction
+                    getattr(attribution.blockchain, "block_number", None)
+                    or (
+                        attribution.transaction.block_number
+                        if attribution and attribution.transaction
+                        else None
+                    )
+                    if attribution
                     else None
                 ),
                 "matched_access_user": (
@@ -271,6 +281,36 @@ class WatermarkService:
                 ),
                 "blockchain_occurred_at": (
                     attribution.blockchain.occurred_at if attribution else None
+                ),
+                "blockchain_officer_ref": (
+                    getattr(attribution.blockchain, "officer_ref", None)
+                    if attribution
+                    else None
+                ),
+                "blockchain_access_history": (
+                    [
+                        {
+                            "evidence_ref": event.evidence_ref,
+                            "officer_ref": event.officer_ref,
+                            "access_session_ref": event.access_session_ref,
+                            "action": event.action,
+                            "occurred_at": event.occurred_at,
+                            "recorded_at": event.recorded_at,
+                            "writer": event.writer,
+                            "tx_hash": event.tx_hash,
+                            "block_number": event.block_number,
+                            "transaction_index": event.transaction_index,
+                            "log_index": event.log_index,
+                            "matched": event.matched,
+                        }
+                        for event in getattr(
+                            attribution,
+                            "blockchain_access_history",
+                            (),
+                        )
+                    ]
+                    if attribution
+                    else []
                 ),
             }
 

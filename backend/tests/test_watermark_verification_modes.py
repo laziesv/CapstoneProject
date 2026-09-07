@@ -121,9 +121,13 @@ class WatermarkVerificationModeTests(unittest.TestCase):
                 accessed_at="2026-08-25T13:00:00Z",
             ),
             blockchain=SimpleNamespace(
+                evidence_ref="0x" + "11" * 32,
+                officer_ref="0x" + "22" * 32,
                 action="DOWNLOAD",
                 occurred_at=1787653100,
                 recorded_at=1787653200,
+                tx_hash="0x" + "12" * 32,
+                block_number=9001,
             ),
             transaction=SimpleNamespace(
                 tx_hash="0x" + "12" * 32,
@@ -140,6 +144,36 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             ),
             database_integrity_state="VERIFIED",
             mismatches=(),
+            blockchain_access_history=(
+                SimpleNamespace(
+                    evidence_ref="0x" + "11" * 32,
+                    officer_ref="0x" + "22" * 32,
+                    access_session_ref="0x" + "ab" * 32,
+                    action="VIEW",
+                    occurred_at=1787653000,
+                    recorded_at=1787653010,
+                    writer="0x" + "34" * 20,
+                    tx_hash="0x" + "11" * 32,
+                    block_number=9000,
+                    transaction_index=0,
+                    log_index=0,
+                    matched=False,
+                ),
+                SimpleNamespace(
+                    evidence_ref="0x" + "11" * 32,
+                    officer_ref="0x" + "22" * 32,
+                    access_session_ref=SESSION_REF,
+                    action="DOWNLOAD",
+                    occurred_at=1787653100,
+                    recorded_at=1787653200,
+                    writer="0x" + "34" * 20,
+                    tx_hash="0x" + "12" * 32,
+                    block_number=9001,
+                    transaction_index=0,
+                    log_index=0,
+                    matched=True,
+                ),
+            ),
         )
 
     def identify(self, dynamic_value, user_lookup=None):
@@ -320,6 +354,12 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         self.assertEqual(result["attribution_mismatches"], [])
         self.assertEqual(result["access_tx_status"], "confirmed")
         self.assertEqual(result["matched_evidence_id"], EVIDENCE_ID)
+        self.assertEqual(
+            [event["action"] for event in result["blockchain_access_history"]],
+            ["VIEW", "DOWNLOAD"],
+        )
+        self.assertTrue(result["blockchain_access_history"][-1]["matched"])
+        self.assertEqual(result["blockchain_officer_ref"], "0x" + "22" * 32)
         self.attribution.resolve_by_access_session_ref.assert_called_once_with(
             self.db,
             SESSION_REF,

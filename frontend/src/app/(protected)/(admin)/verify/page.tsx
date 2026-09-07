@@ -3,10 +3,13 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   CheckCircle2,
   ChevronDown,
   Copy,
+  Clock3,
+  ExternalLink,
   FileCheck2,
   Fingerprint,
   Loader2,
@@ -30,6 +33,7 @@ import {
   shouldShowMatchedDownloadSession,
 } from "@/utils/forensics";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
+import { blockchainExplorerHref } from "@/utils/blockchainExplorer";
 import {
   buildVerificationPresentation,
   type VerificationCheckPresentation,
@@ -270,6 +274,9 @@ function VerificationReport({ result }: { result: VerifyResult }) {
             <div>
               <p className="mb-3 text-xs font-semibold text-muted">ผู้ใช้ที่อ้างอิงจาก Blockchain</p>
               <UserProfile profile={result.matchedAccessUser} />
+              {!result.matchedAccessUser && (
+                <p className="mt-3 break-all font-mono text-xs text-muted">Blockchain User Reference: {result.blockchainOfficerRef || "—"}</p>
+              )}
               <p className="mt-3 text-xs text-muted">
                 User Reference ยืนยันกับ Blockchain ส่วนชื่อ Badge Number Username และ Email แสดงจากข้อมูลผู้ใช้ปัจจุบันในระบบ
               </p>
@@ -290,13 +297,67 @@ function VerificationReport({ result }: { result: VerifyResult }) {
                 <DataRow label="Evidence ID" value={result.matchedEvidenceId} copy />
                 <DataRow label="เวลาที่เกิดการเข้าถึงในระบบ" value={formatForensicDateTime(result.databaseAccessedAt)} />
               </TechnicalDetails>
+              <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                {result.accessTxHash && (
+                  <Link href={blockchainExplorerHref("transaction", result.accessTxHash)} className="inline-flex items-center gap-1 text-primary hover:underline">
+                    ดู Transaction บน Blockchain <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+                {result.accessBlockNumber !== null && (
+                  <Link href={blockchainExplorerHref("block", String(result.accessBlockNumber))} className="inline-flex items-center gap-1 text-primary hover:underline">
+                    ดู Block <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
+
+          <BlockchainAccessHistory result={result} />
 
           {result.attributionMismatches.length > 0 && <IntegrityMismatchTable mismatches={result.attributionMismatches} />}
         </section>
       )}
     </div>
+  );
+}
+
+function BlockchainAccessHistory({ result }: { result: VerifyResult }) {
+  return (
+    <section className="mt-6 border-t border-border pt-5">
+      <div className="flex items-start gap-2">
+        <Clock3 className="mt-0.5 h-5 w-5 text-primary" />
+        <div>
+          <h3 className="font-semibold">ประวัติการเข้าถึงก่อนการดาวน์โหลดนี้</h3>
+          <p className="mt-1 text-xs text-muted">เฉพาะเหตุการณ์ของผู้ใช้ที่อ้างอิงจาก Blockchain และเรียงตามตำแหน่งบนเชน</p>
+        </div>
+      </div>
+      {result.blockchainAccessHistory.length === 0 ? (
+        <p className="mt-4 border-y border-border py-4 text-sm text-muted">ไม่พบประวัติการเข้าถึงก่อนหน้า</p>
+      ) : (
+        <div className="mt-4 divide-y divide-border border-y border-border">
+          {result.blockchainAccessHistory.map((event, index) => (
+            <div key={`${event.tx_hash}-${event.log_index}`} className={`grid gap-3 py-4 text-sm lg:grid-cols-[3rem_10rem_minmax(0,1fr)_8rem] ${event.matched ? "border-l-2 border-primary bg-blue-50/50 px-3" : "px-1"}`}>
+              <span className="text-muted">#{index + 1}</span>
+              <div>
+                <p className="font-semibold">{formatForensicAction(event.action)}</p>
+                {event.matched && <p className="mt-1 text-xs font-medium text-primary">รายการดาวน์โหลดที่ตรงกับ Watermark</p>}
+              </div>
+              <div>
+                <p>{formatForensicUnixTime(event.occurred_at)}</p>
+                <details className="mt-2 text-xs text-muted">
+                  <summary className="cursor-pointer">รายละเอียดทางเทคนิค</summary>
+                  <p className="mt-2 break-all font-mono">Transaction: {event.tx_hash}</p>
+                  <p className="mt-1 font-mono">Transaction Index: {event.transaction_index ?? "—"} · Log Index: {event.log_index ?? "—"}</p>
+                </details>
+              </div>
+              <Link href={blockchainExplorerHref("transaction", event.tx_hash)} className="inline-flex items-start gap-1 text-primary hover:underline">
+                Block {event.block_number} <ExternalLink className="mt-0.5 h-3.5 w-3.5" />
+              </Link>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

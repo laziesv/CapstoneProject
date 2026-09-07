@@ -400,6 +400,92 @@ class BlockchainIntegrationTests(TestCase):
         self.assertEqual(result["access_history"], [])
         provider.assert_not_called()
 
+    def test_access_session_event_lookup_uses_bounded_deployment_ranges(self) -> None:
+        client = Mock()
+        event = _access_event(ACCESS_LOG_ID, 6463, 1_700_000_001)
+        client.health_check.return_value = BlockchainHealth(
+            connected=True,
+            chain_id=20260720,
+            latest_block=6464,
+            contract_address=CONTRACT_ADDRESS,
+            contract_deployed=True,
+        )
+        client.get_access_event_by_session.side_effect = [None, event]
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=6461),
+            client_provider=lambda: client,
+            event_scan_chunk_size=2,
+        )
+
+        result = service.get_access_event_by_session(event.access_session_ref)
+
+        self.assertEqual(result["tx_hash"], TX_HASH)
+        self.assertEqual(
+            client.get_access_event_by_session.call_args_list,
+            [
+                ((event.access_session_ref,), {"from_block": 6461, "to_block": 6462}),
+                ((event.access_session_ref,), {"from_block": 6463, "to_block": 6464}),
+            ],
+        )
+
+    def test_direct_block_lookup_returns_compact_registry_summary(self) -> None:
+        client = Mock()
+        client.web3.eth.get_block.return_value = {
+            "number": 7000,
+            "hash": bytes.fromhex("11" * 32),
+            "timestamp": 1_700_000_000,
+            "parentHash": bytes.fromhex("22" * 32),
+            "transactions": [
+                {
+                    "hash": bytes.fromhex("33" * 32),
+                    "from": "0x" + "44" * 20,
+                    "to": CONTRACT_ADDRESS.upper(),
+                    "transactionIndex": 0,
+                }
+            ],
+        }
+        service = BlockchainIntegrationService(
+            settings=_settings(),
+            client_provider=lambda: client,
+        )
+
+        result = service.get_block(7000)
+
+        client.validate_connection.assert_called_once_with()
+        client.web3.eth.get_block.assert_called_once_with(7000, full_transactions=True)
+        self.assertEqual(result["transaction_count"], 1)
+        self.assertTrue(result["transactions"][0]["is_registry_transaction"])
+
+    def test_direct_transaction_lookup_uses_receipt_and_decoder(self) -> None:
+        client = Mock()
+        client.web3.eth.get_transaction.return_value = {
+            "hash": bytes.fromhex("55" * 32),
+            "from": "0x" + "44" * 20,
+            "to": CONTRACT_ADDRESS,
+        }
+        receipt = {
+            "status": 1,
+            "blockNumber": 7001,
+            "transactionIndex": 1,
+            "gasUsed": 12345,
+        }
+        client.web3.eth.get_transaction_receipt.return_value = receipt
+        service = BlockchainIntegrationService(
+            settings=_settings(),
+            client_provider=lambda: client,
+        )
+        with patch.object(
+            service,
+            "_decode_registry_events",
+            return_value=[{"event_type": "EvidenceRecorded"}],
+        ) as decoder:
+            result = service.get_transaction("0x" + "55" * 32)
+
+        self.assertEqual(result["status"], "confirmed")
+        self.assertEqual(result["block_number"], 7001)
+        self.assertTrue(result["is_registry_transaction"])
+        decoder.assert_called_once_with(client, receipt)
+
 
 def _transaction_result() -> TransactionResult:
     return TransactionResult(
