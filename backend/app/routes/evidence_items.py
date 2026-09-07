@@ -15,6 +15,7 @@ from app.schemas.chain_of_custody import ChainOfCustodyResponse
 from app.schemas.evidence import (
     EvidenceCreate,
     EvidenceResponse,
+    EvidenceUploadResponse,
     EvidenceViewSessionResponse,
 )
 from app.services.case_authorization import can_access_case
@@ -147,7 +148,7 @@ def download(
 
 @router.post(
     "/upload",
-    response_model=EvidenceResponse
+    response_model=EvidenceUploadResponse,
 )
 def upload(
     evidence: str = Form(...),
@@ -161,11 +162,19 @@ def upload(
 
     # uploaded_by มาจาก token เสมอ ไม่รับจาก body — กันปลอมเป็นคนอื่นอัพโหลด
     try:
-        return EvidenceService.upload(
+        result = EvidenceService.upload(
             db,
             data,
             file,
             uploaded_by=current_user.user_id,
+        )
+        evidence_data = EvidenceResponse.model_validate(result.evidence).model_dump()
+        return EvidenceUploadResponse(
+            **evidence_data,
+            evidence_ref=result.evidence_ref,
+            tx_hash=result.tx_hash,
+            block_number=result.block_number,
+            contract_address=result.contract_address,
         )
     except EvidenceBlockchainWriteError as exc:
         # ตอบกลับแบบชัดเจนเมื่อบันทึก Blockchain ไม่สำเร็จ แทนข้อผิดพลาด 500

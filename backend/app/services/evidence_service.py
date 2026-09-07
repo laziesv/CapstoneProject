@@ -2,6 +2,7 @@ import os
 import sys
 import uuid
 import shutil
+from dataclasses import dataclass
 from datetime import datetime
 
 import cv2
@@ -31,6 +32,15 @@ UPLOAD_DIR = "uploads/evidence"
 
 class EvidenceBlockchainWriteError(RuntimeError):
     """Raised when evidence registration cannot be confirmed on chain."""
+
+
+@dataclass(frozen=True)
+class EvidenceUploadResult:
+    evidence: EvidenceItem
+    evidence_ref: str
+    tx_hash: str
+    block_number: int
+    contract_address: str
 
 
 class EvidenceService:
@@ -194,7 +204,15 @@ class EvidenceService:
             db.commit()
             db.refresh(evidence)
 
-            return evidence
+            # การเชื่อมต่อ Blockchain: ส่งต่อ metadata จาก write ที่สำเร็จแล้ว
+            # โดยไม่เรียก Blockchain ซ้ำเพื่ออ่านผลกลับ
+            return EvidenceUploadResult(
+                evidence=evidence,
+                evidence_ref=blockchain_result["evidence_ref"],
+                tx_hash=blockchain_result["tx_hash"],
+                block_number=blockchain_result["block_number"],
+                contract_address=blockchain_result["contract_address"],
+            )
 
 
         except Exception:

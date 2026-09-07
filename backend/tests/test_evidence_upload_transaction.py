@@ -1,9 +1,10 @@
 """Transaction-boundary tests for evidence upload persistence."""
 
 import sys
+from datetime import datetime, timezone
 from types import ModuleType, SimpleNamespace
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, mock_open, patch
+from unittest.mock import MagicMock, Mock, call, mock_open, patch
 
 from fastapi import HTTPException
 
@@ -31,7 +32,11 @@ from app.integrations.blockchain.transaction_repository import (
 from app.models.enums import BlockchainAction, FileType
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 import app.services.evidence_service as evidence_service_module
-from app.services.evidence_service import EvidenceBlockchainWriteError, EvidenceService
+from app.services.evidence_service import (
+    EvidenceBlockchainWriteError,
+    EvidenceService,
+    EvidenceUploadResult,
+)
 
 
 class EvidenceFileRepositoryTests(TestCase):
@@ -72,6 +77,55 @@ class BlockchainTransactionRepositoryTests(TestCase):
 
 
 class EvidenceUploadTransactionTests(TestCase):
+    def test_upload_route_returns_metadata_from_the_same_record_evidence_result(self) -> None:
+        from app.routes.evidence_items import upload
+
+        evidence_id = "11111111-1111-4111-8111-111111111111"
+        evidence = SimpleNamespace(
+            evidence_id=evidence_id,
+            evidence_number="EV-20260907-REAL01",
+            case_id="22222222-2222-4222-8222-222222222222",
+            uploaded_by="33333333-3333-4333-8333-333333333333",
+            description="synthetic evidence",
+            original_filename="synthetic.png",
+            is_watermarked=True,
+            is_blockchain_verified=True,
+            captured_at=None,
+            uploaded_at=datetime.now(timezone.utc),
+            case_number="CASE-REAL",
+            officer_name="officer",
+            file_id="44444444-4444-4444-8444-444444444444",
+            display_file_id="55555555-5555-4555-8555-555555555555",
+            file_hash="a" * 64,
+            file_size_bytes=100,
+        )
+        operation_result = EvidenceUploadResult(
+            evidence=evidence,
+            evidence_ref="0x" + "b" * 64,
+            tx_hash="0x" + "c" * 64,
+            block_number=6500,
+            contract_address="0x1111111111111111111111111111111111111111",
+        )
+
+        with patch.object(EvidenceService, "upload", return_value=operation_result) as service_upload:
+            response = upload(
+                evidence=(
+                    '{"case_id":"22222222-2222-4222-8222-222222222222",'
+                    '"description":null,"captured_at":null}'
+                ),
+                file=SimpleNamespace(filename="synthetic.png"),
+                db=Mock(),
+                current_user=SimpleNamespace(user_id=evidence.uploaded_by),
+            )
+
+        service_upload.assert_called_once()
+        self.assertEqual(str(response.evidence_id), evidence.evidence_id)
+        self.assertEqual(response.file_hash, evidence.file_hash)
+        self.assertEqual(response.evidence_ref, operation_result.evidence_ref)
+        self.assertEqual(response.tx_hash, operation_result.tx_hash)
+        self.assertEqual(response.block_number, operation_result.block_number)
+        self.assertEqual(response.contract_address, operation_result.contract_address)
+
     def test_upload_stages_both_files_before_one_final_commit(self) -> None:
         db = Mock()
         events: list[str] = []
@@ -94,6 +148,7 @@ class EvidenceUploadTransactionTests(TestCase):
         watermark_system.embed.side_effect = lambda channel, **_kwargs: channel
         blockchain_service = Mock()
         blockchain_service.record_evidence.return_value = {
+            "evidence_ref": "0x" + "d" * 64,
             "tx_hash": "0x" + "c" * 64,
             "block_number": 6500,
             "contract_address": "0x1111111111111111111111111111111111111111",
@@ -142,13 +197,14 @@ class EvidenceUploadTransactionTests(TestCase):
                 "stage_evidence_registration",
             ) as stage_transaction,
         ):
-            evidence = EvidenceService.upload(
+            upload_result = EvidenceService.upload(
                 db,
                 data,
                 upload_file,
                 uploaded_by="22222222-2222-4222-8222-222222222222",
                 blockchain_service=blockchain_service,
             )
+            evidence = upload_result.evidence
 
         self.assertEqual(events, ["file:ORIGINAL", "file:WATERMARKED", "commit"])
         resize_image.assert_called_once_with(
@@ -179,6 +235,23 @@ class EvidenceUploadTransactionTests(TestCase):
             contract_address="0x1111111111111111111111111111111111111111",
         )
         self.assertTrue(evidence.is_blockchain_verified)
+        self.assertEqual(upload_result.evidence_ref, "0x" + "d" * 64)
+        self.assertEqual(upload_result.tx_hash, "0x" + "c" * 64)
+        self.assertEqual(upload_result.block_number, 6500)
+        self.assertEqual(
+            upload_result.contract_address,
+            "0x1111111111111111111111111111111111111111",
+        )
+        self.assertEqual(
+            blockchain_service.method_calls,
+            [
+                call.record_evidence(
+                    evidence_id=evidence.evidence_id,
+                    evidence_hash="a" * 64,
+                    uploader_user_id="22222222-2222-4222-8222-222222222222",
+                )
+            ],
+        )
         remove_file.assert_not_called()
 
     def test_failure_after_original_creation_removes_original(self) -> None:

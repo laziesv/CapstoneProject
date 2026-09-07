@@ -17,12 +17,6 @@ import { UPLOAD_RESULT_PRESENTATION } from "@/utils/evidenceOperationFeedback";
 
 type Step = 1 | 2 | 3;
 
-/** ขั้นตอนที่ backend ทำกับแต่ละไฟล์ก่อนคืนผลการบันทึก */
-const PHASES = ["อ่านไฟล์", "คำนวณ SHA-256", "ฝังลายน้ำ (DWT+QIM)", "บันทึกฐานข้อมูลและ Blockchain"];
-const PHASE_MS = 380;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 /** ไฟล์ที่รออัพโหลด + metadata ของตัวเอง (1 รายการ = 1 หลักฐาน)
  *  exifCapturedAt อ่านครั้งเดียวตอนเพิ่มไฟล์ แล้วผูกติดกับไฟล์นั้นถาวร —
  *  ไม่มีทางที่ข้อมูลของรูปหนึ่งจะไปโผล่กับอีกรูป */
@@ -49,8 +43,6 @@ export default function UploadEvidencePage() {
   const [isDragging, setIsDragging] = useState(false);
   // ── สถานะของขั้นผลการบันทึก ──
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(0);  // ไฟล์ที่กำลังประมวลผล
-  const [phase, setPhase] = useState(0);          // ขั้นตอนของไฟล์นั้น
   const [results, setResults] = useState<UploadedEvidenceRef[] | null>(null);
   const [operationError, setOperationError] = useState<{ title: string; message: string } | null>(null);
 
@@ -96,8 +88,6 @@ export default function UploadEvidencePage() {
   const handleSubmit = async () => {
     setStep(3);
     setIsProcessing(true);
-    setActiveIdx(0);
-    setPhase(0);
     setOperationError(null);
 
     try {
@@ -110,17 +100,6 @@ export default function UploadEvidencePage() {
           captured_at_source: sourceOf(it),
         })),
       });
-
-      // แสดงลำดับงานที่ backend ดำเนินการสำเร็จแยกตามแต่ละไฟล์
-      for (let i = 0; i < items.length; i++) {
-        setActiveIdx(i);
-        for (let p = 0; p < PHASES.length; p++) {
-          setPhase(p);
-          await sleep(PHASE_MS);
-        }
-        setPhase(PHASES.length);
-        await sleep(200);
-      }
 
       setResults(refs);
     } catch (cause) {
@@ -313,46 +292,18 @@ export default function UploadEvidencePage() {
         {step === 3 && (
           <div className="space-y-5">
             {isProcessing ? (
-              <>
-                <div>
-                  <h2 className="font-semibold">กำลังบันทึกหลักฐาน</h2>
-                  <p className="mt-1 text-xs text-muted">แต่ละไฟล์ถูกประมวลผลแยกกัน — hash ที่ได้จึงเป็นของไฟล์นั้นโดยเฉพาะ</p>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* รูปที่กำลังประมวลผล + เส้นสแกน */}
-                  <div className="space-y-2">
-                    <div className="scan-frame mx-auto max-w-sm rounded-xl border border-border bg-slate-900">
-                      {items[activeIdx] && (
-                        <img src={items[activeIdx].preview} alt="" className="w-full object-contain opacity-90" style={{ maxHeight: 260 }} />
-                      )}
-                      <div className="scan-line" />
-                    </div>
-                    <p className="text-center text-xs text-muted">
-                      ไฟล์ <span className="font-medium text-foreground">{activeIdx + 1} / {items.length}</span>
-                      {items[activeIdx] && <> · <span className="font-mono">{items[activeIdx].file.name}</span></>}
-                    </p>
-                  </div>
-
-                  {/* ขั้นตอนของไฟล์ปัจจุบัน */}
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2.5 self-start">
-                    {PHASES.map((label, i) => (
-                      <div key={label} className="flex items-center gap-3 text-sm">
-                        {phase > i ? <CheckCircle2 className="h-4 w-4 text-success" />
-                          : phase === i ? <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                          : <div className="h-4 w-4 rounded-full border border-border" />}
-                        <span className={phase >= i ? "text-foreground" : "text-muted"}>{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
+              <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+                <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                <p className="text-sm font-medium">กำลังส่งหลักฐานไปยังระบบ</p>
+                <p className="text-xs text-muted">รอผลการบันทึกจริงจาก backend</p>
+              </div>
             ) : (
               <>
                 <div className="rounded-lg border border-success/20 bg-success-light p-4">
                   <p className="flex items-center gap-2 text-sm font-medium text-success">
-                    <CheckCircle2 className="h-4 w-4" /> บันทึกสำเร็จ {results?.length} ไฟล์ — ลายน้ำถูกฝังและลงทะเบียนบน Blockchain แล้ว
+                    <CheckCircle2 className="h-4 w-4" /> บันทึกธุรกรรมลง Blockchain สำเร็จแล้ว
                   </p>
+                  <p className="mt-1 text-xs text-success">บันทึกหลักฐานสำเร็จ {results?.length} ไฟล์</p>
                 </div>
 
                 <div>
@@ -373,9 +324,13 @@ export default function UploadEvidencePage() {
                           <span className="font-mono text-sm font-semibold text-primary">{r.evidence_number}</span>
                           <span className="truncate text-xs text-text-secondary">{r.original_filename}</span>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted">SHA-256</p>
-                          <p className="break-all rounded bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-text-secondary">{r.file_hash_sha256}</p>
+                        <ResultValue label="Evidence ID" value={r.evidence_id} />
+                        <ResultValue label="Original File SHA-256" value={r.file_hash_sha256} />
+                        <ResultValue label="Evidence Ref" value={r.evidence_ref} />
+                        <ResultValue label="Transaction Hash" value={r.tx_hash} />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <ResultValue label="Block Number" value={String(r.block_number)} />
+                          <ResultValue label="Contract Address" value={r.contract_address} />
                         </div>
                       </div>
                     </div>
@@ -399,6 +354,15 @@ export default function UploadEvidencePage() {
           onClose={() => setOperationError(null)}
         />
       )}
+    </div>
+  );
+}
+
+function ResultValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted">{label}</p>
+      <p className="break-all rounded bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-text-secondary">{value}</p>
     </div>
   );
 }

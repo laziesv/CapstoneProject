@@ -37,6 +37,15 @@ class EvidenceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class EvidenceUploadResponse(EvidenceResponse):
+    # การเชื่อมต่อ Blockchain: คืนข้อมูลจากธุรกรรม recordEvidence รอบนี้โดยตรง
+    # เพื่อให้หน้า Upload ไม่ต้องสร้างค่าจำลองหรือยิงคำขอ read-back เพิ่ม
+    evidence_ref: str
+    tx_hash: str
+    block_number: int
+    contract_address: str
+
+
 class EvidenceViewSessionResponse(BaseModel):
     access_log_id: UUID
     evidence_id: UUID

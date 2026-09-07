@@ -8,6 +8,7 @@ import {
   rememberViewSuccess,
   requestEvidenceDownloadOnce,
   UPLOAD_RESULT_PRESENTATION,
+  uploadResultFromResponse,
   VIEW_SUCCESS_FEEDBACK,
 } from "../src/utils/evidenceOperationFeedback.ts";
 
@@ -111,4 +112,33 @@ test("upload completion is accurately classified as a result, not read-back auth
     `${UPLOAD_RESULT_PRESENTATION.stepLabel} ${UPLOAD_RESULT_PRESENTATION.heading}`,
     /Authenticate|รับรอง/,
   );
+});
+
+test("upload result uses only metadata returned by the successful backend operation", () => {
+  const dto = {
+    evidence_id: "33333333-3333-4333-8333-333333333333",
+    evidence_number: "EV-20260907-REAL01",
+    original_filename: "server-name.png",
+    file_hash: "1".repeat(64),
+    evidence_ref: `0x${"2".repeat(64)}`,
+    tx_hash: `0x${"3".repeat(64)}`,
+    block_number: 19123,
+    contract_address: `0x${"4".repeat(40)}`,
+  };
+
+  assert.deepEqual(uploadResultFromResponse(dto, "browser-name.png"), {
+    original_filename: "server-name.png",
+    evidence_id: dto.evidence_id,
+    evidence_number: dto.evidence_number,
+    file_hash_sha256: dto.file_hash,
+    evidence_ref: dto.evidence_ref,
+    tx_hash: dto.tx_hash,
+    block_number: dto.block_number,
+    contract_address: dto.contract_address,
+  });
+});
+
+test("upload result wording reports a write result without claiming read-back verification", () => {
+  const source = `${UPLOAD_RESULT_PRESENTATION.heading} ${UPLOAD_RESULT_PRESENTATION.description}`;
+  assert.doesNotMatch(source, /ยืนยันจาก Blockchain แล้ว|ข้อมูลตรงกับ Blockchain/);
 });

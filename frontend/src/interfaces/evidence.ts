@@ -92,6 +92,14 @@ export interface EvidenceApiResponse {
   file_size_bytes: number | null;
 }
 
+/** ผลของ POST /api/evidences/upload รวม metadata จาก recordEvidence ครั้งเดียวกัน */
+export interface EvidenceUploadApiResponse extends EvidenceApiResponse {
+  evidence_ref: string;
+  tx_hash: string;
+  block_number: number;
+  contract_address: string;
+}
+
 /** ผลลัพธ์จากการยืนยันเจตนาเปิดดูหลักฐานกับ EvidenceRegistry V3 */
 export interface EvidenceViewSessionResponse {
   access_log_id: string;
@@ -138,8 +146,13 @@ export interface UploadEvidenceInput {
  *  ค่าทั้งหมดต้องมาจาก server เท่านั้น (client คำนวณเองแล้วส่งมาเชื่อไม่ได้) */
 export interface UploadedEvidenceRef {
   original_filename: string;
+  evidence_id: string;
   evidence_number: string;
   file_hash_sha256: string;
+  evidence_ref: string;
+  tx_hash: string;
+  block_number: number;
+  contract_address: string;
 }
 
 export interface WatermarkRecord {

@@ -1,6 +1,8 @@
 import type {
   EvidenceDownloadMetadata,
+  EvidenceUploadApiResponse,
   EvidenceViewSessionResponse,
+  UploadedEvidenceRef,
 } from "../interfaces/evidence";
 
 interface SessionStorageLike {
@@ -22,6 +24,23 @@ export const UPLOAD_RESULT_PRESENTATION = {
   readBackVerified: false,
   description: "ข้อมูลนี้เป็นผลจากคำขออัปโหลดที่บันทึกฐานข้อมูลและ Blockchain สำเร็จ ไม่ใช่การตรวจสอบย้อนกลับด้วยคำขอใหม่",
 } as const;
+
+export function uploadResultFromResponse(
+  dto: EvidenceUploadApiResponse,
+  fallbackFilename: string,
+): UploadedEvidenceRef {
+  // การเชื่อมต่อ Blockchain: ทุกค่าบนหน้าผลลัพธ์ต้องมาจาก response ของ write รอบนี้
+  return {
+    original_filename: dto.original_filename ?? fallbackFilename,
+    evidence_id: dto.evidence_id,
+    evidence_number: dto.evidence_number,
+    file_hash_sha256: dto.file_hash ?? "",
+    evidence_ref: dto.evidence_ref,
+    tx_hash: dto.tx_hash,
+    block_number: dto.block_number,
+    contract_address: dto.contract_address,
+  };
+}
 
 export interface DownloadSuccessSummary {
   title: string;
