@@ -93,8 +93,6 @@ test("download success explains actual watermark and Blockchain metadata", () =>
     integrityStatus: "VERIFIED",
   });
 
-  assert.match(summary.staticWatermark, /Static Watermark/);
-  assert.match(summary.dynamicWatermark, /Dynamic Watermark/);
   assert.equal(summary.action, "DOWNLOAD");
   assert.equal(summary.blockNumber, 19002);
   assert.equal(summary.integrityVerified, true);

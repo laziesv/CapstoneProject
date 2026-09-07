@@ -13,6 +13,7 @@ import type { Case, EvidenceDownloadMetadata, EvidenceItem } from "@/interfaces"
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { ChainOfCustodyPanel } from "@/components/evidence/ChainOfCustodyPanel";
 import { OperationToast } from "@/components/feedback/OperationToast";
+import { WatermarkQrPresentation } from "@/components/evidence/WatermarkQrPresentation";
 import {
   downloadErrorDialog,
   type DownloadErrorDialogContent,
@@ -22,6 +23,7 @@ import {
   downloadSuccessSummary,
   VIEW_SUCCESS_FEEDBACK,
 } from "@/utils/evidenceOperationFeedback";
+import { personalizedWatermarkPayloads } from "@/utils/watermarkPresentation";
 
 
 export default function EvidenceDetailPage() {
@@ -375,12 +377,13 @@ function DownloadSuccessModal({
   onClose: () => void;
 }) {
   const summary = downloadSuccessSummary(metadata);
+  const watermarkPayloads = personalizedWatermarkPayloads(metadata);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation">
       <section
         aria-labelledby="download-success-title"
         aria-modal="true"
-        className="w-full max-w-lg rounded-lg border border-border bg-surface p-5 shadow-xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-xl"
         role="dialog"
       >
         <div className="flex items-start justify-between gap-4">
@@ -397,13 +400,14 @@ function DownloadSuccessModal({
         </div>
 
         <div className="mt-5 space-y-4 text-sm">
-          <section>
-            <h3 className="text-xs font-semibold text-muted">ข้อมูลที่ฝังใน Personalized Watermark</h3>
-            <dl className="mt-2 space-y-2">
-              <DownloadSummaryRow label={summary.staticWatermark} value={metadata.evidenceRef} />
-              <DownloadSummaryRow label={summary.dynamicWatermark} value={metadata.accessSessionRef} />
-            </dl>
-          </section>
+          <WatermarkQrPresentation
+            title="Personalized Watermark"
+            qrTitle="QR ที่ใช้กับสำเนานี้"
+            staticValue={watermarkPayloads.staticPayload}
+            dynamicValue={watermarkPayloads.dynamicPayload}
+            dynamicMode="personalized"
+            generateQr
+          />
           <section className="border-t border-border pt-4">
             <h3 className="text-xs font-semibold text-muted">Blockchain Access Record</h3>
             <dl className="mt-2 space-y-2">

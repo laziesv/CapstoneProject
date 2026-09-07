@@ -45,8 +45,6 @@ export function uploadResultFromResponse(
 export interface DownloadSuccessSummary {
   title: string;
   message: string;
-  staticWatermark: string;
-  dynamicWatermark: string;
   action: string | null;
   blockNumber: number | null;
   transactionHash: string | null;
@@ -108,8 +106,6 @@ export function downloadSuccessSummary(
   return {
     title: "ดาวน์โหลดหลักฐานสำเร็จ",
     message: "Personalized Watermark ถูกสร้างเรียบร้อยแล้ว",
-    staticWatermark: "รหัสอ้างอิงหลักฐาน (Static Watermark)",
-    dynamicWatermark: "รหัสติดตามรอบการดาวน์โหลด (Dynamic Watermark)",
     action: metadata.action,
     blockNumber: metadata.blockNumber,
     transactionHash: metadata.transactionHash,
