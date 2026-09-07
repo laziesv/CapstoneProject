@@ -11,6 +11,7 @@ import {
   User,
   LogOut,
   Fingerprint,
+  Blocks,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +21,7 @@ const navItems = [
 
 const adminItems = [
   { href: "/verify", label: "Watermark Verify", icon: ShieldCheck },
+  { href: "/blockchain", label: "Blockchain Explorer", icon: Blocks },
   { href: "/logs", label: "Access Logs", icon: ClipboardList },
   { href: "/users", label: "Manage Users", icon: Users },
 ];
