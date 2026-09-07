@@ -67,6 +67,9 @@ export function forensicMismatchLabel(field: string): string {
     access_session_ref: "รหัสอ้างอิงรอบการเข้าถึง",
     transaction: "ธุรกรรม Blockchain",
     transaction_link: "ธุรกรรม Blockchain",
+    transaction_hash: "Transaction Hash",
+    block_number: "Block Number",
+    access_log: "ข้อมูล AccessLog",
     original_file_bytes_hash: "ค่าแฮชของไฟล์ต้นฉบับปัจจุบัน",
     database_original_hash: "ค่าแฮชไฟล์ต้นฉบับที่บันทึกในระบบ",
     blockchain_evidence_hash: "ค่าแฮชไฟล์ต้นฉบับอ้างอิงบน Blockchain",
@@ -110,6 +113,8 @@ export function formatInclusionDelay(
 
 export interface BlockchainOrderValue {
   blockNumber: number | null | undefined;
+  transactionIndex?: number | null;
+  logIndex?: number | null;
   recordedAt: number | null | undefined;
   stableKey: string;
 }
@@ -124,15 +129,28 @@ export function shouldShowMatchedDownloadSession(result: {
     && result.blockchainSessionVerified;
 }
 
+export function shouldShowDatabaseActor(result: {
+  officerRefMatches: boolean;
+  databaseUserPresent: boolean;
+}): boolean {
+  return !result.officerRefMatches && result.databaseUserPresent;
+}
+
 export function compareBlockchainOrder(
   left: BlockchainOrderValue,
   right: BlockchainOrderValue,
 ): number {
   const leftBlock = left.blockNumber ?? Number.MAX_SAFE_INTEGER;
   const rightBlock = right.blockNumber ?? Number.MAX_SAFE_INTEGER;
+  const leftTransaction = left.transactionIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightTransaction = right.transactionIndex ?? Number.MAX_SAFE_INTEGER;
+  const leftLog = left.logIndex ?? Number.MAX_SAFE_INTEGER;
+  const rightLog = right.logIndex ?? Number.MAX_SAFE_INTEGER;
   const leftRecordedAt = left.recordedAt ?? Number.MAX_SAFE_INTEGER;
   const rightRecordedAt = right.recordedAt ?? Number.MAX_SAFE_INTEGER;
   return leftBlock - rightBlock
+    || leftTransaction - rightTransaction
+    || leftLog - rightLog
     || leftRecordedAt - rightRecordedAt
     || left.stableKey.localeCompare(right.stableKey);
 }

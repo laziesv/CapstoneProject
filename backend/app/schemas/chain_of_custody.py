@@ -29,8 +29,8 @@ class ChainUserIdentity(BaseModel):
 
 
 class ChainTransactionMetadata(BaseModel):
-    tx_hash: str
-    block_number: int
+    tx_hash: str | None
+    block_number: int | None
     status: str
     verified: bool
 
@@ -44,18 +44,43 @@ class ChainEvidenceMetadata(BaseModel):
     uploaded_at: datetime | None
     blockchain_recorded_at: int | None
     writer: str | None
+    registration_tx_hash: str | None = None
+    registration_block_number: int | None = None
+    registration_transaction_index: int | None = None
+    registration_log_index: int | None = None
 
 
 class ChainAccessMetadata(BaseModel):
+    evidence_ref: str
     officer_ref: str
+    access_session_ref: str
     action: str
     occurred_at: int
     recorded_at: int
     writer: str
+    transaction_hash: str
+    block_number: int
+    transaction_index: int
+    log_index: int
+
+
+class ChainAccessDatabaseMetadata(BaseModel):
+    access_log_id: UUID
+    evidence_id: UUID | None
+    user_id: UUID
+    action: str
+    accessed_at: datetime
+    tx_internal_id: UUID | None
+
+
+class ChainIntegrityMismatch(IntegrityMismatch):
+    explanation: str
 
 
 class ChainAccessVerification(BaseModel):
     session_exists: bool
+    access_log_exists: bool
+    transaction_exists: bool
     evidence_ref_matches: bool
     officer_ref_matches: bool
     action_matches: bool
@@ -64,17 +89,19 @@ class ChainAccessVerification(BaseModel):
 
 
 class ChainAccessHistoryItem(BaseModel):
-    access_log_id: UUID
+    access_log_id: UUID | None
     access_session_ref: str
     user: ChainUserIdentity | None
+    database_user: ChainUserIdentity | None
     action: str
-    accessed_at: datetime
+    accessed_at: datetime | None
+    database: ChainAccessDatabaseMetadata | None
     blockchain: ChainAccessMetadata | None
     transaction: ChainTransactionMetadata | None
     verified: bool
     integrity_state: IntegrityState
     verification: ChainAccessVerification
-    mismatches: list[IntegrityMismatch] = Field(default_factory=list)
+    mismatches: list[ChainIntegrityMismatch] = Field(default_factory=list)
 
 
 class ChainOfCustodyVerification(BaseModel):

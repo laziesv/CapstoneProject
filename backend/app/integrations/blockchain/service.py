@@ -17,6 +17,9 @@ from app.integrations.blockchain.config import BlockchainSettings
 from app.integrations.blockchain.provider import get_blockchain_client
 
 
+DEFAULT_EVENT_SCAN_CHUNK_SIZE = 1_000
+
+
 class BlockchainIntegrationService:
     """Expose narrowly scoped blockchain operations to the backend."""
 
@@ -24,9 +27,13 @@ class BlockchainIntegrationService:
         self,
         settings: BlockchainSettings | None = None,
         client_provider: Callable[[], BlockchainClient] = get_blockchain_client,
+        event_scan_chunk_size: int = DEFAULT_EVENT_SCAN_CHUNK_SIZE,
     ) -> None:
+        if event_scan_chunk_size <= 0:
+            raise ValueError("event_scan_chunk_size must be > 0")
         self._settings = settings or BlockchainSettings.from_env()
         self._client_provider = client_provider
+        self._event_scan_chunk_size = event_scan_chunk_size
 
     @property
     def contract_address(self) -> str | None:
@@ -138,13 +145,42 @@ class BlockchainIntegrationService:
             else None
         )
         client = self._client_provider()
-        registration_event = client.get_evidence_record_event(
-            evidence_ref,
-            from_block=self._settings.deployment_block,
-        )
-        access_events = client.list_access_events(
-            evidence_ref,
-            from_block=self._settings.deployment_block,
+        health = client.health_check()
+        if not health.connected or health.latest_block is None:
+            raise RuntimeError("unable to determine latest Blockchain block")
+
+        latest_block = int(health.latest_block)
+        registration_event = None
+        access_events = []
+        # การเชื่อมต่อ Blockchain: แบ่งช่วง eth_getLogs เพื่อไม่เกินข้อจำกัด
+        # RPC ของ Besu และเริ่มอ่านจาก deployment block ของสัญญา V3 เท่านั้น
+        for from_block, to_block in self._event_scan_ranges(latest_block):
+            chunk_registration = client.get_evidence_record_event(
+                evidence_ref,
+                from_block=from_block,
+                to_block=to_block,
+            )
+            if chunk_registration is not None:
+                if registration_event is not None:
+                    raise RuntimeError(
+                        "multiple EvidenceRecorded events found for evidence_ref"
+                    )
+                registration_event = chunk_registration
+            access_events.extend(
+                client.list_access_events(
+                    evidence_ref,
+                    from_block=from_block,
+                    to_block=to_block,
+                )
+            )
+
+        access_events.sort(
+            key=lambda event: (
+                event.block_number,
+                event.transaction_index,
+                event.log_index,
+                event.recorded_at,
+            )
         )
         registration = (
             {
@@ -152,20 +188,27 @@ class BlockchainIntegrationService:
                 "uploader_ref": registration_event.uploader_ref,
                 "tx_hash": registration_event.tx_hash,
                 "block_number": registration_event.block_number,
+                "transaction_index": registration_event.transaction_index,
+                "log_index": registration_event.log_index,
                 "recorded_at": registration_event.recorded_at,
+                "writer": registration_event.writer,
             }
             if registration_event is not None
             else None
         )
         access_history = [
             {
+                "evidence_ref": event.evidence_ref,
                 "officer_ref": event.officer_ref,
                 "access_session_ref": event.access_session_ref,
                 "action": event.action,
                 "occurred_at": event.occurred_at,
                 "tx_hash": event.tx_hash,
                 "block_number": event.block_number,
+                "transaction_index": event.transaction_index,
+                "log_index": event.log_index,
                 "recorded_at": event.recorded_at,
+                "writer": event.writer,
             }
             for event in access_events
         ]
@@ -183,7 +226,30 @@ class BlockchainIntegrationService:
             "registration": registration,
             "matched_access": matched_access,
             "access_history": access_history,
+            "scan": {
+                "from_block": self._settings.deployment_block,
+                "to_block": latest_block,
+                "chunk_size": self._event_scan_chunk_size,
+            },
         }
+
+    def _event_scan_ranges(self, latest_block: int) -> list[tuple[int, int]]:
+        if latest_block < self._settings.deployment_block:
+            return []
+        return [
+            (
+                from_block,
+                min(
+                    from_block + self._event_scan_chunk_size - 1,
+                    latest_block,
+                ),
+            )
+            for from_block in range(
+                self._settings.deployment_block,
+                latest_block + 1,
+                self._event_scan_chunk_size,
+            )
+        ]
 
     def get_access_by_session(
         self,

@@ -32,6 +32,7 @@ import {
   formatForensicUnixTime,
   formatInclusionDelay,
   formatIntegrityState,
+  shouldShowDatabaseActor,
 } from "@/utils/forensics";
 
 interface ChainOfCustodyPanelProps {
@@ -179,8 +180,10 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
           <AuditValue label="รหัสอ้างอิงหลักฐาน" value={data.evidence.evidence_ref} copyable />
           <AuditValue label="Original SHA-256" value={data.evidence.original_sha256} copyable />
           <AuditValue label="Writer Address" value={data.evidence.writer} copyable />
-          <AuditValue label="Transaction Hash" value={data.registration_transaction?.tx_hash ?? null} copyable />
-          <AuditValue label="Block Number" value={numberValue(data.registration_transaction?.block_number)} />
+          <AuditValue label="Transaction Hash บน Blockchain" value={data.evidence.registration_tx_hash} copyable />
+          <AuditValue label="Block Number บน Blockchain" value={numberValue(data.evidence.registration_block_number)} />
+          <AuditValue label="Transaction Hash ในฐานข้อมูล" value={data.registration_transaction?.tx_hash ?? null} copyable />
+          <AuditValue label="Block Number ในฐานข้อมูล" value={numberValue(data.registration_transaction?.block_number)} />
         </TechnicalDetails>
       </div>
 
@@ -193,7 +196,7 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
           <span className="text-xs text-muted">เรียงตามลำดับ Blockchain</span>
         </div>
         <p className="border-b border-border px-5 py-2 text-xs text-muted">
-          ข้อมูลโปรไฟล์แสดงจากข้อมูลผู้ใช้ปัจจุบันในระบบ Blockchain ใช้ User Reference สำหรับตรวจสอบตัวตนที่อ้างอิงในการทำรายการ
+          ข้อมูลโปรไฟล์มาจาก PostgreSQL ปัจจุบัน ส่วน Blockchain ยืนยันเฉพาะ User Reference ที่อ้างอิงในการทำรายการ
         </p>
 
         {timeline.length === 0 ? (
@@ -225,14 +228,14 @@ function RegistrationHistoryRow({ data }: { data: ChainOfCustodyResponse }) {
           <FilePlus2 className="h-4 w-4" aria-hidden="true" />
           <p className="text-sm font-semibold">{formatForensicAction("REGISTER")}</p>
         </div>
-        <p className="mt-2 text-xs text-muted">Block {data.registration_transaction?.block_number ?? "—"}</p>
+        <p className="mt-2 text-xs text-muted">Block {data.evidence.registration_block_number ?? "—"}</p>
       </div>
       <ActorProfile user={data.uploader} referenceVerified={data.verification.uploader_ref_matches} />
       <div className="space-y-2 text-xs">
         <AuditValue label="เวลาที่ธุรกรรมถูกบันทึกลง Blockchain" value={formatForensicUnixTime(data.evidence.blockchain_recorded_at)} />
         <TechnicalDetails compact>
           <AuditValue label="รหัสอ้างอิงหลักฐาน" value={data.evidence.evidence_ref} copyable />
-          <AuditValue label="Transaction Hash" value={data.registration_transaction?.tx_hash ?? null} copyable />
+          <AuditValue label="Transaction Hash" value={data.evidence.registration_tx_hash} copyable />
         </TechnicalDetails>
       </div>
     </article>
@@ -241,34 +244,58 @@ function RegistrationHistoryRow({ data }: { data: ChainOfCustodyResponse }) {
 
 function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
   const inclusionDelay = formatInclusionDelay(entry.blockchain?.occurred_at, entry.blockchain?.recorded_at);
+  const showDatabaseActor = shouldShowDatabaseActor({
+    officerRefMatches: entry.verification.officer_ref_matches,
+    databaseUserPresent: entry.database_user !== null,
+  });
   return (
     <article className="grid gap-4 px-5 py-4 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)]">
       <div>
         <p className="text-sm font-semibold">{formatForensicAction(entry.action)}</p>
         <div className="mt-2"><VerificationBadge state={entry.integrity_state} compact /></div>
-        <p className="mt-2 text-xs text-muted">Block {entry.transaction?.block_number ?? "—"}</p>
+        <p className="mt-2 text-xs text-muted">Block {entry.blockchain?.block_number ?? entry.transaction?.block_number ?? "—"}</p>
       </div>
 
       <div>
+        <p className="mb-2 text-xs font-semibold text-muted">ผู้ใช้ที่อ้างอิงจาก Blockchain</p>
         <ActorProfile user={entry.user} referenceVerified={entry.user !== null} />
-        {!entry.verification.officer_ref_matches && (
+        {showDatabaseActor && (
+          <div className="mt-4 border-t border-warning/20 pt-3">
+            <p className="mb-2 text-xs font-semibold text-warning">ผู้ใช้ที่ AccessLog เชื่อมโยงอยู่ปัจจุบัน</p>
+            <ActorProfile user={entry.database_user} referenceVerified={false} />
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-warning">
+              <CircleAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+              User Reference บน Blockchain ไม่ตรงกับผู้ใช้ที่ AccessLog เชื่อมโยงอยู่ในฐานข้อมูลปัจจุบัน
+            </p>
+          </div>
+        )}
+        {!entry.verification.access_log_exists && (
           <p className="mt-3 flex items-start gap-1.5 text-xs text-warning">
             <CircleAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
-            ข้อมูลผู้ใช้ในฐานข้อมูลไม่ตรงกับ User Reference บน Blockchain
+            พบรายการบน Blockchain แต่ไม่พบข้อมูล AccessLog ที่ตรงกันในฐานข้อมูล
           </p>
         )}
       </div>
 
       <div className="space-y-2">
-        <AuditValue label="เวลาที่เกิดการเข้าถึง" value={formatForensicDateTime(entry.accessed_at)} />
+        <AuditValue label="การกระทำบน Blockchain" value={formatForensicAction(entry.blockchain?.action)} />
+        {entry.database && !entry.verification.action_matches && (
+          <AuditValue label="การกระทำปัจจุบันในฐานข้อมูล" value={formatForensicAction(entry.database.action)} />
+        )}
+        <AuditValue label="เวลาที่เกิดการเข้าถึงในฐานข้อมูล" value={formatForensicDateTime(entry.accessed_at)} />
         <AuditValue label="เวลาการเข้าถึงที่อ้างอิงบน Blockchain" value={formatForensicUnixTime(entry.blockchain?.occurred_at)} />
         <AuditValue label="เวลาที่ธุรกรรมถูกบันทึกลง Blockchain" value={formatForensicUnixTime(entry.blockchain?.recorded_at)} />
         {inclusionDelay && <AuditValue label="หน่วงเวลา" value={inclusionDelay} />}
         <TechnicalDetails compact>
           <AuditValue label="รหัสอ้างอิงรอบการเข้าถึง" value={entry.access_session_ref} copyable />
-          <AuditValue label="รหัสอ้างอิงผู้ใช้" value={entry.blockchain?.officer_ref ?? null} copyable />
-          <AuditValue label="Transaction Hash" value={entry.transaction?.tx_hash ?? null} copyable />
-          <AuditValue label="Block Number" value={numberValue(entry.transaction?.block_number)} />
+          <AuditValue label="Blockchain Evidence Reference" value={entry.blockchain?.evidence_ref ?? null} copyable />
+          <AuditValue label="Blockchain Officer Reference" value={entry.blockchain?.officer_ref ?? null} copyable />
+          <AuditValue label="Officer Reference จากผู้ใช้ใน AccessLog" value={mismatchValue(entry.mismatches, "officer_ref", "database_value")} copyable />
+          <AuditValue label="Evidence ID ที่ AccessLog เชื่อมโยง" value={entry.database?.evidence_id ?? null} copyable />
+          <AuditValue label="Transaction Hash บน Blockchain" value={entry.blockchain?.transaction_hash ?? null} copyable />
+          <AuditValue label="Block Number บน Blockchain" value={numberValue(entry.blockchain?.block_number)} />
+          <AuditValue label="Transaction Hash ในฐานข้อมูล" value={entry.transaction?.tx_hash ?? null} copyable />
+          <AuditValue label="Block Number ในฐานข้อมูล" value={numberValue(entry.transaction?.block_number)} />
         </TechnicalDetails>
       </div>
 
@@ -279,6 +306,11 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
             พบข้อมูลไม่ตรงกับ Blockchain
           </div>
           <MismatchTable mismatches={entry.mismatches} />
+          <div className="space-y-1 border-t border-warning/20 px-3 py-2 text-xs text-warning">
+            {entry.mismatches.map((mismatch) => (
+              mismatch.explanation ? <p key={`${mismatch.field}-explanation`}>{mismatch.explanation}</p> : null
+            ))}
+          </div>
         </div>
       )}
     </article>
@@ -408,7 +440,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 function buildTimeline(data: ChainOfCustodyResponse): TimelineEvent[] {
   const events: TimelineEvent[] = [
     { kind: "registration", key: `registration-${data.evidence.evidence_id}` },
-    ...data.access_history.map((entry) => ({ kind: "access" as const, key: `access-${entry.access_log_id}`, entry })),
+    ...data.access_history.map((entry) => ({ kind: "access" as const, key: `access-${entry.access_session_ref}`, entry })),
   ];
   return events.sort((left, right) => compareBlockchainOrder(
     timelineOrder(left, data),
@@ -417,10 +449,26 @@ function buildTimeline(data: ChainOfCustodyResponse): TimelineEvent[] {
 }
 
 function timelineOrder(event: TimelineEvent, data: ChainOfCustodyResponse) {
-  const transaction = event.kind === "registration" ? data.registration_transaction : event.entry.transaction;
-  const blockNumber = transaction?.block_number;
+  const blockNumber = event.kind === "registration"
+    ? data.evidence.registration_block_number
+    : event.entry.blockchain?.block_number ?? event.entry.transaction?.block_number;
+  const transactionIndex = event.kind === "registration"
+    ? data.evidence.registration_transaction_index
+    : event.entry.blockchain?.transaction_index;
+  const logIndex = event.kind === "registration"
+    ? data.evidence.registration_log_index
+    : event.entry.blockchain?.log_index;
   const recordedAt = event.kind === "registration" ? data.evidence.blockchain_recorded_at : event.entry.blockchain?.recorded_at;
-  return { blockNumber, recordedAt, stableKey: event.key };
+  return { blockNumber, transactionIndex, logIndex, recordedAt, stableKey: event.key };
+}
+
+function mismatchValue(
+  mismatches: IntegrityMismatch[],
+  field: string,
+  side: "database_value" | "blockchain_value",
+): string | null {
+  const value = mismatches.find((mismatch) => mismatch.field === field)?.[side];
+  return typeof value === "string" ? value : null;
 }
 
 function numberValue(value: number | null | undefined): string | null {

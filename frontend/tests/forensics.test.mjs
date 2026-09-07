@@ -9,6 +9,7 @@ import {
   formatInclusionDelay,
   formatIntegrityState,
   forensicMismatchLabel,
+  shouldShowDatabaseActor,
   shouldShowMatchedDownloadSession,
 } from "../src/utils/forensics.ts";
 
@@ -48,6 +49,21 @@ test("sorts custody events by Blockchain block despite mutable database time", (
   assert.deepEqual(events.map((event) => event.action), ["REGISTER", "VIEW", "DOWNLOAD"]);
 });
 
+test("sorts same-block custody events by transaction and log index", () => {
+  const events = [
+    { id: "third", blockNumber: 200, transactionIndex: 2, logIndex: 0, recordedAt: 1 },
+    { id: "second", blockNumber: 200, transactionIndex: 1, logIndex: 4, recordedAt: 1 },
+    { id: "first", blockNumber: 200, transactionIndex: 1, logIndex: 3, recordedAt: 9 },
+  ];
+
+  events.sort((left, right) => compareBlockchainOrder(
+    { ...left, stableKey: left.id },
+    { ...right, stableKey: right.id },
+  ));
+
+  assert.deepEqual(events.map((event) => event.id), ["first", "second", "third"]);
+});
+
 test("formats original evidence integrity states for forensic review", () => {
   assert.equal(
     formatIntegrityState("ORIGINAL_FILE_MISMATCH"),
@@ -68,6 +84,8 @@ test("uses readable labels for original hash comparisons", () => {
     forensicMismatchLabel("database_original_hash"),
     "ค่าแฮชไฟล์ต้นฉบับที่บันทึกในระบบ",
   );
+  assert.equal(forensicMismatchLabel("access_log"), "ข้อมูล AccessLog");
+  assert.equal(forensicMismatchLabel("transaction_hash"), "Transaction Hash");
 });
 
 test("keeps a verified personalized session visible under integrity warnings", () => {
@@ -95,6 +113,30 @@ test("hides attribution when no personalized blockchain session is verified", ()
     shouldShowMatchedDownloadSession({
       dynamicMode: "canonical",
       blockchainSessionVerified: true,
+    }),
+    false,
+  );
+});
+
+test("shows the AccessLog-linked actor only when it differs from Blockchain", () => {
+  assert.equal(
+    shouldShowDatabaseActor({
+      officerRefMatches: false,
+      databaseUserPresent: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldShowDatabaseActor({
+      officerRefMatches: true,
+      databaseUserPresent: true,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldShowDatabaseActor({
+      officerRefMatches: false,
+      databaseUserPresent: false,
     }),
     false,
   );

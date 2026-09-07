@@ -302,11 +302,22 @@ class BlockchainIntegrationTests(TestCase):
             6464,
             1_700_000_002,
         )
-        client.get_evidence_record_event.return_value = registration
-        client.list_access_events.return_value = [first_access, second_access]
+        client.health_check.return_value = BlockchainHealth(
+            connected=True,
+            chain_id=20260720,
+            latest_block=6464,
+            contract_address=CONTRACT_ADDRESS,
+            contract_deployed=True,
+        )
+        client.get_evidence_record_event.side_effect = [registration, None]
+        client.list_access_events.side_effect = [
+            [first_access],
+            [second_access],
+        ]
         service = BlockchainIntegrationService(
             settings=_settings(deployment_block=6461),
             client_provider=lambda: client,
+            event_scan_chunk_size=2,
         )
 
         result = service.get_chain_of_custody(
@@ -317,10 +328,20 @@ class BlockchainIntegrationTests(TestCase):
         )
 
         evidence_ref = derive_evidence_ref(EVIDENCE_ID)
-        client.get_evidence_record_event.assert_called_once_with(
-            evidence_ref, from_block=6461
+        self.assertEqual(
+            client.get_evidence_record_event.call_args_list,
+            [
+                ((evidence_ref,), {"from_block": 6461, "to_block": 6462}),
+                ((evidence_ref,), {"from_block": 6463, "to_block": 6464}),
+            ],
         )
-        client.list_access_events.assert_called_once_with(evidence_ref, from_block=6461)
+        self.assertEqual(
+            client.list_access_events.call_args_list,
+            [
+                ((evidence_ref,), {"from_block": 6461, "to_block": 6462}),
+                ((evidence_ref,), {"from_block": 6463, "to_block": 6464}),
+            ],
+        )
         self.assertEqual(
             result["registration"],
             {
@@ -328,7 +349,10 @@ class BlockchainIntegrationTests(TestCase):
                 "uploader_ref": derive_actor_ref(UPLOADER_ID),
                 "tx_hash": TX_HASH,
                 "block_number": 6462,
+                "transaction_index": 0,
+                "log_index": 0,
                 "recorded_at": 1_700_000_000,
+                "writer": CONTRACT_ADDRESS,
             },
         )
         self.assertEqual(len(result["access_history"]), 2)
@@ -337,9 +361,20 @@ class BlockchainIntegrationTests(TestCase):
             first_access.access_session_ref,
         )
         self.assertEqual(result["matched_access"], result["access_history"][0])
+        self.assertEqual(
+            result["scan"],
+            {"from_block": 6461, "to_block": 6464, "chunk_size": 2},
+        )
 
     def test_chain_of_custody_handles_empty_history(self) -> None:
         client = Mock()
+        client.health_check.return_value = BlockchainHealth(
+            connected=True,
+            chain_id=20260720,
+            latest_block=6461,
+            contract_address=CONTRACT_ADDRESS,
+            contract_deployed=True,
+        )
         client.get_evidence_record_event.return_value = None
         client.list_access_events.return_value = []
         service = BlockchainIntegrationService(
