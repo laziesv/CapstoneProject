@@ -11,11 +11,14 @@ import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { readCapturedAt } from "@/utils/exif";
 import { formatIncident } from "@/utils/format";
 import type { Case, UploadEvidenceFile, UploadedEvidenceRef } from "@/interfaces";
+import { OperationToast } from "@/components/feedback/OperationToast";
+import { userFacingApiError } from "@/utils/evidenceDownloadError";
+import { UPLOAD_RESULT_PRESENTATION } from "@/utils/evidenceOperationFeedback";
 
 type Step = 1 | 2 | 3;
 
-/** ขั้นตอนที่ระบบทำกับ "แต่ละไฟล์" — ไล่ทีละบรรทัดในหน้า Authenticate */
-const PHASES = ["อ่านไฟล์", "คำนวณ SHA-256", "ฝังลายน้ำ (DWT+QIM)", "บันทึกลง Blockchain"];
+/** ขั้นตอนที่ backend ทำกับแต่ละไฟล์ก่อนคืนผลการบันทึก */
+const PHASES = ["อ่านไฟล์", "คำนวณ SHA-256", "ฝังลายน้ำ (DWT+QIM)", "บันทึกฐานข้อมูลและ Blockchain"];
 const PHASE_MS = 380;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -44,11 +47,12 @@ export default function UploadEvidencePage() {
   const [step, setStep] = useState<Step>(1);
   const [items, setItems] = useState<PendingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  // ── สถานะของขั้น Authenticate ──
+  // ── สถานะของขั้นผลการบันทึก ──
   const [isProcessing, setIsProcessing] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);  // ไฟล์ที่กำลังประมวลผล
   const [phase, setPhase] = useState(0);          // ขั้นตอนของไฟล์นั้น
   const [results, setResults] = useState<UploadedEvidenceRef[] | null>(null);
+  const [operationError, setOperationError] = useState<{ title: string; message: string } | null>(null);
 
   const myCases = useMemo(
     () => (cases ? visibleCases(user, cases, supervisorMap ?? {}) : []),
@@ -94,30 +98,38 @@ export default function UploadEvidencePage() {
     setIsProcessing(true);
     setActiveIdx(0);
     setPhase(0);
+    setOperationError(null);
 
-    const refs = await evidenceService.upload({
-      case_id: caseId,
-      files: items.map((it) => ({
-        file: it.file,
-        description: it.description,
-        captured_at: capturedAtOf(it) || undefined,
-        captured_at_source: sourceOf(it),
-      })),
-    });
+    try {
+      const refs = await evidenceService.upload({
+        case_id: caseId,
+        files: items.map((it) => ({
+          file: it.file,
+          description: it.description,
+          captured_at: capturedAtOf(it) || undefined,
+          captured_at_source: sourceOf(it),
+        })),
+      });
 
-    // เดินขั้นตอนทีละไฟล์ให้เห็นว่าแต่ละไฟล์ถูกประมวลผลแยกกัน
-    for (let i = 0; i < items.length; i++) {
-      setActiveIdx(i);
-      for (let p = 0; p < PHASES.length; p++) {
-        setPhase(p);
-        await sleep(PHASE_MS);
+      // แสดงลำดับงานที่ backend ดำเนินการสำเร็จแยกตามแต่ละไฟล์
+      for (let i = 0; i < items.length; i++) {
+        setActiveIdx(i);
+        for (let p = 0; p < PHASES.length; p++) {
+          setPhase(p);
+          await sleep(PHASE_MS);
+        }
+        setPhase(PHASES.length);
+        await sleep(200);
       }
-      setPhase(PHASES.length); // ครบทุกขั้นของไฟล์นี้
-      await sleep(200);
-    }
 
-    setResults(refs);
-    setIsProcessing(false);
+      setResults(refs);
+    } catch (cause) {
+      const feedback = userFacingApiError(cause);
+      setOperationError({ title: feedback.title, message: feedback.message });
+      setStep(2);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   /** ออกจากหน้า — คืน object URL ของ preview ทั้งหมดก่อน */
@@ -126,7 +138,7 @@ export default function UploadEvidencePage() {
     router.push(`/cases/${caseId}`);
   };
 
-  const stepLabels = ["Upload Images", "Review", "Authenticate"];
+  const stepLabels = ["Upload Images", "Review", UPLOAD_RESULT_PRESENTATION.stepLabel];
   const missingDates = items.filter((it) => !capturedAtOf(it)).length;
 
   // ── Guards ──────────────────────────────────────────
@@ -291,19 +303,19 @@ export default function UploadEvidencePage() {
             <div className="flex gap-2">
               <button onClick={() => setStep(1)} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover transition-colors">Back</button>
               <button onClick={handleSubmit} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors">
-                <Shield className="h-4 w-4" /> Upload &amp; Authenticate
+                <Shield className="h-4 w-4" /> อัปโหลดและบันทึกหลักฐาน
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Authenticate — โชว์กลไกภายในทีละไฟล์ แล้วสรุป hash + QR */}
+        {/* Step 3: แสดงผลจาก upload response โดยไม่อ้างว่าเป็น read-back verification */}
         {step === 3 && (
           <div className="space-y-5">
             {isProcessing ? (
               <>
                 <div>
-                  <h2 className="font-semibold">กำลังรับรองหลักฐาน</h2>
+                  <h2 className="font-semibold">กำลังบันทึกหลักฐาน</h2>
                   <p className="mt-1 text-xs text-muted">แต่ละไฟล์ถูกประมวลผลแยกกัน — hash ที่ได้จึงเป็นของไฟล์นั้นโดยเฉพาะ</p>
                 </div>
 
@@ -339,8 +351,13 @@ export default function UploadEvidencePage() {
               <>
                 <div className="rounded-lg border border-success/20 bg-success-light p-4">
                   <p className="flex items-center gap-2 text-sm font-medium text-success">
-                    <CheckCircle2 className="h-4 w-4" /> รับรองสำเร็จ {results?.length} ไฟล์ — ลายน้ำถูกฝังและบันทึกลง Blockchain แล้ว
+                    <CheckCircle2 className="h-4 w-4" /> บันทึกสำเร็จ {results?.length} ไฟล์ — ลายน้ำถูกฝังและลงทะเบียนบน Blockchain แล้ว
                   </p>
+                </div>
+
+                <div>
+                  <h2 className="font-semibold">{UPLOAD_RESULT_PRESENTATION.heading}</h2>
+                  <p className="mt-1 text-xs text-muted">{UPLOAD_RESULT_PRESENTATION.description}</p>
                 </div>
 
                 <p className="text-xs text-muted">สแกน QR เพื่ออ่านค่า SHA-256 ของไฟล์นั้น ใช้เทียบกับ hash ของไฟล์ต้นฉบับได้</p>
@@ -360,10 +377,6 @@ export default function UploadEvidencePage() {
                           <p className="text-xs text-muted">SHA-256</p>
                           <p className="break-all rounded bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-text-secondary">{r.file_hash_sha256}</p>
                         </div>
-                        <p className="text-xs text-muted">
-                          tx <span className="font-mono text-primary">{r.tx_hash.slice(0, 18)}…</span>
-                          {" · "}block <span className="font-mono">#{r.block_number}</span>
-                        </p>
                       </div>
                     </div>
                   ))}
@@ -377,6 +390,15 @@ export default function UploadEvidencePage() {
           </div>
         )}
       </div>
+
+      {operationError && (
+        <OperationToast
+          title={operationError.title}
+          message={operationError.message}
+          tone="error"
+          onClose={() => setOperationError(null)}
+        />
+      )}
     </div>
   );
 }

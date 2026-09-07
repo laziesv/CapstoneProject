@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
+  chainEvidenceIdentityRows,
   compareBlockchainOrder,
   formatForensicDateTime,
   formatForensicMismatchValue,
@@ -12,6 +14,35 @@ import {
   shouldShowDatabaseActor,
   shouldShowMatchedDownloadSession,
 } from "../src/utils/forensics.ts";
+
+test("shows application evidence identifiers separately from Blockchain refs", () => {
+  assert.deepEqual(
+    chainEvidenceIdentityRows({
+      evidence_number: "EV-20260907-TEST",
+      evidence_id: "822396ec-1111-4222-8333-123456789abc",
+    }),
+    [
+      { label: "เลขหลักฐาน", value: "EV-20260907-TEST" },
+      { label: "Evidence ID", value: "822396ec-1111-4222-8333-123456789abc" },
+    ],
+  );
+});
+
+test("keeps Evidence Ref inside Chain of Custody technical details", async () => {
+  const source = await readFile(
+    new URL("../src/components/evidence/ChainOfCustodyPanel.tsx", import.meta.url),
+    "utf8",
+  );
+  const identityIndex = source.indexOf("chainEvidenceIdentityRows(data.evidence)");
+  const detailsIndex = source.indexOf("<TechnicalDetails>", identityIndex);
+  const evidenceRefIndex = source.indexOf(
+    'label="รหัสอ้างอิงหลักฐาน"',
+    detailsIndex,
+  );
+  assert.ok(identityIndex >= 0);
+  assert.ok(detailsIndex > identityIndex);
+  assert.ok(evidenceRefIndex > detailsIndex);
+});
 
 test("formats forensic timestamps in Asia/Bangkok with one shared format", () => {
   const iso = "2026-08-01T20:58:35+07:00";

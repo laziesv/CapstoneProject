@@ -5,7 +5,7 @@ from unittest.mock import ANY, MagicMock, patch
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException
-from blockchain_client import AccessAction
+from blockchain_client import AccessAction, derive_access_session_ref
 
 from app.integrations.blockchain.transaction_repository import (
     BlockchainTransactionRepository,
@@ -130,6 +130,15 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.assertEqual(result.file_path, "personalized.png")
         self.assertNotEqual(result.file_path, self.original_file.file_path)
         self.assertNotEqual(result.file_path, self.file.file_path)
+        self.assertEqual(result.evidence_id, self.evidence.evidence_id)
+        self.assertEqual(
+            result.access_session_ref,
+            derive_access_session_ref(self.access_log.log_id),
+        )
+        self.assertEqual(result.action, "DOWNLOAD")
+        self.assertEqual(result.tx_hash, "0x" + "1" * 64)
+        self.assertEqual(result.block_number, 7000)
+        self.assertEqual(result.integrity_status, "VERIFIED")
         self.integrity.verify.assert_called_once_with(
             evidence_id=self.evidence.evidence_id,
             original_file_path=self.original_file.file_path,

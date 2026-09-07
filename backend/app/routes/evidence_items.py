@@ -120,10 +120,25 @@ def download(
         user_agent=request.headers.get("user-agent"),
     )
     try:
+        metadata_headers = {
+            "X-Evidence-Id": str(download_file.evidence_id),
+            "X-Evidence-Ref": download_file.evidence_ref,
+            "X-Access-Session-Ref": download_file.access_session_ref,
+            "X-Blockchain-Action": download_file.action,
+            "X-Blockchain-Tx-Hash": download_file.tx_hash,
+            "X-Blockchain-Block-Number": str(download_file.block_number),
+            "X-Original-Evidence-Integrity": download_file.integrity_status,
+        }
+        # การเชื่อมต่อ Blockchain: เปิดเผยเฉพาะ header สรุปที่ปลอดภัยให้ frontend
+        # อ่านจาก response เดิม โดยไม่เรียก DOWNLOAD endpoint ซ้ำ
+        metadata_headers["Access-Control-Expose-Headers"] = ", ".join(
+            metadata_headers
+        )
         return _TemporaryFileResponse(
             path=download_file.file_path,
             filename=download_file.filename,
             media_type="application/octet-stream",
+            headers=metadata_headers,
         )
     except Exception:
         remove_personalized_copy(download_file.file_path)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, ShieldCheck, Link2, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download, X } from "lucide-react";
@@ -9,13 +9,19 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { ApiError, caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
-import type { Case, EvidenceItem } from "@/interfaces";
+import type { Case, EvidenceDownloadMetadata, EvidenceItem } from "@/interfaces";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { ChainOfCustodyPanel } from "@/components/evidence/ChainOfCustodyPanel";
+import { OperationToast } from "@/components/feedback/OperationToast";
 import {
   downloadErrorDialog,
   type DownloadErrorDialogContent,
 } from "@/utils/evidenceDownloadError";
+import {
+  consumeViewSuccess,
+  downloadSuccessSummary,
+  VIEW_SUCCESS_FEEDBACK,
+} from "@/utils/evidenceOperationFeedback";
 
 
 export default function EvidenceDetailPage() {
@@ -26,7 +32,18 @@ export default function EvidenceDetailPage() {
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
   const [downloading, setDownloading] = useState(false);
   const [downloadDialog, setDownloadDialog] = useState<DownloadErrorDialogContent | null>(null);
+  const [downloadSuccess, setDownloadSuccess] = useState<EvidenceDownloadMetadata | null>(null);
+  const [showViewSuccess, setShowViewSuccess] = useState(false);
   const downloadInProgress = useRef(false);
+
+  const dismissViewSuccess = useCallback(() => setShowViewSuccess(false), []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setShowViewSuccess(consumeViewSuccess(id) !== null);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [id]);
 
   useEffect(() => {
     (async () => {
@@ -60,9 +77,10 @@ export default function EvidenceDetailPage() {
     downloadInProgress.current = true;
     setDownloading(true);
     setDownloadDialog(null);
+    setDownloadSuccess(null);
     try {
-      const blob = await evidenceService.download(evidence.evidence_id);
-      const url = URL.createObjectURL(blob);
+      const download = await evidenceService.download(evidence.evidence_id);
+      const url = URL.createObjectURL(download.blob);
       try {
         const anchor = document.createElement("a");
         anchor.href = url;
@@ -71,9 +89,10 @@ export default function EvidenceDetailPage() {
       } finally {
         URL.revokeObjectURL(url);
       }
+      setDownloadSuccess(download.metadata);
     } catch (cause) {
       setDownloadDialog(downloadErrorDialog(
-        cause instanceof ApiError
+        cause instanceof ApiError || cause instanceof TypeError
           ? cause
           : { message: "เกิดข้อผิดพลาดระหว่างดาวน์โหลด กรุณาลองใหม่อีกครั้ง" },
       ));
@@ -260,6 +279,21 @@ export default function EvidenceDetailPage() {
           } : undefined}
         />
       )}
+
+      {downloadSuccess && (
+        <DownloadSuccessModal
+          metadata={downloadSuccess}
+          onClose={() => setDownloadSuccess(null)}
+        />
+      )}
+
+      {showViewSuccess && (
+        <OperationToast
+          title={VIEW_SUCCESS_FEEDBACK.title}
+          message={VIEW_SUCCESS_FEEDBACK.message}
+          onClose={dismissViewSuccess}
+        />
+      )}
     </div>
   );
 }
@@ -329,6 +363,78 @@ function DownloadErrorModal({
           </button>
         </div>
       </section>
+    </div>
+  );
+}
+
+function DownloadSuccessModal({
+  metadata,
+  onClose,
+}: {
+  metadata: EvidenceDownloadMetadata;
+  onClose: () => void;
+}) {
+  const summary = downloadSuccessSummary(metadata);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation">
+      <section
+        aria-labelledby="download-success-title"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-lg border border-border bg-surface p-5 shadow-xl"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-success" aria-hidden="true" />
+            <div>
+              <h2 id="download-success-title" className="font-semibold">{summary.title}</h2>
+              <p className="mt-1 text-sm text-muted">{summary.message}</p>
+            </div>
+          </div>
+          <button type="button" aria-label="ปิด" title="ปิด" className="text-muted hover:text-text" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-4 text-sm">
+          <section>
+            <h3 className="text-xs font-semibold text-muted">ข้อมูลที่ฝังใน Personalized Watermark</h3>
+            <dl className="mt-2 space-y-2">
+              <DownloadSummaryRow label={summary.staticWatermark} value={metadata.evidenceRef} />
+              <DownloadSummaryRow label={summary.dynamicWatermark} value={metadata.accessSessionRef} />
+            </dl>
+          </section>
+          <section className="border-t border-border pt-4">
+            <h3 className="text-xs font-semibold text-muted">Blockchain Access Record</h3>
+            <dl className="mt-2 space-y-2">
+              <DownloadSummaryRow label="การกระทำ" value={summary.action} />
+              <DownloadSummaryRow label="Block" value={summary.blockNumber === null ? null : String(summary.blockNumber)} />
+              <DownloadSummaryRow label="Transaction" value={summary.transactionHash} />
+            </dl>
+          </section>
+          <p className={`flex items-start gap-2 border-t border-border pt-4 text-xs ${summary.integrityVerified ? "text-success" : "text-warning"}`}>
+            {summary.integrityVerified
+              ? <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              : <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />}
+            <span><strong>ความถูกต้องของไฟล์ต้นฉบับ:</strong> {summary.integrityMessage}</span>
+          </p>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90" onClick={onClose}>
+            <CheckCircle2 className="h-4 w-4" /> รับทราบ
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DownloadSummaryRow({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="grid grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] gap-3">
+      <dt className="text-muted">{label}</dt>
+      <dd className="break-all text-right font-mono text-xs">{value || "—"}</dd>
     </div>
   );
 }

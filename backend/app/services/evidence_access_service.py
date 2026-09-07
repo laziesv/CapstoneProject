@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from blockchain_client import AccessAction, derive_access_session_ref
+from blockchain_client import AccessAction, derive_access_session_ref, derive_evidence_ref
 
 from app.integrations.blockchain import BlockchainIntegrationService
 from app.integrations.blockchain.transaction_repository import (
@@ -30,6 +30,13 @@ from app.services.original_evidence_integrity_service import (
 class EvidenceDownload:
     file_path: str
     filename: str
+    evidence_id: UUID
+    evidence_ref: str
+    access_session_ref: str
+    action: str
+    tx_hash: str
+    block_number: int
+    integrity_status: str
 
 
 class EvidenceAccessService:
@@ -136,7 +143,19 @@ class EvidenceAccessService:
         filename = os.path.basename(
             evidence.original_filename or f"{evidence.evidence_number}.bin"
         )
-        return EvidenceDownload(file_path=personalized.file_path, filename=filename)
+        # การเชื่อมต่อ Blockchain: ส่งเฉพาะ metadata ที่ปลอดภัยของธุรกรรมเดิม
+        # ให้ response ดาวน์โหลดอธิบายผลสำเร็จได้โดยไม่สร้าง request หรือ transaction ซ้ำ
+        return EvidenceDownload(
+            file_path=personalized.file_path,
+            filename=filename,
+            evidence_id=evidence.evidence_id,
+            evidence_ref=derive_evidence_ref(evidence.evidence_id),
+            access_session_ref=access_session_ref,
+            action="DOWNLOAD",
+            tx_hash=chain_result["tx_hash"],
+            block_number=chain_result["block_number"],
+            integrity_status=integrity.status,
+        )
 
     @staticmethod
     def _integrity_error_detail(

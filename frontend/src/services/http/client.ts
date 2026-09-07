@@ -90,6 +90,16 @@ export async function requestBlob(path: string, options?: RequestInit): Promise<
   return res.blob();
 }
 
+/** เรียกไฟล์และเก็บ response headers สำหรับ metadata ของ operation เดียวกัน */
+export async function requestBlobWithMetadata(
+  path: string,
+  options?: RequestInit,
+): Promise<{ blob: Blob; headers: Headers }> {
+  const res = await authFetch(path, options);
+  if (!res.ok) await parse<never>(res);
+  return { blob: await res.blob(), headers: res.headers };
+}
+
 /** เรียก endpoint สาธารณะ (เช่น login) — ไม่แนบ token และไม่ redirect เมื่อ 401 */
 export async function publicRequest<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

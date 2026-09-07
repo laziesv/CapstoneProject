@@ -3,7 +3,9 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { ApiError, evidenceService } from "@/services";
+import { evidenceService } from "@/services";
+import { userFacingApiError } from "@/utils/evidenceDownloadError";
+import { createViewSessionAndRemember } from "@/utils/evidenceOperationFeedback";
 
 
 export function useIntentionalEvidenceNavigation() {
@@ -20,7 +22,12 @@ export function useIntentionalEvidenceNavigation() {
     try {
       // การเปิดหลักฐานโดยเจตนา: บันทึก VIEW ให้สำเร็จก่อนเปลี่ยนหน้า
       // เพื่อไม่ให้ page mount, refresh หรือ image GET สร้างรายการซ้ำ
-      await evidenceService.createViewSession(evidenceId);
+      // การเชื่อมต่อ Blockchain: เก็บผล VIEW ที่ยืนยันแล้วไว้เพียงครั้งเดียว
+      // เพื่อให้หน้าปลายทางแจ้งสำเร็จโดย refresh หรือ direct URL ไม่สร้างข้อความซ้ำ
+      await createViewSessionAndRemember(
+        evidenceId,
+        evidenceService.createViewSession,
+      );
       router.push(`/evidence/${evidenceId}`);
     } catch (cause) {
       setOpenError(viewSessionErrorMessage(cause));
@@ -35,11 +42,6 @@ export function useIntentionalEvidenceNavigation() {
 
 
 function viewSessionErrorMessage(cause: unknown): string {
-  if (cause instanceof ApiError && [401, 403, 404].includes(cause.status)) {
-    return "ไม่สามารถเปิดหลักฐานได้ กรุณาตรวจสอบสิทธิ์หรือเข้าสู่ระบบอีกครั้ง";
-  }
-  if (cause instanceof ApiError && cause.status === 503) {
-    return "ไม่สามารถบันทึกการเปิดดูหลักฐานได้ในขณะนี้";
-  }
-  return "ไม่สามารถเปิดหลักฐานได้";
+  const feedback = userFacingApiError(cause);
+  return `${feedback.title} ${feedback.message}`;
 }

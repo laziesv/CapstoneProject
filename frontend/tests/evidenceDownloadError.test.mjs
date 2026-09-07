@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { downloadErrorDialog } from "../src/utils/evidenceDownloadError.ts";
+import {
+  downloadErrorDialog,
+  userFacingApiError,
+} from "../src/utils/evidenceDownloadError.ts";
 
 
 function integrityError(mismatchType) {
@@ -48,7 +51,7 @@ test("does not classify an unrelated 409 as evidence corruption", () => {
   });
 
   assert.equal(dialog.kind, "general");
-  assert.equal(dialog.title, "ไม่สามารถดาวน์โหลดหลักฐานได้");
+  assert.equal(dialog.title, "ไม่สามารถดำเนินการได้");
 });
 
 test("shows blockchain unavailable wording for 503", () => {
@@ -58,6 +61,39 @@ test("shows blockchain unavailable wording for 503", () => {
   });
 
   assert.equal(dialog.kind, "blockchain");
-  assert.equal(dialog.title, "ไม่สามารถตรวจสอบ Blockchain ได้");
+  assert.equal(dialog.title, "ไม่สามารถตรวจสอบ Blockchain ได้ในขณะนี้");
   assert.doesNotMatch(dialog.message, /แก้ไข|เปลี่ยนแปลง|ผิดปกติ/);
+});
+
+test("maps network and common HTTP failures to safe shared messages", () => {
+  assert.equal(
+    userFacingApiError(new TypeError("fetch failed")).title,
+    "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+  );
+  assert.equal(
+    userFacingApiError({ status: 401 }).title,
+    "เซสชันหมดอายุหรือยังไม่ได้เข้าสู่ระบบ",
+  );
+  assert.equal(
+    userFacingApiError({ status: 403 }).title,
+    "คุณไม่มีสิทธิ์ดำเนินการนี้",
+  );
+  assert.equal(
+    userFacingApiError({ status: 404 }).title,
+    "ไม่พบข้อมูลที่ร้องขอ",
+  );
+  assert.equal(
+    userFacingApiError({ status: 500, message: "raw exception" }).title,
+    "ระบบเกิดข้อผิดพลาด",
+  );
+  assert.doesNotMatch(
+    userFacingApiError({ status: 500, message: "raw exception" }).message,
+    /raw exception/,
+  );
+});
+
+test("keeps the integrity 409 dialog more specific than shared errors", () => {
+  const dialog = downloadErrorDialog(integrityError("ORIGINAL_FILE_MISMATCH"));
+  assert.equal(dialog.kind, "integrity");
+  assert.equal(dialog.title, "ไฟล์หลักฐานไม่ผ่านการตรวจสอบความถูกต้อง");
 });

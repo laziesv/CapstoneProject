@@ -1,3 +1,5 @@
+import type { ChainEvidenceMetadata } from "../interfaces/chainOfCustody";
+
 const FORENSIC_TIME_ZONE = "Asia/Bangkok";
 
 const forensicDateTimeFormatter = new Intl.DateTimeFormat(
@@ -54,6 +56,15 @@ export function formatIntegrityState(value: string | null | undefined): string {
     ORIGINAL_AND_DATABASE_HASH_MISMATCH: "ไฟล์ต้นฉบับและค่าแฮชในฐานข้อมูลไม่ตรงกับ Blockchain",
   };
   return value ? labels[value] ?? value : "—";
+}
+
+export function chainEvidenceIdentityRows(
+  evidence: Pick<ChainEvidenceMetadata, "evidence_id" | "evidence_number">,
+) {
+  return [
+    { label: "เลขหลักฐาน", value: evidence.evidence_number },
+    { label: "Evidence ID", value: evidence.evidence_id },
+  ];
 }
 
 export function forensicMismatchLabel(field: string): string {

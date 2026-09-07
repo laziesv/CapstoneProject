@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 import type { IntegrityMismatch, VerifyResult, WatermarkVerificationUser } from "@/interfaces";
-import { ApiError, watermarkService } from "@/services";
+import { watermarkService } from "@/services";
 import {
   forensicMismatchLabel,
   formatForensicAction,
@@ -29,6 +29,11 @@ import {
   formatIntegrityState,
   shouldShowMatchedDownloadSession,
 } from "@/utils/forensics";
+import { userFacingApiError } from "@/utils/evidenceDownloadError";
+import {
+  buildVerificationPresentation,
+  type VerificationCheckPresentation,
+} from "@/utils/verificationPresentation";
 
 export default function VerifyPage() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -47,7 +52,8 @@ export default function VerifyPage() {
     try {
       setResult(await watermarkService.verify(file));
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "ตรวจสอบไม่สำเร็จ");
+      const feedback = userFacingApiError(caught);
+      setError(`${feedback.title} ${feedback.message}`);
     } finally {
       setIsVerifying(false);
     }
@@ -118,20 +124,54 @@ function VerificationSummary({ result, loading, error }: { result: VerifyResult 
       {error && !loading && <EmptyState danger icon={<XCircle className="h-9 w-9" />} text={error} />}
       {!result && !loading && !error && <EmptyState icon={<ShieldCheck className="h-10 w-10 opacity-35" />} text="ยังไม่มีผลการตรวจสอบ" />}
       {result && !result.found && !loading && <EmptyState danger icon={<ShieldAlert className="h-10 w-10" />} text="ไม่พบลายน้ำที่ตรงกับหลักฐานในระบบ" />}
-      {result?.found && !loading && (
-        <div className="mt-5 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><p className="text-lg font-semibold text-success">ตรวจพบลายน้ำดิจิทัล</p><p className="text-sm text-muted">{verificationType(result.dynamicMode)}</p></div>
-            <span className="border border-success/30 bg-success/10 px-3 py-1 text-sm font-semibold text-success">ตรงกัน {result.matchPercent}%</span>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            <StatusItem label="รหัสอ้างอิงหลักฐาน" ok={result.staticOk} />
-            <StatusItem label={dynamicWatermarkLabel(result.dynamicMode)} ok={result.dynamicOk} />
-            <StatusItem label="ข้อมูลอ้างอิงบน Blockchain" ok={blockchainStatus(result)} />
-          </div>
-        </div>
-      )}
+      {result?.found && !loading && <VerifiedSummary result={result} />}
     </section>
+  );
+}
+
+function VerifiedSummary({ result }: { result: VerifyResult }) {
+  const presentation = buildVerificationPresentation(result);
+  const titleColor = presentation.tone === "success"
+    ? "text-success"
+    : presentation.tone === "warning"
+      ? "text-warning"
+      : "text-danger";
+  return (
+    <div className="mt-5 space-y-4">
+      <div>
+        <p className={`text-lg font-semibold ${titleColor}`}>{presentation.title}</p>
+        <p className="mt-1 text-sm text-muted">{presentation.description}</p>
+        <p className="mt-1 text-xs text-muted">{verificationType(result.dynamicMode)}</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {presentation.checks.map((check) => (
+          <VerificationCheckCard key={check.id} check={check} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VerificationCheckCard({ check }: { check: VerificationCheckPresentation }) {
+  const Icon = check.tone === "success"
+    ? CheckCircle2
+    : check.tone === "warning"
+      ? ShieldAlert
+      : XCircle;
+  const color = check.tone === "success"
+    ? "text-success"
+    : check.tone === "warning"
+      ? "text-warning"
+      : "text-danger";
+  return (
+    <div className="flex items-start gap-3 border border-border bg-slate-50 px-3 py-3">
+      <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${color}`} aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold">{check.title}</p>
+        <p className={`mt-1 text-xs font-medium ${color}`}>{check.result}</p>
+        <p className="mt-1 text-xs leading-5 text-muted">{check.explanation}</p>
+      </div>
+    </div>
   );
 }
 
@@ -321,10 +361,6 @@ function QrValue({ title, png, value }: { title: string; png: string | null; val
   return <div className="min-w-0 text-center">{png ? <Image src={png} alt={title} width={88} height={88} unoptimized className="mx-auto [image-rendering:pixelated]" /> : <div className="mx-auto h-[88px] w-[88px] bg-slate-100" />}<p className="mt-2 text-xs font-semibold">{title}</p><p className="mt-1 truncate font-mono text-[10px] text-muted" title={value || undefined}>{value || "—"}</p></div>;
 }
 
-function StatusItem({ label, ok }: { label: string; ok: boolean }) {
-  return <div className="flex items-center justify-between bg-slate-50 px-3 py-2 text-xs"><span>{label}</span>{ok ? <CheckCircle2 className="h-4 w-4 text-success" /> : <XCircle className="h-4 w-4 text-danger" />}</div>;
-}
-
 function StatusText({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return <div className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-2 text-xs"><span>{label}</span><span className={`font-medium ${ok ? "text-success" : "text-warning"}`}>{value}</span></div>;
 }
@@ -341,10 +377,6 @@ function verificationType(mode: VerifyResult["dynamicMode"]) {
 
 function dynamicWatermarkLabel(mode: VerifyResult["dynamicMode"]) {
   return mode === "canonical" ? "ค่าแฮชไฟล์ต้นฉบับ" : "รหัสติดตามรอบการดาวน์โหลด";
-}
-
-function blockchainStatus(result: VerifyResult) {
-  return result.dynamicMode === "personalized" ? result.blockchainSessionVerified : result.blockchainVerified;
 }
 
 function numberValue(value: number | null): string | null {

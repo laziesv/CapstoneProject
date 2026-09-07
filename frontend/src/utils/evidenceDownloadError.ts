@@ -17,6 +17,71 @@ interface DownloadErrorLike {
   details?: Record<string, unknown> | null;
 }
 
+export interface ApiErrorFeedback {
+  title: string;
+  message: string;
+  kind: "network" | "authentication" | "authorization" | "not-found" | "blockchain" | "server" | "general";
+}
+
+/** แปลงข้อผิดพลาดจาก API เป็นข้อความปลอดภัยและสม่ำเสมอสำหรับผู้ใช้ */
+export function userFacingApiError(error: DownloadErrorLike | unknown): ApiErrorFeedback {
+  const candidate = error !== null && typeof error === "object"
+    ? error as DownloadErrorLike
+    : {};
+  const status = typeof candidate.status === "number" ? candidate.status : null;
+  const code = typeof candidate.code === "string" ? candidate.code : null;
+
+  if (status === 0 || code === "NETWORK_ERROR" || error instanceof TypeError) {
+    return {
+      title: "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้",
+      message: "กรุณาตรวจสอบการเชื่อมต่อหรือลองใหม่ภายหลัง",
+      kind: "network",
+    };
+  }
+  if (status === 401) {
+    return {
+      title: "เซสชันหมดอายุหรือยังไม่ได้เข้าสู่ระบบ",
+      message: "กรุณาเข้าสู่ระบบอีกครั้ง",
+      kind: "authentication",
+    };
+  }
+  if (status === 403) {
+    return {
+      title: "คุณไม่มีสิทธิ์ดำเนินการนี้",
+      message: "กรุณาติดต่อผู้ดูแลระบบหากต้องการสิทธิ์เพิ่มเติม",
+      kind: "authorization",
+    };
+  }
+  if (status === 404) {
+    return {
+      title: "ไม่พบข้อมูลที่ร้องขอ",
+      message: "ข้อมูลอาจถูกย้าย ลบ หรืออยู่นอกสิทธิ์การเข้าถึงของคุณ",
+      kind: "not-found",
+    };
+  }
+  if (status === 503) {
+    return {
+      title: "ไม่สามารถตรวจสอบ Blockchain ได้ในขณะนี้",
+      message: "ระบบไม่สามารถยืนยันข้อมูลกับ Blockchain ได้ กรุณาลองใหม่ภายหลัง",
+      kind: "blockchain",
+    };
+  }
+  if (status !== null && status >= 500) {
+    return {
+      title: "ระบบเกิดข้อผิดพลาด",
+      message: "กรุณาลองใหม่อีกครั้ง หรือติดต่อผู้ดูแลระบบหากปัญหายังคงเกิดขึ้น",
+      kind: "server",
+    };
+  }
+  return {
+    title: "ไม่สามารถดำเนินการได้",
+    message: typeof candidate.message === "string"
+      ? candidate.message
+      : "กรุณาตรวจสอบข้อมูลและลองใหม่อีกครั้ง",
+    kind: "general",
+  };
+}
+
 const INTEGRITY_MESSAGES: Record<
   EvidenceIntegrityMismatchType,
   DownloadErrorDialogContent
@@ -66,19 +131,10 @@ export function downloadErrorDialog(
     };
   }
 
-  if (error.status === 503) {
-    return {
-      title: "ไม่สามารถตรวจสอบ Blockchain ได้",
-      message: "ระบบไม่สามารถยืนยันความถูกต้องของหลักฐานได้ในขณะนี้ กรุณาลองใหม่ภายหลัง",
-      kind: "blockchain",
-    };
-  }
-
+  const feedback = userFacingApiError(error);
   return {
-    title: "ไม่สามารถดาวน์โหลดหลักฐานได้",
-    message: typeof error.message === "string"
-      ? error.message
-      : "เกิดข้อผิดพลาดระหว่างดาวน์โหลด กรุณาลองใหม่อีกครั้ง",
-    kind: "general",
+    title: feedback.title,
+    message: feedback.message,
+    kind: feedback.kind === "blockchain" ? "blockchain" : "general",
   };
 }

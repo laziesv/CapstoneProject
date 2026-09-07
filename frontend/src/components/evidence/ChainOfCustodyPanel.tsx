@@ -22,9 +22,11 @@ import type {
   ChainUserIdentity,
   IntegrityMismatch,
 } from "@/interfaces";
-import { ApiError, evidenceService } from "@/services";
+import { evidenceService } from "@/services";
+import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import {
   compareBlockchainOrder,
+  chainEvidenceIdentityRows,
   forensicMismatchLabel,
   formatForensicAction,
   formatForensicDateTime,
@@ -165,7 +167,14 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
         <div className="grid gap-5 md:grid-cols-2">
           <div>
             <p className="text-xs font-semibold text-muted">ข้อมูลหลักฐาน</p>
-            <p className="mt-2 text-sm font-medium">{data.evidence.evidence_number}</p>
+            <dl className="mt-2 space-y-1.5 text-sm">
+              {chainEvidenceIdentityRows(data.evidence).map((item) => (
+                <div key={item.label} className="grid grid-cols-[7rem_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted">{item.label}</dt>
+                  <dd className="break-all font-mono text-xs font-medium">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
             <p className="mt-1 text-xs text-muted">อัปโหลดเมื่อ {formatForensicDateTime(data.evidence.uploaded_at)}</p>
             <p className="mt-1 text-xs text-muted">บันทึกลง Blockchain เมื่อ {formatForensicUnixTime(data.evidence.blockchain_recorded_at)}</p>
           </div>
@@ -476,7 +485,6 @@ function numberValue(value: number | null | undefined): string | null {
 }
 
 function errorMessage(cause: unknown): string {
-  if (cause instanceof ApiError && cause.status === 503) return "ไม่สามารถตรวจสอบ Blockchain ได้ในขณะนี้";
-  if (cause instanceof ApiError && cause.status === 404) return "ไม่พบข้อมูลลำดับการครอบครองสำหรับหลักฐานนี้";
-  return "ไม่สามารถโหลดลำดับการครอบครองหลักฐานได้";
+  const feedback = userFacingApiError(cause);
+  return `${feedback.title} ${feedback.message}`;
 }

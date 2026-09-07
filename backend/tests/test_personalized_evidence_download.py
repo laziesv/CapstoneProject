@@ -407,6 +407,13 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             descriptor = EvidenceDownload(
                 file_path=str(personalized),
                 filename="friendly.png",
+                evidence_id=self.evidence.evidence_id,
+                evidence_ref=derive_evidence_ref(self.evidence.evidence_id),
+                access_session_ref=derive_access_session_ref(uuid4()),
+                action="DOWNLOAD",
+                tx_hash="0x" + "1" * 64,
+                block_number=7000,
+                integrity_status="VERIFIED",
             )
             request = Request(
                 {
@@ -436,6 +443,31 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
                 )
 
             self.assertEqual(response.path, str(personalized))
+            self.assertEqual(
+                response.headers["x-evidence-id"],
+                str(descriptor.evidence_id),
+            )
+            self.assertEqual(
+                response.headers["x-evidence-ref"],
+                descriptor.evidence_ref,
+            )
+            self.assertEqual(
+                response.headers["x-access-session-ref"],
+                descriptor.access_session_ref,
+            )
+            self.assertEqual(response.headers["x-blockchain-action"], "DOWNLOAD")
+            self.assertEqual(
+                response.headers["x-blockchain-tx-hash"],
+                descriptor.tx_hash,
+            )
+            self.assertEqual(response.headers["x-blockchain-block-number"], "7000")
+            self.assertEqual(
+                response.headers["x-original-evidence-integrity"],
+                "VERIFIED",
+            )
+            exposed_headers = response.headers["access-control-expose-headers"]
+            self.assertIn("X-Access-Session-Ref", exposed_headers)
+            self.assertIn("X-Blockchain-Tx-Hash", exposed_headers)
             self.assertTrue(personalized.exists())
 
             messages = []
@@ -464,6 +496,13 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             descriptor = EvidenceDownload(
                 file_path=str(personalized),
                 filename="friendly.png",
+                evidence_id=self.evidence.evidence_id,
+                evidence_ref=derive_evidence_ref(self.evidence.evidence_id),
+                access_session_ref=derive_access_session_ref(uuid4()),
+                action="DOWNLOAD",
+                tx_hash="0x" + "1" * 64,
+                block_number=7000,
+                integrity_status="VERIFIED",
             )
             request = Request(
                 {

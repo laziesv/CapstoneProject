@@ -103,6 +103,22 @@ export interface EvidenceViewSessionResponse {
   block_number: number;
 }
 
+/** metadata ที่แนบมากับ binary DOWNLOAD response เดิม จึงไม่สร้าง request ซ้ำ */
+export interface EvidenceDownloadMetadata {
+  evidenceId: string | null;
+  evidenceRef: string | null;
+  accessSessionRef: string | null;
+  action: "DOWNLOAD" | null;
+  transactionHash: string | null;
+  blockNumber: number | null;
+  integrityStatus: string | null;
+}
+
+export interface EvidenceDownloadResult {
+  blob: Blob;
+  metadata: EvidenceDownloadMetadata;
+}
+
 /** ไฟล์หนึ่งไฟล์ + metadata ของตัวเอง — 1 รายการนี้ = 1 EvidenceItem ที่ถูกสร้าง */
 export interface UploadEvidenceFile {
   file: File;
@@ -124,8 +140,6 @@ export interface UploadedEvidenceRef {
   original_filename: string;
   evidence_number: string;
   file_hash_sha256: string;
-  tx_hash: string;
-  block_number: number;
 }
 
 export interface WatermarkRecord {

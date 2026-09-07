@@ -25,18 +25,12 @@ import type {
   UploadedEvidenceRef,
   EvidenceApiResponse,
   EvidenceViewSessionResponse,
+  EvidenceDownloadResult,
   ChainOfCustodyResponse,
 } from "@/interfaces";
 import { mockTx } from "@/utils/mockData";
-import { request, requestBlob } from "./client";
-
-/** สุ่ม hex — ใช้เฉพาะ tx/block ที่ยังไม่มี endpoint จริง
- *  TODO(backend): ลบทิ้งเมื่อมี blockchain endpoint */
-function randomHex(len: number): string {
-  const bytes = new Uint8Array(len / 2);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
+import { request, requestBlob, requestBlobWithMetadata } from "./client";
+import { requestEvidenceDownloadOnce } from "@/utils/evidenceOperationFeedback";
 
 /** แปลงรูปแบบของ backend → รูปแบบที่ frontend ใช้ทั้งระบบ */
 function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
@@ -81,10 +75,30 @@ export const evidenceService = {
   },
 
   /** ดาวน์โหลดไฟล์ผ่าน POST เพื่อให้ backend บันทึกเหตุการณ์การเข้าถึงเพียงครั้งเดียว */
-  download(evidenceId: string): Promise<Blob> {
-    return requestBlob(`/api/evidences/${encodeURIComponent(evidenceId)}/download`, {
-      method: "POST",
-    });
+  async download(evidenceId: string): Promise<EvidenceDownloadResult> {
+    const response = await requestEvidenceDownloadOnce(
+      evidenceId,
+      requestBlobWithMetadata,
+    );
+    const blockHeader = response.headers.get("X-Blockchain-Block-Number");
+    const parsedBlock = blockHeader === null ? null : Number(blockHeader);
+    const action = response.headers.get("X-Blockchain-Action");
+    return {
+      blob: response.blob,
+      metadata: {
+        evidenceId: response.headers.get("X-Evidence-Id"),
+        evidenceRef: response.headers.get("X-Evidence-Ref"),
+        accessSessionRef: response.headers.get("X-Access-Session-Ref"),
+        action: action === "DOWNLOAD" ? action : null,
+        transactionHash: response.headers.get("X-Blockchain-Tx-Hash"),
+        blockNumber: parsedBlock !== null
+          && Number.isSafeInteger(parsedBlock)
+          && parsedBlock >= 0
+          ? parsedBlock
+          : null,
+        integrityStatus: response.headers.get("X-Original-Evidence-Integrity"),
+      },
+    };
   },
 
   /** รายการหลักฐาน (กรองตามคดีได้ — กรองฝั่ง server) */
@@ -127,9 +141,6 @@ export const evidenceService = {
         evidence_number: dto.evidence_number,
         // SHA-256 จริงที่ server คำนวณจากไฟล์ที่บันทึกไว้
         file_hash_sha256: dto.file_hash ?? "",
-        // TODO(backend): ใช้ค่าจริงเมื่อมี blockchain endpoint
-        tx_hash: `0x${randomHex(40)}`,
-        block_number: 18450 + Math.floor(Math.random() * 500),
       });
     }
 
