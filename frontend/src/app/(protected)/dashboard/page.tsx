@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import type { DashboardData, AccessLog } from "@/interfaces";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { useIntentionalEvidenceNavigation } from "@/hooks/useIntentionalEvidenceNavigation";
+import { IntentionalEvidenceProgress } from "@/components/feedback/IntentionalEvidenceProgress";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { openEvidence, openingEvidenceId, openError } = useIntentionalEvidenceNavigation();
+  const { openEvidence, openingEvidenceId, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -123,7 +124,6 @@ export default function DashboardPage() {
             <Link href="/cases" className="text-xs text-primary hover:underline">View all</Link>
           </div>
           <div className="divide-y divide-border">
-            {openError && <p className="px-5 py-3 text-sm text-danger" role="alert">{openError}</p>}
             {data.recent_evidence.length === 0 && (
               <p className="px-5 py-6 text-center text-sm text-muted">ยังไม่มีหลักฐาน</p>
             )}
@@ -174,6 +174,11 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+      <IntentionalEvidenceProgress
+        opening={Boolean(openingEvidenceId)}
+        error={openError}
+        onDismissError={dismissOpenError}
+      />
     </div>
   );
 }

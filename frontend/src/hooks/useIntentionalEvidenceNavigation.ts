@@ -19,6 +19,7 @@ export function useIntentionalEvidenceNavigation() {
     inProgress.current = true;
     setOpeningEvidenceId(evidenceId);
     setOpenError(undefined);
+    let navigationStarted = false;
     try {
       // การเปิดหลักฐานโดยเจตนา: บันทึก VIEW ให้สำเร็จก่อนเปลี่ยนหน้า
       // เพื่อไม่ให้ page mount, refresh หรือ image GET สร้างรายการซ้ำ
@@ -28,16 +29,25 @@ export function useIntentionalEvidenceNavigation() {
         evidenceId,
         evidenceService.createViewSession,
       );
+      navigationStarted = true;
       router.push(`/evidence/${evidenceId}`);
     } catch (cause) {
       setOpenError(viewSessionErrorMessage(cause));
     } finally {
-      inProgress.current = false;
-      setOpeningEvidenceId(undefined);
+      // คง progress ไว้ระหว่าง Next.js เปลี่ยนหน้า และปลดล็อกทันทีเฉพาะเมื่อคำขอล้มเหลว
+      if (!navigationStarted) {
+        inProgress.current = false;
+        setOpeningEvidenceId(undefined);
+      }
     }
   };
 
-  return { openEvidence, openingEvidenceId, openError };
+  return {
+    openEvidence,
+    openingEvidenceId,
+    openError,
+    dismissOpenError: () => setOpenError(undefined),
+  };
 }
 
 

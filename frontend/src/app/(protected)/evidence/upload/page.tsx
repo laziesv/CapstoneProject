@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -12,6 +12,7 @@ import { readCapturedAt } from "@/utils/exif";
 import { formatIncident } from "@/utils/format";
 import type { Case, UploadEvidenceFile, UploadedEvidenceRef } from "@/interfaces";
 import { OperationToast } from "@/components/feedback/OperationToast";
+import { OperationProgress } from "@/components/feedback/OperationProgress";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import { UPLOAD_RESULT_PRESENTATION } from "@/utils/evidenceOperationFeedback";
 
@@ -45,6 +46,7 @@ export default function UploadEvidencePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [results, setResults] = useState<UploadedEvidenceRef[] | null>(null);
   const [operationError, setOperationError] = useState<{ title: string; message: string } | null>(null);
+  const uploadInProgress = useRef(false);
 
   const myCases = useMemo(
     () => (cases ? visibleCases(user, cases, supervisorMap ?? {}) : []),
@@ -86,6 +88,8 @@ export default function UploadEvidencePage() {
     });
 
   const handleSubmit = async () => {
+    if (uploadInProgress.current) return;
+    uploadInProgress.current = true;
     setStep(3);
     setIsProcessing(true);
     setOperationError(null);
@@ -107,6 +111,7 @@ export default function UploadEvidencePage() {
       setOperationError({ title: feedback.title, message: feedback.message });
       setStep(2);
     } finally {
+      uploadInProgress.current = false;
       setIsProcessing(false);
     }
   };
@@ -281,7 +286,7 @@ export default function UploadEvidencePage() {
 
             <div className="flex gap-2">
               <button onClick={() => setStep(1)} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover transition-colors">Back</button>
-              <button onClick={handleSubmit} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors">
+              <button onClick={handleSubmit} disabled={isProcessing} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:cursor-wait disabled:opacity-60">
                 <Shield className="h-4 w-4" /> อัปโหลดและบันทึกหลักฐาน
               </button>
             </div>
@@ -292,11 +297,21 @@ export default function UploadEvidencePage() {
         {step === 3 && (
           <div className="space-y-5">
             {isProcessing ? (
-              <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
-                <Loader2 className="h-7 w-7 animate-spin text-primary" />
-                <p className="text-sm font-medium">กำลังส่งหลักฐานไปยังระบบ</p>
-                <p className="text-xs text-muted">รอผลการบันทึกจริงจาก backend</p>
-              </div>
+              <OperationProgress
+                title="กำลังบันทึกหลักฐาน"
+                description="กรุณารอผลการดำเนินการจริงจากระบบ"
+                steps={[
+                  { label: "เตรียมไฟล์สำหรับอัปโหลด", state: "completed" },
+                  { label: "กำลังส่งและประมวลผลหลักฐานในระบบ", state: "active" },
+                  { label: "รอผลการลงทะเบียน", state: "pending" },
+                ]}
+                details={[
+                  "คำนวณ SHA-256",
+                  "ฝัง Watermark",
+                  "บันทึกฐานข้อมูล",
+                  "ส่งธุรกรรม Blockchain",
+                ]}
+              />
             ) : (
               <>
                 <div className="rounded-lg border border-success/20 bg-success-light p-4">
@@ -306,10 +321,16 @@ export default function UploadEvidencePage() {
                   <p className="mt-1 text-xs text-success">บันทึกหลักฐานสำเร็จ {results?.length} ไฟล์</p>
                 </div>
 
-                <div>
-                  <h2 className="font-semibold">{UPLOAD_RESULT_PRESENTATION.heading}</h2>
-                  <p className="mt-1 text-xs text-muted">{UPLOAD_RESULT_PRESENTATION.description}</p>
-                </div>
+                <OperationProgress
+                  title={UPLOAD_RESULT_PRESENTATION.heading}
+                  description={UPLOAD_RESULT_PRESENTATION.description}
+                  steps={[
+                    { label: "เตรียมไฟล์", state: "completed" },
+                    { label: "ประมวลผลหลักฐาน", state: "completed" },
+                    { label: "บันทึกข้อมูลสำเร็จ", state: "completed" },
+                    { label: "บันทึกธุรกรรม Blockchain สำเร็จ", state: "completed" },
+                  ]}
+                />
 
                 <p className="text-xs text-muted">สแกน QR เพื่ออ่านค่า SHA-256 ของไฟล์นั้น ใช้เทียบกับ hash ของไฟล์ต้นฉบับได้</p>
 

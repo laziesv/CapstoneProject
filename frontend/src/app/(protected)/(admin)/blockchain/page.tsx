@@ -29,6 +29,7 @@ import type {
 import { ApiError, blockchainService } from "@/services";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import { formatForensicAction, formatForensicUnixTime } from "@/utils/forensics";
+import { copyTextWithFeedback } from "@/components/feedback/CopySuccessFeedback";
 import {
   blockchainIndexValue,
   compactBlockchainValue,
@@ -383,7 +384,7 @@ function ValueDisplay({ value }: { value: string | null | undefined }) {
     <div className="mt-1">
       <div className="flex items-center gap-2">
         <code className="text-sm">{compactBlockchainValue(value)}</code>
-        <button type="button" title="คัดลอกค่าเต็ม" aria-label="คัดลอกค่าเต็ม" onClick={() => void navigator.clipboard.writeText(value)} className="text-muted hover:text-primary">
+        <button type="button" title="คัดลอกค่าเต็ม" aria-label="คัดลอกค่าเต็ม" onClick={() => void copyTextWithFeedback(value)} className="text-muted hover:text-primary">
           <Copy className="h-3.5 w-3.5" />
         </button>
       </div>

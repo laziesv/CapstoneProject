@@ -19,8 +19,8 @@ export const VIEW_SUCCESS_FEEDBACK = {
 } as const;
 
 export const UPLOAD_RESULT_PRESENTATION = {
-  stepLabel: "ผลการบันทึก",
-  heading: "ผลการบันทึกหลักฐาน",
+  stepLabel: "Registration Result",
+  heading: "Registration Result",
   readBackVerified: false,
   description: "ข้อมูลนี้เป็นผลจากคำขออัปโหลดที่บันทึกฐานข้อมูลและ Blockchain สำเร็จ ไม่ใช่การตรวจสอบย้อนกลับด้วยคำขอใหม่",
 } as const;

@@ -12,6 +12,7 @@ import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { useIntentionalEvidenceNavigation } from "@/hooks/useIntentionalEvidenceNavigation";
+import { IntentionalEvidenceProgress } from "@/components/feedback/IntentionalEvidenceProgress";
 
 
 export default function CaseDetailPage() {
@@ -20,7 +21,7 @@ export default function CaseDetailPage() {
   const supervisorMap = useSupervisorMap();
   const [caseData, setCaseData] = useState<Case | null | undefined>(undefined);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
-  const { openEvidence, openingEvidenceId, openError } = useIntentionalEvidenceNavigation();
+  const { openEvidence, openingEvidenceId, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -91,7 +92,6 @@ export default function CaseDetailPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        {openError && <p className="col-span-3 text-sm text-danger" role="alert">{openError}</p>}
         {evidenceList.map((e) => (
           <button key={e.evidence_id} type="button" onClick={() => void openEvidence(e.evidence_id)} disabled={Boolean(openingEvidenceId)} className="group overflow-hidden rounded-xl border border-border bg-surface text-left transition-all hover:shadow-md disabled:cursor-wait disabled:opacity-70">
             <div className="aspect-video bg-slate-100 overflow-hidden">
@@ -118,6 +118,11 @@ export default function CaseDetailPage() {
           </button>
         ))}
       </div>
+      <IntentionalEvidenceProgress
+        opening={Boolean(openingEvidenceId)}
+        error={openError}
+        onDismissError={dismissOpenError}
+      />
     </div>
   );
 }

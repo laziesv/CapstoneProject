@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -38,14 +38,19 @@ import {
   buildVerificationPresentation,
   type VerificationCheckPresentation,
 } from "@/utils/verificationPresentation";
+import { OperationProgress } from "@/components/feedback/OperationProgress";
+import { copyTextWithFeedback } from "@/components/feedback/CopySuccessFeedback";
 
 export default function VerifyPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const verificationInProgress = useRef(false);
 
   const handleFile = async (file: File) => {
+    if (verificationInProgress.current) return;
+    verificationInProgress.current = true;
     setPreview((current) => {
       if (current) URL.revokeObjectURL(current);
       return URL.createObjectURL(file);
@@ -59,6 +64,7 @@ export default function VerifyPage() {
       const feedback = userFacingApiError(caught);
       setError(`${feedback.title} ${feedback.message}`);
     } finally {
+      verificationInProgress.current = false;
       setIsVerifying(false);
     }
   };
@@ -74,13 +80,14 @@ export default function VerifyPage() {
         <div className="rounded-lg border border-border bg-surface p-5">
           <h2 className="font-semibold">ภาพที่ต้องการตรวจสอบ</h2>
           <div
-            className="mt-4 cursor-pointer border-2 border-dashed border-border p-6 text-center transition-colors hover:border-primary/50"
-            onClick={() => document.getElementById("verify-file")?.click()}
+            className={`mt-4 border-2 border-dashed border-border p-6 text-center transition-colors ${isVerifying ? "cursor-wait opacity-70" : "cursor-pointer hover:border-primary/50"}`}
+            aria-disabled={isVerifying}
+            onClick={() => !isVerifying && document.getElementById("verify-file")?.click()}
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
               const file = event.dataTransfer.files[0];
-              if (file?.type.startsWith("image/")) void handleFile(file);
+              if (!isVerifying && file?.type.startsWith("image/")) void handleFile(file);
             }}
           >
             <input
@@ -88,6 +95,7 @@ export default function VerifyPage() {
               className="hidden"
               type="file"
               accept="image/*"
+              disabled={isVerifying}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) void handleFile(file);
@@ -121,14 +129,32 @@ export default function VerifyPage() {
 }
 
 function VerificationSummary({ result, loading, error }: { result: VerifyResult | null; loading: boolean; error: string | null }) {
+  if (loading) {
+    return (
+      <section className="rounded-lg border border-border bg-surface p-5">
+        <OperationProgress
+          title="กำลังตรวจสอบลายน้ำดิจิทัล"
+          description="กรุณารอสักครู่"
+          steps={[{ label: "กำลังตรวจสอบข้อมูลทั้งหมด", state: "active" }]}
+          details={[
+            "อ่านข้อมูล Watermark",
+            "ระบุหลักฐาน",
+            "ตรวจสอบ Download Session",
+            "อ่านข้อมูล Blockchain",
+            "เปรียบเทียบ SHA-256",
+          ]}
+        />
+      </section>
+    );
+  }
+
   return (
     <section className="rounded-lg border border-border bg-surface p-5">
       <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="font-semibold">สรุปผลการตรวจสอบ</h2></div>
-      {loading && <EmptyState icon={<Loader2 className="h-9 w-9 animate-spin" />} text="กำลังตรวจสอบลายน้ำ..." />}
-      {error && !loading && <EmptyState danger icon={<XCircle className="h-9 w-9" />} text={error} />}
-      {!result && !loading && !error && <EmptyState icon={<ShieldCheck className="h-10 w-10 opacity-35" />} text="ยังไม่มีผลการตรวจสอบ" />}
-      {result && !result.found && !loading && <EmptyState danger icon={<ShieldAlert className="h-10 w-10" />} text="ไม่พบลายน้ำที่ตรงกับหลักฐานในระบบ" />}
-      {result?.found && !loading && <VerifiedSummary result={result} />}
+      {error && <EmptyState danger icon={<XCircle className="h-9 w-9" />} text={error} />}
+      {!result && !error && <EmptyState icon={<ShieldCheck className="h-10 w-10 opacity-35" />} text="ยังไม่มีผลการตรวจสอบ" />}
+      {result && !result.found && <EmptyState danger icon={<ShieldAlert className="h-10 w-10" />} text="ไม่พบลายน้ำที่ตรงกับหลักฐานในระบบ" />}
+      {result?.found && <VerifiedSummary result={result} />}
     </section>
   );
 }
@@ -424,7 +450,7 @@ function TechnicalDetails({ children }: { children: ReactNode }) {
 }
 
 function CopyButton({ value }: { value: string }) {
-  return <button type="button" title="คัดลอก" aria-label="คัดลอก" className="shrink-0 text-muted hover:text-primary" onClick={() => void navigator.clipboard.writeText(value)}><Copy className="h-3.5 w-3.5" /></button>;
+  return <button type="button" title="คัดลอก" aria-label="คัดลอก" className="shrink-0 text-muted hover:text-primary" onClick={() => void copyTextWithFeedback(value)}><Copy className="h-3.5 w-3.5" /></button>;
 }
 
 function QrValue({ title, png, value }: { title: string; png: string | null; value: string | null }) {

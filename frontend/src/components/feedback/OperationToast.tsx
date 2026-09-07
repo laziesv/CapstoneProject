@@ -24,7 +24,7 @@ export function OperationToast({
   const Icon = tone === "success" ? CheckCircle2 : CircleAlert;
   return (
     <aside
-      className="fixed bottom-5 right-5 z-50 flex w-[min(24rem,calc(100vw-2rem))] items-start gap-3 rounded-lg border border-border bg-surface p-4 shadow-xl"
+      className="fixed right-5 top-5 z-50 flex w-[min(24rem,calc(100vw-2rem))] items-start gap-3 rounded-lg border border-border bg-surface p-4 shadow-xl"
       role={tone === "success" ? "status" : "alert"}
     >
       <Icon className={`mt-0.5 h-5 w-5 flex-shrink-0 ${tone === "success" ? "text-success" : "text-danger"}`} aria-hidden="true" />

@@ -24,6 +24,7 @@ import type {
 } from "@/interfaces";
 import { evidenceService } from "@/services";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
+import { copyTextWithFeedback } from "@/components/feedback/CopySuccessFeedback";
 import {
   compareBlockchainOrder,
   chainEvidenceIdentityRows,
@@ -425,8 +426,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
+      setCopied(await copyTextWithFeedback(value));
       window.setTimeout(() => setCopied(false), 1500);
     } catch {
       setCopied(false);

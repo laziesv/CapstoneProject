@@ -107,7 +107,8 @@ test("download success explains actual watermark and Blockchain metadata", () =>
 
 test("upload completion is accurately classified as a result, not read-back authentication", () => {
   assert.equal(UPLOAD_RESULT_PRESENTATION.readBackVerified, false);
-  assert.equal(UPLOAD_RESULT_PRESENTATION.heading, "ผลการบันทึกหลักฐาน");
+  assert.equal(UPLOAD_RESULT_PRESENTATION.stepLabel, "Registration Result");
+  assert.equal(UPLOAD_RESULT_PRESENTATION.heading, "Registration Result");
   assert.doesNotMatch(
     `${UPLOAD_RESULT_PRESENTATION.stepLabel} ${UPLOAD_RESULT_PRESENTATION.heading}`,
     /Authenticate|รับรอง/,
