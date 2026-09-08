@@ -14,7 +14,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 # Use the version-pinned ABI fixture by default so a fresh submodule checkout
 # does not require a local Foundry build just to start the backend.
 DEFAULT_ARTIFACT_PATH = Path("blockchain/tests/fixtures/EvidenceRegistryV3.json")
-DEFAULT_DEPLOYMENT_BLOCK = 18079
+DEFAULT_DEPLOYMENT_BLOCK = 12
 
 
 def _read_bool(name: str, default: bool) -> bool:
