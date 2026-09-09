@@ -141,6 +141,23 @@ class BlockchainTransactionRepository:
         return transaction
 
     @staticmethod
+    def replace_access_submission(
+        transaction: BlockchainTransaction,
+        *,
+        tx_hash: str,
+        contract_address: str,
+        status: str = "pending_confirmation",
+    ) -> BlockchainTransaction:
+        # การเชื่อมต่อ Blockchain: ใช้ metadata แถวเดิมเมื่อส่ง logical access
+        # เดิมซ้ำหลัง txpool สูญหาย เพื่อไม่สร้างประวัติ DB ซ้ำ
+        transaction.tx_hash = tx_hash
+        transaction.contract_address = contract_address
+        transaction.block_number = None
+        transaction.block_timestamp = None
+        transaction.status = status
+        return transaction
+
+    @staticmethod
     def fail_access(
         transaction: BlockchainTransaction,
         *,

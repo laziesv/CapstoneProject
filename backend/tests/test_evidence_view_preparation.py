@@ -198,6 +198,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
             block_number=None,
             block_timestamp=None,
             contract_address="0x" + "34" * 20,
+            created_at=None,
         )
         self.confirmed = {
             "tx_hash": self.transaction.tx_hash,
@@ -207,6 +208,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         }
         self.blockchain = MagicMock()
         self.blockchain.contract_address = self.transaction.contract_address
+        self.blockchain.transaction_recovery_delay_seconds = 120
         self.blockchain.check_write_liveness.return_value = {
             "ready": True,
             "reason": None,
@@ -217,6 +219,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         }
         self.blockchain.confirm_access.return_value = self.confirmed
         self.blockchain.get_access_by_session.return_value = None
+        self.blockchain.transaction_exists.return_value = True
 
     def _common_patches(self):
         return (
@@ -531,6 +534,165 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.assertEqual(self.transaction.tx_hash, canonical_tx_hash)
         self.blockchain.submit_access.assert_not_called()
         self.assertEqual(self.blockchain.confirm_access.call_count, 2)
+
+    def test_dropped_transaction_resubmits_same_session_and_updates_existing_row(self):
+        old_tx_hash = self.transaction.tx_hash
+        replacement_tx_hash = "0x" + "ef" * 32
+        original_internal_id = self.transaction.tx_internal_id
+        self.access_log.tx_internal_id = original_internal_id
+        self.transaction.created_at = datetime.now(timezone.utc) - timedelta(seconds=121)
+        self.blockchain.transaction_exists.side_effect = [False, False]
+        self.blockchain.confirm_access.side_effect = [None, {
+            **self.confirmed,
+            "tx_hash": replacement_tx_hash,
+        }]
+        self.blockchain.submit_access.return_value = {
+            "tx_hash": replacement_tx_hash,
+            "contract_address": self.transaction.contract_address,
+        }
+
+        with self._patched(
+            patch.object(
+                AccessLogRepository,
+                "get_by_id",
+                side_effect=[self.access_log, self.access_log],
+            ),
+            patch.object(
+                AccessLogRepository,
+                "get_by_id_for_update",
+                side_effect=[self.access_log, self.access_log],
+            ),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = self._call()
+
+        self.assertEqual(result.status, EvidenceViewState.CONFIRMED)
+        self.assertEqual(result.access_log_id, self.request_id)
+        self.assertEqual(result.access_session_ref, derive_access_session_ref(self.request_id))
+        self.assertEqual(self.transaction.tx_internal_id, original_internal_id)
+        self.assertNotEqual(self.transaction.tx_hash, old_tx_hash)
+        self.assertEqual(self.transaction.tx_hash, replacement_tx_hash)
+        self.assertEqual(self.transaction.status, "confirmed")
+        self.blockchain.submit_access.assert_called_once_with(
+            evidence_id=self.evidence.evidence_id,
+            officer_user_id=self.user.user_id,
+            access_log_id=self.request_id,
+            action=AccessAction.VIEW,
+            occurred_at=int(self.occurred_at.timestamp()),
+        )
+        self.assertEqual(self.blockchain.transaction_exists.call_count, 2)
+        self.db.add.assert_not_called()
+
+    def test_known_queued_transaction_is_never_resubmitted(self):
+        self.access_log.tx_internal_id = self.transaction.tx_internal_id
+        self.transaction.created_at = datetime.now(timezone.utc) - timedelta(seconds=121)
+        self.blockchain.confirm_access.return_value = None
+        self.blockchain.transaction_exists.return_value = True
+
+        with self._patched(
+            patch.object(AccessLogRepository, "get_by_id", return_value=self.access_log),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = self._call()
+
+        self.assertEqual(result.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
+        self.assertEqual(result.tx_hash, self.transaction.tx_hash)
+        self.blockchain.transaction_exists.assert_called_once_with(self.transaction.tx_hash)
+        self.blockchain.submit_access.assert_not_called()
+
+    def test_recent_unknown_transaction_waits_before_recovery(self):
+        self.access_log.tx_internal_id = self.transaction.tx_internal_id
+        self.transaction.created_at = datetime.now(timezone.utc)
+        self.blockchain.confirm_access.return_value = None
+
+        with self._patched(
+            patch.object(AccessLogRepository, "get_by_id", return_value=self.access_log),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = self._call()
+
+        self.assertEqual(result.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
+        self.blockchain.transaction_exists.assert_not_called()
+        self.blockchain.submit_access.assert_not_called()
+
+    def test_unknown_transaction_waits_when_chain_is_unhealthy(self):
+        self.access_log.tx_internal_id = self.transaction.tx_internal_id
+        self.transaction.created_at = datetime.now(timezone.utc) - timedelta(seconds=121)
+        self.blockchain.confirm_access.return_value = None
+        self.blockchain.transaction_exists.return_value = False
+        self.blockchain.check_write_liveness.return_value = {
+            "ready": False,
+            "reason": "BLOCKCHAIN_STALLED",
+        }
+
+        with self._patched(
+            patch.object(AccessLogRepository, "get_by_id", return_value=self.access_log),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = self._call()
+
+        self.assertEqual(result.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
+        self.blockchain.submit_access.assert_not_called()
+
+    def test_concurrent_poll_observes_replacement_hash_without_second_submit(self):
+        old_transaction = SimpleNamespace(**vars(self.transaction))
+        old_transaction.created_at = datetime.now(timezone.utc) - timedelta(seconds=121)
+        replacement_hash = "0x" + "fe" * 32
+        replaced_transaction = SimpleNamespace(
+            **{**vars(old_transaction), "tx_hash": replacement_hash}
+        )
+        self.access_log.tx_internal_id = old_transaction.tx_internal_id
+        self.blockchain.confirm_access.return_value = None
+        self.blockchain.transaction_exists.return_value = False
+
+        with self._patched(
+            patch.object(AccessLogRepository, "get_by_id", return_value=self.access_log),
+            patch.object(
+                AccessLogRepository,
+                "get_by_id_for_update",
+                return_value=self.access_log,
+            ),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                side_effect=[old_transaction, replaced_transaction],
+            ),
+        ):
+            result = self._call()
+
+        self.assertEqual(result.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
+        self.assertEqual(result.tx_hash, replacement_hash)
+        self.blockchain.submit_access.assert_not_called()
+
+    def test_submission_unknown_is_not_automatically_resubmitted(self):
+        self.access_log.tx_internal_id = self.transaction.tx_internal_id
+        self.transaction.status = "submission_unknown"
+        self.transaction.created_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        self.blockchain.confirm_access.return_value = None
+
+        with self._patched(
+            patch.object(AccessLogRepository, "get_by_id", return_value=self.access_log),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = self._call()
+
+        self.assertEqual(result.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
+        self.blockchain.transaction_exists.assert_not_called()
+        self.blockchain.submit_access.assert_not_called()
 
     def test_submission_unknown_retry_never_rebroadcasts(self):
         uncertain_tx_hash = "0x" + "cd" * 32

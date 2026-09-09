@@ -359,6 +359,19 @@ class BlockchainIntegrationTests(TestCase):
         self.assertTrue(recovered["ready"])
         self.assertEqual(client.web3.eth.get_block.call_count, 2)
 
+    def test_transaction_exists_uses_client_without_waiting_for_receipt(self) -> None:
+        client = Mock()
+        client.transaction_exists.side_effect = [True, False]
+        service = BlockchainIntegrationService(
+            settings=_settings(confirmation_timeout_seconds=45),
+            client_provider=lambda: client,
+        )
+
+        self.assertTrue(service.transaction_exists(TX_HASH))
+        self.assertFalse(service.transaction_exists(TX_HASH))
+        self.assertEqual(service.transaction_recovery_delay_seconds, 45)
+        self.assertEqual(client.transaction_exists.call_count, 2)
+
     def test_record_evidence_rejects_malformed_hash(self) -> None:
         client = Mock()
         service = BlockchainIntegrationService(

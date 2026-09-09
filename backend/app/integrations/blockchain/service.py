@@ -50,6 +50,10 @@ class BlockchainIntegrationService:
     def deployment_block(self) -> int:
         return self._settings.deployment_block
 
+    @property
+    def transaction_recovery_delay_seconds(self) -> int:
+        return self._settings.confirmation_timeout_seconds
+
     def health_check(self) -> dict[str, Any]:
         """Return non-sensitive connectivity and deployment health."""
 
@@ -245,6 +249,13 @@ class BlockchainIntegrationService:
                 "latest_block": None,
                 "block_age_seconds": None,
             }
+
+    def transaction_exists(self, tx_hash: str) -> bool:
+        """Return whether Besu currently knows a submitted transaction hash."""
+
+        if not self._settings.enabled:
+            raise RuntimeError("blockchain integration is disabled")
+        return self._client_provider().transaction_exists(tx_hash)
 
     def get_chain_of_custody(
         self,

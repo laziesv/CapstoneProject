@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 from uuid import UUID
@@ -92,6 +92,7 @@ class _TransactionSnapshot:
     tx_hash: str
     status: str
     block_number: int | None
+    created_at: datetime | None
 
 
 class EvidenceViewPreparationService:
@@ -259,6 +260,7 @@ class EvidenceViewPreparationService:
                 tx_hash=str(transaction.tx_hash),
                 status=str(transaction.status),
                 block_number=transaction.block_number,
+                created_at=getattr(transaction, "created_at", None),
             )
             if transaction is not None
             else None
@@ -300,7 +302,18 @@ class EvidenceViewPreparationService:
                 )
             except _EvidenceViewReconciliationUnavailable:
                 return pending_or_confirmed
-            return recovered or pending_or_confirmed
+            if recovered is not None:
+                return recovered
+            try:
+                resubmitted = EvidenceViewPreparationService._recover_dropped_transaction(
+                    db,
+                    prepared=prepared,
+                    service=service,
+                    snapshot=transaction_snapshot,
+                )
+            except _EvidenceViewReconciliationUnavailable:
+                return pending_or_confirmed
+            return resubmitted or pending_or_confirmed
 
         if inspect_chain_before_submit:
             try:
@@ -558,6 +571,141 @@ class EvidenceViewPreparationService:
             service=service,
             tx_hash=event["tx_hash"],
             wait_for_receipt=False,
+        )
+
+    @staticmethod
+    def _recover_dropped_transaction(
+        db: Session,
+        *,
+        prepared: ViewAccessPreparation,
+        service: BlockchainIntegrationService,
+        snapshot: _TransactionSnapshot,
+    ) -> EvidenceViewSession | None:
+        if snapshot.status != "pending_confirmation":
+            return None
+        if not EvidenceViewPreparationService._recovery_delay_elapsed(
+            snapshot.created_at,
+            service.transaction_recovery_delay_seconds,
+        ):
+            return None
+
+        try:
+            if service.transaction_exists(snapshot.tx_hash):
+                return None
+            liveness = service.check_write_liveness()
+        except Exception as exc:
+            raise _EvidenceViewReconciliationUnavailable(
+                "dropped VIEW transaction diagnosis is temporarily unavailable"
+            ) from exc
+        if not liveness["ready"]:
+            return None
+
+        access_log = AccessLogRepository.get_by_id_for_update(db, prepared.access_log_id)
+        if access_log is None:
+            db.rollback()
+            raise EvidenceViewNotFoundError("Evidence view session not found")
+        if access_log.result != AuditResult.PENDING or access_log.tx_internal_id is None:
+            db.rollback()
+            return None
+        transaction = BlockchainTransactionRepository.get_by_id(
+            db,
+            access_log.tx_internal_id,
+        )
+        if transaction is None:
+            db.rollback()
+            raise EvidenceViewBlockchainWriteError(
+                "Submitted VIEW transaction metadata is missing",
+                code="VIEW_SESSION_METADATA_MISSING",
+            )
+        if (
+            str(transaction.tx_hash) != snapshot.tx_hash
+            or str(transaction.status) != snapshot.status
+        ):
+            current_hash = str(transaction.tx_hash)
+            db.rollback()
+            return EvidenceViewPreparationService._response(
+                prepared,
+                EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION,
+                tx_hash=current_hash,
+                retry_after_seconds=2,
+            )
+
+        try:
+            # การเชื่อมต่อ Blockchain: ตรวจ hash และ session ซ้ำภายใต้ row lock
+            # ก่อนส่ง logical VIEW เดิม เพื่อกัน concurrent poll ส่งธุรกรรมซ้ำ
+            if service.transaction_exists(snapshot.tx_hash):
+                db.rollback()
+                return None
+            if service.get_access_by_session(prepared.access_session_ref) is not None:
+                db.rollback()
+                return EvidenceViewPreparationService._recover_by_session_ref(
+                    db,
+                    prepared=prepared,
+                    service=service,
+                )
+            submission = service.submit_access(
+                evidence_id=prepared.evidence_id,
+                officer_user_id=prepared.user_id,
+                access_log_id=prepared.access_log_id,
+                action=AccessAction.VIEW,
+                occurred_at=int(prepared.occurred_at.timestamp()),
+            )
+            BlockchainTransactionRepository.replace_access_submission(
+                transaction,
+                tx_hash=submission["tx_hash"],
+                contract_address=submission["contract_address"],
+            )
+            # การเชื่อมต่อ Blockchain: commit replacement hash ก่อนรอ receipt
+            # โดยคง AccessLog และ BlockchainTransaction แถวเดิมไว้
+            db.commit()
+        except TransactionSubmissionUncertainError as exc:
+            BlockchainTransactionRepository.replace_access_submission(
+                transaction,
+                tx_hash=exc.tx_hash,
+                contract_address=service.contract_address or "",
+                status="submission_unknown",
+            )
+            db.commit()
+            return EvidenceViewPreparationService._response(
+                prepared,
+                EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION,
+                tx_hash=exc.tx_hash,
+                retry_after_seconds=2,
+            )
+        except BlockchainClientError as exc:
+            db.rollback()
+            raise EvidenceViewBlockchainWriteError(
+                "Dropped VIEW transaction could not be resubmitted",
+                code="BLOCKCHAIN_VIEW_RECOVERY_FAILED",
+            ) from exc
+        except Exception as exc:
+            db.rollback()
+            raise _EvidenceViewReconciliationUnavailable(
+                "dropped VIEW transaction recovery is temporarily unavailable"
+            ) from exc
+
+        return EvidenceViewPreparationService._confirm(
+            db,
+            prepared=prepared,
+            service=service,
+            tx_hash=submission["tx_hash"],
+            wait_for_receipt=True,
+        )
+
+    @staticmethod
+    def _recovery_delay_elapsed(
+        created_at: datetime | None,
+        recovery_delay_seconds: int,
+    ) -> bool:
+        if created_at is None:
+            return False
+        normalized = (
+            created_at.replace(tzinfo=timezone.utc)
+            if created_at.tzinfo is None
+            else created_at.astimezone(timezone.utc)
+        )
+        return datetime.now(timezone.utc) - normalized >= timedelta(
+            seconds=recovery_delay_seconds
         )
 
     @staticmethod
