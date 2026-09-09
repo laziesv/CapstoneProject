@@ -35,7 +35,7 @@ def _settings(**overrides: object) -> BlockchainSettings:
     values = {
         "enabled": True,
         "contract_address": CONTRACT_ADDRESS,
-        "artifact_path": Path("blockchain/tests/fixtures/EvidenceRegistryV3.json"),
+        "artifact_path": Path("blockchain/artifacts/EvidenceRegistryV3.json"),
     }
     values.update(overrides)
     return BlockchainSettings(**values)
@@ -59,13 +59,13 @@ class BlockchainIntegrationTests(TestCase):
         self.assertTrue(client_settings.proof_of_authority)
         blockchain_provider.get_blockchain_client.cache_clear()
 
-    def test_default_artifact_uses_version_pinned_fixture(self) -> None:
+    def test_default_artifact_uses_version_pinned_runtime_artifact(self) -> None:
         with patch.dict("os.environ", {}, clear=True):
             settings = BlockchainSettings.from_env()
 
         self.assertEqual(
             settings.artifact_path,
-            Path("blockchain/tests/fixtures/EvidenceRegistryV3.json"),
+            Path("blockchain/artifacts/EvidenceRegistryV3.json"),
         )
 
     def test_default_artifact_exposes_client_existence_functions(self) -> None:

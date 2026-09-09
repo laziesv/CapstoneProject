@@ -11,9 +11,9 @@ load_backend_environment()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 # Blockchain integration:
-# Use the version-pinned ABI fixture by default so a fresh submodule checkout
+# Use the version-pinned runtime artifact by default so a fresh submodule checkout
 # does not require a local Foundry build just to start the backend.
-DEFAULT_ARTIFACT_PATH = Path("blockchain/tests/fixtures/EvidenceRegistryV3.json")
+DEFAULT_ARTIFACT_PATH = Path("blockchain/artifacts/EvidenceRegistryV3.json")
 DEFAULT_DEPLOYMENT_BLOCK = 12
 
 

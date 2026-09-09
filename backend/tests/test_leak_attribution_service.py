@@ -451,7 +451,7 @@ class BlockchainSessionReadTests(unittest.TestCase):
             enabled=True,
             contract_address=CONTRACT_ADDRESS,
             artifact_path=Path(
-                "blockchain/tests/fixtures/EvidenceRegistryV3.json"
+                "blockchain/artifacts/EvidenceRegistryV3.json"
             ),
         )
         service = BlockchainIntegrationService(
