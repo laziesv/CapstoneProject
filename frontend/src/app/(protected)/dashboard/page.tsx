@@ -17,7 +17,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { openEvidence, openingEvidenceId, openStatus, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
+  const { openEvidence, openingEvidenceId, openStatus, openDelayed, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -177,6 +177,7 @@ export default function DashboardPage() {
       <IntentionalEvidenceProgress
         opening={Boolean(openingEvidenceId)}
         status={openStatus}
+        delayed={openDelayed}
         error={openError}
         onDismissError={dismissOpenError}
       />

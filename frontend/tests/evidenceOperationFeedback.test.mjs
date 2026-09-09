@@ -102,6 +102,41 @@ test("pending VIEW polling reuses the same logical session until confirmation", 
   assert.deepEqual(states, ["PENDING_BLOCKCHAIN_CONFIRMATION", "CONFIRMED"]);
 });
 
+test("long pending confirmation reports an escalation without creating a new request", async () => {
+  const evidenceId = "22222222-2222-4222-8222-222222222222";
+  const requestId = "11111111-1111-4111-8111-111111111111";
+  const pending = {
+    ...viewSession(evidenceId),
+    status: "PENDING_BLOCKCHAIN_CONFIRMATION",
+    block_number: null,
+    retry_after_seconds: 2,
+  };
+  const responses = [pending, pending, viewSession(evidenceId)];
+  let longWaitCount = 0;
+  const calls = [];
+
+  await waitForConfirmedViewSession(
+    evidenceId,
+    requestId,
+    async (id, idempotencyId) => {
+      calls.push([id, idempotencyId]);
+      return responses.shift();
+    },
+    async () => {},
+    undefined,
+    () => { longWaitCount += 1; },
+    2_000,
+  );
+
+  assert.equal(longWaitCount, 1);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map((call) => call[1]), [
+    requestId,
+    pending.access_log_id,
+    pending.access_log_id,
+  ]);
+});
+
 test("one download action invokes the backend requester exactly once", async () => {
   const calls = [];
   const response = { blob: "blob", headers: "headers" };

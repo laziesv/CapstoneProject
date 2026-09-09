@@ -147,12 +147,14 @@ class EvidenceViewPreparationService:
             ip_address=ip_address,
             user_agent=user_agent,
             request_id=request_id,
+            service=service,
         )
         return EvidenceViewPreparationService._advance(
             db,
             prepared=prepared,
             service=service,
             inspect_chain_before_submit=not created,
+            preflight_checked=created,
         )
 
     @staticmethod
@@ -164,6 +166,7 @@ class EvidenceViewPreparationService:
         ip_address: str | None,
         user_agent: str | None,
         request_id: UUID | None,
+        service: BlockchainIntegrationService,
     ) -> tuple[ViewAccessPreparation, bool]:
         EvidenceViewPreparationService._require_authorized_evidence(
             db,
@@ -191,6 +194,11 @@ class EvidenceViewPreparationService:
             prepared = EvidenceViewPreparationService._preparation(existing)
             db.rollback()
             return prepared, False
+
+        db.rollback()
+        # การเชื่อมต่อ Blockchain: คำขอใหม่ต้องผ่าน preflight ก่อนสร้าง
+        # AccessLog เพื่อไม่ทิ้ง PENDING ที่ยังไม่เคย broadcast เมื่อ chain หยุดทำงาน
+        EvidenceViewPreparationService._require_new_session_liveness(service)
 
         try:
             prepared = EvidenceViewPreparationService.prepare(
@@ -234,6 +242,7 @@ class EvidenceViewPreparationService:
         prepared: ViewAccessPreparation,
         service: BlockchainIntegrationService,
         inspect_chain_before_submit: bool,
+        preflight_checked: bool,
     ) -> EvidenceViewSession:
         access_log = AccessLogRepository.get_by_id(db, prepared.access_log_id)
         if access_log is None:
@@ -274,13 +283,24 @@ class EvidenceViewPreparationService:
                 code="BLOCKCHAIN_VIEW_FAILED",
             )
         if transaction_snapshot is not None:
-            return EvidenceViewPreparationService._confirm(
+            pending_or_confirmed = EvidenceViewPreparationService._confirm(
                 db,
                 prepared=prepared,
                 service=service,
                 tx_hash=transaction_snapshot.tx_hash,
                 wait_for_receipt=False,
             )
+            if pending_or_confirmed.status == EvidenceViewState.CONFIRMED:
+                return pending_or_confirmed
+            try:
+                recovered = EvidenceViewPreparationService._recover_by_session_ref(
+                    db,
+                    prepared=prepared,
+                    service=service,
+                )
+            except _EvidenceViewReconciliationUnavailable:
+                return pending_or_confirmed
+            return recovered or pending_or_confirmed
 
         if inspect_chain_before_submit:
             try:
@@ -300,20 +320,21 @@ class EvidenceViewPreparationService:
             if recovered is not None:
                 return recovered
 
-        try:
-            liveness = service.check_write_liveness()
-        except Exception as exc:
-            EvidenceViewPreparationService._mark_failed(db, prepared.access_log_id)
-            raise EvidenceViewBlockchainWriteError(
-                "Blockchain write configuration is unavailable",
-                code="BLOCKCHAIN_NOT_SUBMITTED",
-            ) from exc
-        if not liveness["ready"]:
-            return EvidenceViewPreparationService._response(
-                prepared,
-                EvidenceViewState.WAITING_FOR_BLOCKCHAIN,
-                retry_after_seconds=2,
-            )
+        if not preflight_checked:
+            try:
+                liveness = service.check_write_liveness()
+            except Exception as exc:
+                EvidenceViewPreparationService._mark_failed(db, prepared.access_log_id)
+                raise EvidenceViewBlockchainWriteError(
+                    "Blockchain write configuration is unavailable",
+                    code="BLOCKCHAIN_NOT_SUBMITTED",
+                ) from exc
+            if not liveness["ready"]:
+                return EvidenceViewPreparationService._response(
+                    prepared,
+                    EvidenceViewState.WAITING_FOR_BLOCKCHAIN,
+                    retry_after_seconds=2,
+                )
 
         access_log = AccessLogRepository.get_by_id_for_update(db, prepared.access_log_id)
         if access_log is None:
@@ -326,6 +347,7 @@ class EvidenceViewPreparationService:
                 prepared=prepared,
                 service=service,
                 inspect_chain_before_submit=False,
+                preflight_checked=False,
             )
 
         try:
@@ -515,6 +537,20 @@ class EvidenceViewPreparationService:
                 contract_address=service.contract_address or "",
             )
             access_log.tx_internal_id = transaction.tx_internal_id
+        else:
+            transaction = BlockchainTransactionRepository.get_by_id(
+                db,
+                access_log.tx_internal_id,
+            )
+            if transaction is None:
+                db.rollback()
+                raise EvidenceViewBlockchainWriteError(
+                    "Submitted VIEW transaction metadata is missing",
+                    code="VIEW_SESSION_METADATA_MISSING",
+                )
+            transaction.tx_hash = event["tx_hash"]
+            transaction.contract_address = service.contract_address or ""
+            transaction.status = "pending_confirmation"
         db.commit()
         return EvidenceViewPreparationService._confirm(
             db,
@@ -586,6 +622,30 @@ class EvidenceViewPreparationService:
                     status=transaction_status,
                 )
         db.commit()
+
+    @staticmethod
+    def _require_new_session_liveness(
+        service: BlockchainIntegrationService,
+    ) -> None:
+        try:
+            liveness = service.check_write_liveness()
+        except Exception as exc:
+            raise EvidenceViewBlockchainWriteError(
+                "Blockchain write configuration is unavailable",
+                code="BLOCKCHAIN_NOT_SUBMITTED",
+            ) from exc
+        if liveness["ready"]:
+            return
+        reason = str(liveness.get("reason") or "BLOCKCHAIN_UNAVAILABLE")
+        code = (
+            "BLOCKCHAIN_STALLED"
+            if reason == "BLOCKCHAIN_STALLED"
+            else "BLOCKCHAIN_UNAVAILABLE"
+        )
+        raise EvidenceViewBlockchainWriteError(
+            "Blockchain is not ready for a new VIEW session",
+            code=code,
+        )
 
     @staticmethod
     def _response(

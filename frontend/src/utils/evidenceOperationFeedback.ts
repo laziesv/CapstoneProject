@@ -79,15 +79,25 @@ export async function waitForConfirmedViewSession(
   ) => Promise<EvidenceViewSessionResponse>,
   wait: (milliseconds: number) => Promise<void>,
   onSession?: (session: EvidenceViewSessionResponse) => void,
+  onLongWait?: () => void,
+  longWaitAfterMilliseconds = 30_000,
 ): Promise<EvidenceViewSessionResponse> {
   let currentRequestId = requestId;
+  let waitedMilliseconds = 0;
+  let longWaitReported = false;
   while (true) {
     const session = await createSession(evidenceId, currentRequestId);
     onSession?.(session);
     currentRequestId = session.access_log_id;
     if (session.status === "CONFIRMED") return session;
     const retrySeconds = session.retry_after_seconds ?? 2;
-    await wait(Math.max(retrySeconds, 1) * 1000);
+    const waitMilliseconds = Math.max(retrySeconds, 1) * 1000;
+    await wait(waitMilliseconds);
+    waitedMilliseconds += waitMilliseconds;
+    if (!longWaitReported && waitedMilliseconds >= longWaitAfterMilliseconds) {
+      longWaitReported = true;
+      onLongWait?.();
+    }
   }
 }
 

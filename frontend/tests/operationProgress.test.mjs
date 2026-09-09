@@ -63,7 +63,13 @@ test("intentional VIEW waits for the write before navigation and has one overlay
     viewHookSource.indexOf("await waitForConfirmedViewSession") < viewHookSource.indexOf("router.push"),
   );
   assert.match(viewHookSource, /crypto\.randomUUID\(\)/);
+  assert.match(viewHookSource, /viewRequestStorageKey\(user\.user_id, evidenceId\)/);
+  assert.match(viewHookSource, /synchronizeViewRequestUser\(user\.user_id\)/);
   assert.match(viewHookSource, /pendingSession\.access_log_id/);
+  assert.match(viewProgressSource, /Blockchain ใช้เวลายืนยันนานกว่าปกติ/);
+  assert.match(viewProgressSource, /โดยไม่สร้างรายการใหม่/);
+  assert.match(viewHookSource, /BLOCKCHAIN_STALLED/);
+  assert.match(viewHookSource, /ยังไม่พร้อมยืนยันรายการใหม่/);
   assert.equal((dashboardSource.match(/<IntentionalEvidenceProgress/g) ?? []).length, 1);
   assert.equal((caseDetailSource.match(/<IntentionalEvidenceProgress/g) ?? []).length, 1);
 });

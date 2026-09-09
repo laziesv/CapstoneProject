@@ -80,14 +80,18 @@ def create_view_session(
             },
         ) from exc
     except EvidenceViewBlockchainWriteError as exc:
+        messages = {
+            "BLOCKCHAIN_VIEW_REVERTED": "ธุรกรรมเข้าดูหลักฐานถูกปฏิเสธโดย Blockchain",
+            "BLOCKCHAIN_STALLED": "เครือข่าย Blockchain ยังไม่สามารถสร้าง Block ใหม่ได้",
+            "BLOCKCHAIN_UNAVAILABLE": "ไม่สามารถเชื่อมต่อเครือข่าย Blockchain ได้ในขณะนี้",
+        }
         raise HTTPException(
             status_code=503,
             detail={
                 "code": exc.code,
-                "message": (
-                    "ธุรกรรมเข้าดูหลักฐานถูกปฏิเสธโดย Blockchain"
-                    if exc.code == "BLOCKCHAIN_VIEW_REVERTED"
-                    else "เครือข่าย Blockchain ยังไม่พร้อมบันทึกรายการเข้าดูหลักฐาน"
+                "message": messages.get(
+                    exc.code,
+                    "เครือข่าย Blockchain ยังไม่พร้อมบันทึกรายการเข้าดูหลักฐาน",
                 ),
             },
         ) from exc

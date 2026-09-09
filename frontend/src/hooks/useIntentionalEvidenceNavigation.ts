@@ -4,30 +4,43 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError, evidenceService } from "@/services";
+import { useAuth } from "@/hooks/useAuth";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import {
   rememberViewSuccess,
   waitForConfirmedViewSession,
 } from "@/utils/evidenceOperationFeedback";
+import {
+  synchronizeViewRequestUser,
+  viewRequestStorageKey,
+} from "@/utils/viewRequestIdentity";
 
 
 export function useIntentionalEvidenceNavigation() {
   const router = useRouter();
+  const { user } = useAuth();
   const inProgress = useRef(false);
   const [openingEvidenceId, setOpeningEvidenceId] = useState<string>();
   const [openError, setOpenError] = useState<string>();
+  const [openDelayed, setOpenDelayed] = useState(false);
   const [openStatus, setOpenStatus] = useState<
     "SUBMITTING" | "WAITING_FOR_BLOCKCHAIN" | "PENDING_BLOCKCHAIN_CONFIRMATION"
   >("SUBMITTING");
 
   const openEvidence = async (evidenceId: string) => {
     if (inProgress.current) return;
+    if (!user?.user_id) {
+      setOpenError("ไม่พบผู้ใช้ที่เข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
+      return;
+    }
     inProgress.current = true;
     setOpeningEvidenceId(evidenceId);
     setOpenStatus("SUBMITTING");
+    setOpenDelayed(false);
     setOpenError(undefined);
     let navigationStarted = false;
-    const requestKey = `deva_pending_view_${evidenceId}`;
+    synchronizeViewRequestUser(user.user_id);
+    const requestKey = viewRequestStorageKey(user.user_id, evidenceId);
     try {
       let requestId = window.sessionStorage.getItem(requestKey) ?? crypto.randomUUID();
       window.sessionStorage.setItem(requestKey, requestId);
@@ -45,6 +58,7 @@ export function useIntentionalEvidenceNavigation() {
             setOpenStatus(pendingSession.status);
           }
         },
+        () => setOpenDelayed(true),
       );
       rememberViewSuccess(session);
       window.sessionStorage.removeItem(requestKey);
@@ -68,6 +82,7 @@ export function useIntentionalEvidenceNavigation() {
     openEvidence,
     openingEvidenceId,
     openStatus,
+    openDelayed,
     openError,
     dismissOpenError: () => setOpenError(undefined),
   };
@@ -76,6 +91,9 @@ export function useIntentionalEvidenceNavigation() {
 
 function viewSessionErrorMessage(cause: unknown): string {
   if (cause instanceof ApiError) {
+    if (cause.code === "BLOCKCHAIN_STALLED" || cause.code === "BLOCKCHAIN_UNAVAILABLE") {
+      return "ไม่สามารถเปิดหลักฐานได้ในขณะนี้ เครือข่าย Blockchain ยังไม่พร้อมยืนยันรายการใหม่ กรุณาลองใหม่หลังเครือข่ายกลับมาทำงาน";
+    }
     if (cause.code === "BLOCKCHAIN_NOT_SUBMITTED") {
       return "รายการเข้าดูยังไม่ถูกส่งไปยัง Blockchain กรุณาตรวจสอบการตั้งค่าหรือลองใหม่ภายหลัง";
     }

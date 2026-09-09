@@ -69,7 +69,19 @@ class BlockchainIntegrationTests(TestCase):
             settings.artifact_path,
             Path("blockchain/artifacts/EvidenceRegistryV3.json"),
         )
+        self.assertEqual(settings.qbft_block_period_seconds, 5)
         self.assertEqual(settings.max_block_age_seconds, 30)
+
+    def test_default_block_age_threshold_derives_from_qbft_period(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {"QBFT_BLOCK_PERIOD_SECONDS": "7"},
+            clear=True,
+        ):
+            settings = BlockchainSettings.from_env()
+
+        self.assertEqual(settings.qbft_block_period_seconds, 7)
+        self.assertEqual(settings.max_block_age_seconds, 42)
 
     def test_default_artifact_exposes_client_existence_functions(self) -> None:
         settings = _settings()
@@ -317,6 +329,35 @@ class BlockchainIntegrationTests(TestCase):
 
         self.assertEqual(result["reason"], "BLOCKCHAIN_UNAVAILABLE")
         self.assertNotIn(secret, repr(result))
+
+    def test_liveness_is_recomputed_after_stalled_chain_recovers(self) -> None:
+        client = Mock()
+        now = int(datetime.now(timezone.utc).timestamp())
+        client.health_check.return_value = BlockchainHealth(
+            connected=True,
+            chain_id=20260720,
+            latest_block=19000,
+            contract_address=CONTRACT_ADDRESS,
+            contract_deployed=True,
+        )
+        client.web3.eth.get_block.side_effect = [
+            {"timestamp": now - 31},
+            {"timestamp": now},
+        ]
+        service = BlockchainIntegrationService(
+            settings=_settings(
+                writer_private_key="writer-key",
+                max_block_age_seconds=30,
+            ),
+            client_provider=lambda: client,
+        )
+
+        stalled = service.check_write_liveness()
+        recovered = service.check_write_liveness()
+
+        self.assertFalse(stalled["ready"])
+        self.assertTrue(recovered["ready"])
+        self.assertEqual(client.web3.eth.get_block.call_count, 2)
 
     def test_record_evidence_rejects_malformed_hash(self) -> None:
         client = Mock()

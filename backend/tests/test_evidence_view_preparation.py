@@ -14,10 +14,14 @@ from blockchain_client import (
 from blockchain_client.exceptions import (
     ContractConnectionError,
     TransactionRevertedError,
+    TransactionSubmissionUncertainError,
     TransactionTimeoutError,
 )
 from fastapi import HTTPException, Response
 
+from app.integrations.blockchain.transaction_repository import (
+    BlockchainTransactionRepository,
+)
 from app.models.enums import AuditAction, AuditResult
 from app.repositories.access_log_repository import AccessLogRepository
 from app.routes.evidence_items import create_view_session
@@ -370,7 +374,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.assertEqual(second.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
         self.blockchain.submit_access.assert_called_once()
 
-    def test_rpc_stall_before_submission_reuses_pending_session(self):
+    def test_unhealthy_preflight_creates_no_access_session_or_transaction(self):
         self.blockchain.check_write_liveness.return_value = {
             "ready": False,
             "reason": "BLOCKCHAIN_STALLED",
@@ -379,16 +383,198 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
             patch.object(
                 AccessLogRepository,
                 "get_by_id",
+                return_value=None,
+            ),
+        ):
+            with self.assertRaises(EvidenceViewBlockchainWriteError) as raised:
+                self._call()
+            AccessLogRepository.stage_view.assert_not_called()
+            BlockchainTransactionRepository.stage_submitted_access.assert_not_called()
+
+        self.assertEqual(raised.exception.code, "BLOCKCHAIN_STALLED")
+        self.db.add.assert_not_called()
+        self.db.commit.assert_not_called()
+        self.blockchain.submit_access.assert_not_called()
+        self.blockchain.confirm_access.assert_not_called()
+
+    def test_existing_pending_without_tx_waits_when_chain_is_unhealthy(self):
+        self.blockchain.check_write_liveness.return_value = {
+            "ready": False,
+            "reason": "BLOCKCHAIN_STALLED",
+        }
+        with self._patched(
+            patch.object(
+                AccessLogRepository,
+                "get_by_id",
+                side_effect=[self.access_log, self.access_log],
+            ),
+        ):
+            result = self._call()
+            AccessLogRepository.stage_view.assert_not_called()
+
+        self.assertEqual(result.status, EvidenceViewState.WAITING_FOR_BLOCKCHAIN)
+        self.assertEqual(result.access_log_id, self.request_id)
+        self.blockchain.submit_access.assert_not_called()
+
+    def test_existing_pending_without_tx_reuses_session_when_chain_recovers(self):
+        with self._patched(
+            patch.object(
+                AccessLogRepository,
+                "get_by_id",
+                side_effect=[self.access_log, self.access_log],
+            ),
+            patch.object(
+                AccessLogRepository,
+                "get_by_id_for_update",
+                side_effect=[self.access_log, self.access_log],
+            ),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = self._call()
+            AccessLogRepository.stage_view.assert_not_called()
+
+        self.assertEqual(result.status, EvidenceViewState.CONFIRMED)
+        self.assertEqual(result.access_log_id, self.request_id)
+        self.assertEqual(
+            result.access_session_ref,
+            derive_access_session_ref(self.request_id),
+        )
+        self.blockchain.submit_access.assert_called_once()
+
+    def test_other_user_can_open_same_evidence_with_an_independent_session(self):
+        user_b = SimpleNamespace(user_id=uuid4(), role="officer")
+        request_b = uuid4()
+        access_log_b = SimpleNamespace(
+            log_id=request_b,
+            user_id=user_b.user_id,
+            evidence_id=self.evidence.evidence_id,
+            case_id=self.case.case_id,
+            action=AuditAction.VIEW,
+            result=AuditResult.PENDING,
+            accessed_at=self.occurred_at,
+            tx_internal_id=None,
+        )
+        with self._patched(
+            patch.object(AccessLogRepository, "get_by_id", side_effect=[None, access_log_b]),
+            patch.object(AccessLogRepository, "get_pending_view", return_value=None),
+            patch.object(AccessLogRepository, "stage_view", return_value=access_log_b),
+            patch.object(
+                AccessLogRepository,
+                "get_by_id_for_update",
+                side_effect=[access_log_b, access_log_b],
+            ),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = EvidenceViewPreparationService.create_session(
+                self.db,
+                evidence_id=self.evidence.evidence_id,
+                current_user=user_b,
+                ip_address="192.0.2.51",
+                user_agent="test-agent",
+                request_id=request_b,
+                blockchain_service=self.blockchain,
+            )
+            AccessLogRepository.get_pending_view.assert_called_once_with(
+                self.db,
+                user_id=user_b.user_id,
+                evidence_id=self.evidence.evidence_id,
+            )
+
+        self.assertEqual(result.status, EvidenceViewState.CONFIRMED)
+        self.assertEqual(result.access_log_id, request_b)
+        self.assertNotEqual(result.access_log_id, self.access_log.log_id)
+        self.assertNotEqual(
+            result.access_session_ref,
+            derive_access_session_ref(self.access_log.log_id),
+        )
+
+    def test_pending_tx_falls_back_to_chain_session_reconciliation(self):
+        canonical_tx_hash = "0x" + "ab" * 32
+        self.access_log.tx_internal_id = self.transaction.tx_internal_id
+        confirmed = {**self.confirmed, "tx_hash": canonical_tx_hash}
+        self.blockchain.confirm_access.side_effect = [None, confirmed]
+        self.blockchain.get_access_by_session.return_value = {
+            "evidence_ref": derive_evidence_ref(self.evidence.evidence_id),
+            "officer_ref": derive_actor_ref(self.user.user_id),
+            "action": AccessAction.VIEW,
+            "occurred_at": int(self.occurred_at.timestamp()),
+        }
+        self.blockchain.get_access_event_by_session.return_value = {
+            "tx_hash": canonical_tx_hash,
+            "block_number": 18100,
+        }
+        with self._patched(
+            patch.object(
+                AccessLogRepository,
+                "get_by_id",
+                return_value=self.access_log,
+            ),
+            patch.object(
+                AccessLogRepository,
+                "get_by_id_for_update",
+                side_effect=[self.access_log, self.access_log],
+            ),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
+            ),
+        ):
+            result = self._call()
+
+        self.assertEqual(result.status, EvidenceViewState.CONFIRMED)
+        self.assertEqual(self.transaction.tx_hash, canonical_tx_hash)
+        self.blockchain.submit_access.assert_not_called()
+        self.assertEqual(self.blockchain.confirm_access.call_count, 2)
+
+    def test_submission_unknown_retry_never_rebroadcasts(self):
+        uncertain_tx_hash = "0x" + "cd" * 32
+        self.transaction.tx_hash = uncertain_tx_hash
+        self.transaction.status = "submission_unknown"
+        self.blockchain.submit_access.side_effect = TransactionSubmissionUncertainError(
+            "outcome unknown",
+            uncertain_tx_hash,
+        )
+        self.blockchain.confirm_access.return_value = None
+
+        with self._patched(
+            patch.object(
+                AccessLogRepository,
+                "get_by_id",
                 side_effect=[None, self.access_log, self.access_log, self.access_log],
+            ),
+            patch.object(
+                AccessLogRepository,
+                "get_by_id_for_update",
+                return_value=self.access_log,
+            ),
+            patch(
+                "app.services.evidence_view_service.BlockchainTransactionRepository.get_by_id",
+                return_value=self.transaction,
             ),
         ):
             first = self._call()
             second = self._call()
+            BlockchainTransactionRepository.stage_submitted_access.assert_called_once_with(
+                self.db,
+                tx_hash=uncertain_tx_hash,
+                evidence_id=self.evidence.evidence_id,
+                initiated_by=self.user.user_id,
+                contract_address=self.transaction.contract_address,
+                status="submission_unknown",
+            )
 
-        self.assertEqual(first.status, EvidenceViewState.WAITING_FOR_BLOCKCHAIN)
+        self.assertEqual(first.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
+        self.assertEqual(second.status, EvidenceViewState.PENDING_BLOCKCHAIN_CONFIRMATION)
+        self.assertEqual(first.tx_hash, uncertain_tx_hash)
         self.assertEqual(first.access_log_id, second.access_log_id)
-        self.assertEqual(self.access_log.result, AuditResult.PENDING)
-        self.blockchain.submit_access.assert_not_called()
+        self.blockchain.submit_access.assert_called_once()
+        self.blockchain.confirm_access.assert_called_once()
 
     def test_reverted_transaction_is_definitive_and_evidence_stays_closed(self):
         self.blockchain.confirm_access.side_effect = TransactionRevertedError("reverted")
@@ -466,6 +652,24 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.assertEqual(result.access_log_id, self.request_id)
         self.blockchain.submit_access.assert_not_called()
         self.blockchain.check_write_liveness.assert_not_called()
+
+    def test_same_request_uuid_with_different_evidence_is_rejected(self):
+        with self._patched(
+            patch.object(AccessLogRepository, "get_by_id", return_value=self.access_log),
+        ):
+            with self.assertRaises(EvidenceViewSessionConflictError):
+                EvidenceViewPreparationService.create_session(
+                    self.db,
+                    evidence_id=uuid4(),
+                    current_user=self.user,
+                    ip_address=None,
+                    user_agent=None,
+                    request_id=self.request_id,
+                    blockchain_service=self.blockchain,
+                )
+
+        self.blockchain.check_write_liveness.assert_not_called()
+        self.blockchain.submit_access.assert_not_called()
 
     def _call(self):
         return EvidenceViewPreparationService.create_session(

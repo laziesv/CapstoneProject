@@ -21,7 +21,7 @@ export default function CaseDetailPage() {
   const supervisorMap = useSupervisorMap();
   const [caseData, setCaseData] = useState<Case | null | undefined>(undefined);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
-  const { openEvidence, openingEvidenceId, openStatus, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
+  const { openEvidence, openingEvidenceId, openStatus, openDelayed, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -121,6 +121,7 @@ export default function CaseDetailPage() {
       <IntentionalEvidenceProgress
         opening={Boolean(openingEvidenceId)}
         status={openStatus}
+        delayed={openDelayed}
         error={openError}
         onDismissError={dismissOpenError}
       />

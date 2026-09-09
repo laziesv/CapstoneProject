@@ -15,9 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 # does not require a local Foundry build just to start the backend.
 DEFAULT_ARTIFACT_PATH = Path("blockchain/artifacts/EvidenceRegistryV3.json")
 DEFAULT_DEPLOYMENT_BLOCK = 12
-# การเชื่อมต่อ Blockchain: 30 วินาทีเท่ากับ 6 รอบของ QBFT block period 5 วินาที
-# และยังเปิดให้แต่ละ environment ปรับ threshold ได้เอง
-DEFAULT_MAX_BLOCK_AGE_SECONDS = 30
+DEFAULT_QBFT_BLOCK_PERIOD_SECONDS = 5
+DEFAULT_MAX_BLOCK_AGE_PERIODS = 6
 
 
 def _read_bool(name: str, default: bool) -> bool:
@@ -63,11 +62,20 @@ class BlockchainSettings:
     request_timeout_seconds: int = 30
     confirmation_timeout_seconds: int = 120
     confirmation_poll_interval_seconds: float = 1.0
-    max_block_age_seconds: int = DEFAULT_MAX_BLOCK_AGE_SECONDS
+    qbft_block_period_seconds: int = DEFAULT_QBFT_BLOCK_PERIOD_SECONDS
+    max_block_age_seconds: int = (
+        DEFAULT_QBFT_BLOCK_PERIOD_SECONDS * DEFAULT_MAX_BLOCK_AGE_PERIODS
+    )
 
     @classmethod
     def from_env(cls) -> "BlockchainSettings":
         # Blockchain integration: Keep environment parsing in one immutable boundary.
+        # การเชื่อมต่อ Blockchain: ค่า freshness เริ่มต้นมาจาก 6 รอบของ block period
+        # เพื่อให้เปลี่ยน QBFT period แล้ว threshold เปลี่ยนตามโดยไม่แก้ source
+        block_period = _read_int(
+            "QBFT_BLOCK_PERIOD_SECONDS",
+            DEFAULT_QBFT_BLOCK_PERIOD_SECONDS,
+        )
         settings = cls(
             enabled=_read_bool("BLOCKCHAIN_ENABLED", False),
             rpc_url=os.getenv("BLOCKCHAIN_RPC_URL", "http://127.0.0.1:8545"),
@@ -90,9 +98,10 @@ class BlockchainSettings:
             confirmation_poll_interval_seconds=_read_float(
                 "BLOCKCHAIN_CONFIRMATION_POLL_INTERVAL_SECONDS", 1.0
             ),
+            qbft_block_period_seconds=block_period,
             max_block_age_seconds=_read_int(
                 "BLOCKCHAIN_MAX_BLOCK_AGE_SECONDS",
-                DEFAULT_MAX_BLOCK_AGE_SECONDS,
+                block_period * DEFAULT_MAX_BLOCK_AGE_PERIODS,
             ),
         )
         settings.validate()
@@ -113,6 +122,8 @@ class BlockchainSettings:
             )
         if self.max_block_age_seconds <= 0:
             raise ValueError("BLOCKCHAIN_MAX_BLOCK_AGE_SECONDS must be > 0")
+        if self.qbft_block_period_seconds <= 0:
+            raise ValueError("QBFT_BLOCK_PERIOD_SECONDS must be > 0")
         if not self.enabled:
             return
         if not self.rpc_url.strip():
