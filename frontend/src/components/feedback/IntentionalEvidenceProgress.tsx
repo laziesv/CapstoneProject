@@ -5,12 +5,14 @@ import { OperationToast } from "@/components/feedback/OperationToast";
 
 interface IntentionalEvidenceProgressProps {
   opening: boolean;
+  status: "SUBMITTING" | "WAITING_FOR_BLOCKCHAIN" | "PENDING_BLOCKCHAIN_CONFIRMATION";
   error?: string;
   onDismissError: () => void;
 }
 
 export function IntentionalEvidenceProgress({
   opening,
+  status,
   error,
   onDismissError,
 }: IntentionalEvidenceProgressProps) {
@@ -19,8 +21,14 @@ export function IntentionalEvidenceProgress({
       {opening && (
         <OperationProgress
           overlay
-          title="กำลังเปิดหลักฐาน"
-          description="กรุณารอสักครู่"
+          title={status === "WAITING_FOR_BLOCKCHAIN"
+            ? "กำลังรอเครือข่าย Blockchain"
+            : "กำลังเปิดหลักฐาน"}
+          description={status === "WAITING_FOR_BLOCKCHAIN"
+            ? "เครือข่ายยังไม่สามารถสร้าง Block ใหม่ได้ ระบบจะตรวจสอบรายการเดิมให้อัตโนมัติ"
+            : status === "PENDING_BLOCKCHAIN_CONFIRMATION"
+              ? "รายการเข้าดูถูกส่งแล้วและกำลังรอ Blockchain ยืนยัน"
+              : "กรุณารอสักครู่"}
           steps={[
             { label: "ส่งคำขอเข้าถึงแล้ว", state: "completed" },
             { label: "กำลังบันทึกการเข้าถึงและรอ Blockchain ยืนยัน", state: "active" },

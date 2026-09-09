@@ -1,5 +1,6 @@
 """Focused unit tests for the backend blockchain integration."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import TestCase
 from unittest.mock import Mock, patch
@@ -12,6 +13,7 @@ from blockchain_client import (
     EvidenceAccessEvent,
     EvidenceRecordedEvent,
     TransactionResult,
+    TransactionSubmission,
     derive_access_session_ref,
     derive_actor_ref,
     derive_evidence_ref,
@@ -67,6 +69,7 @@ class BlockchainIntegrationTests(TestCase):
             settings.artifact_path,
             Path("blockchain/artifacts/EvidenceRegistryV3.json"),
         )
+        self.assertEqual(settings.max_block_age_seconds, 30)
 
     def test_default_artifact_exposes_client_existence_functions(self) -> None:
         settings = _settings()
@@ -232,6 +235,88 @@ class BlockchainIntegrationTests(TestCase):
         )
         self.assertEqual(result["action"], AccessAction.DOWNLOAD)
         self.assertEqual(result["occurred_at"], 1_700_000_001)
+
+    def test_submit_and_confirm_access_keep_broadcast_separate_from_receipt(self) -> None:
+        client = Mock()
+        client.submit_access.return_value = TransactionSubmission(
+            tx_hash=TX_HASH,
+            contract_address=CONTRACT_ADDRESS,
+            chain_id=20260720,
+        )
+        client.confirm_access.return_value = _transaction_result()
+        service = BlockchainIntegrationService(
+            settings=_settings(writer_private_key="writer-key"),
+            client_provider=lambda: client,
+        )
+
+        submitted = service.submit_access(
+            EVIDENCE_ID,
+            OFFICER_ID,
+            ACCESS_LOG_ID,
+            AccessAction.VIEW,
+            1_700_000_001,
+        )
+        confirmed = service.confirm_access(
+            tx_hash=TX_HASH,
+            evidence_id=EVIDENCE_ID,
+            officer_user_id=OFFICER_ID,
+            access_log_id=ACCESS_LOG_ID,
+            action=AccessAction.VIEW,
+            occurred_at=1_700_000_001,
+            wait_for_receipt=False,
+        )
+
+        self.assertEqual(submitted["tx_hash"], TX_HASH)
+        self.assertEqual(confirmed["block_number"], 6500)
+        client.submit_access.assert_called_once()
+        client.confirm_access.assert_called_once_with(
+            TX_HASH,
+            derive_evidence_ref(EVIDENCE_ID),
+            derive_actor_ref(OFFICER_ID),
+            derive_access_session_ref(ACCESS_LOG_ID),
+            AccessAction.VIEW,
+            1_700_000_001,
+            wait_for_receipt=False,
+        )
+
+    def test_liveness_precheck_uses_latest_block_age(self) -> None:
+        client = Mock()
+        now = int(datetime.now(timezone.utc).timestamp())
+        client.health_check.return_value = BlockchainHealth(
+            connected=True,
+            chain_id=20260720,
+            latest_block=77,
+            contract_address=CONTRACT_ADDRESS,
+            contract_deployed=True,
+        )
+        client.web3.eth.get_block.return_value = {"timestamp": now - 31}
+        service = BlockchainIntegrationService(
+            settings=_settings(
+                writer_private_key="writer-key",
+                max_block_age_seconds=30,
+            ),
+            client_provider=lambda: client,
+        )
+
+        result = service.check_write_liveness()
+
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["reason"], "BLOCKCHAIN_STALLED")
+        self.assertEqual(result["latest_block"], 77)
+
+    def test_liveness_precheck_classifies_rpc_failure_without_secret_data(self) -> None:
+        client = Mock()
+        client.health_check.side_effect = ConnectionError("rpc unavailable")
+        secret = "writer-key-not-returned"
+        service = BlockchainIntegrationService(
+            settings=_settings(writer_private_key=secret),
+            client_provider=lambda: client,
+        )
+
+        result = service.check_write_liveness()
+
+        self.assertEqual(result["reason"], "BLOCKCHAIN_UNAVAILABLE")
+        self.assertNotIn(secret, repr(result))
 
     def test_record_evidence_rejects_malformed_hash(self) -> None:
         client = Mock()

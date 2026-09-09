@@ -1,6 +1,7 @@
 """Backend-facing blockchain integration service."""
 
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -130,6 +131,120 @@ class BlockchainIntegrationService:
             "block_number": result.block_number,
             "contract_address": result.contract_address,
         }
+
+    def submit_access(
+        self,
+        evidence_id: UUID | str,
+        officer_user_id: UUID | str,
+        access_log_id: UUID | str,
+        action: AccessAction,
+        occurred_at: int,
+    ) -> dict[str, Any]:
+        """Broadcast a V3 access transaction without waiting for its receipt."""
+
+        self._require_write_enabled()
+        evidence_ref = derive_evidence_ref(evidence_id)
+        officer_ref = derive_actor_ref(officer_user_id)
+        access_session_ref = derive_access_session_ref(access_log_id)
+        submission = self._client_provider().submit_access(
+            evidence_ref,
+            officer_ref,
+            access_session_ref,
+            action,
+            occurred_at,
+        )
+        return {
+            "evidence_ref": evidence_ref,
+            "officer_ref": officer_ref,
+            "access_session_ref": access_session_ref,
+            "action": action,
+            "occurred_at": occurred_at,
+            "tx_hash": submission.tx_hash,
+            "contract_address": submission.contract_address,
+        }
+
+    def confirm_access(
+        self,
+        *,
+        tx_hash: str,
+        evidence_id: UUID | str,
+        officer_user_id: UUID | str,
+        access_log_id: UUID | str,
+        action: AccessAction,
+        occurred_at: int,
+        wait_for_receipt: bool,
+    ) -> dict[str, Any] | None:
+        """Validate a submitted V3 access transaction and its receipt event."""
+
+        self._require_write_enabled()
+        evidence_ref = derive_evidence_ref(evidence_id)
+        officer_ref = derive_actor_ref(officer_user_id)
+        access_session_ref = derive_access_session_ref(access_log_id)
+        result = self._client_provider().confirm_access(
+            tx_hash,
+            evidence_ref,
+            officer_ref,
+            access_session_ref,
+            action,
+            occurred_at,
+            wait_for_receipt=wait_for_receipt,
+        )
+        if result is None:
+            return None
+        return {
+            "evidence_ref": evidence_ref,
+            "officer_ref": officer_ref,
+            "access_session_ref": access_session_ref,
+            "action": action,
+            "occurred_at": occurred_at,
+            "tx_hash": result.tx_hash,
+            "block_number": result.block_number,
+            "block_timestamp": result.block_timestamp,
+            "contract_address": result.contract_address,
+        }
+
+    def check_write_liveness(self) -> dict[str, Any]:
+        """Classify RPC and recent block production before an access broadcast."""
+
+        self._require_write_enabled()
+        client = self._client_provider()
+        try:
+            health = client.health_check()
+            if (
+                not health.connected
+                or health.chain_id != self._settings.chain_id
+                or not health.contract_deployed
+                or health.latest_block is None
+            ):
+                return {
+                    "ready": False,
+                    "reason": "BLOCKCHAIN_UNAVAILABLE",
+                    "latest_block": health.latest_block,
+                    "block_age_seconds": None,
+                }
+            block = client.web3.eth.get_block(int(health.latest_block))
+            block_timestamp = int(block["timestamp"])
+            now_timestamp = int(datetime.now(timezone.utc).timestamp())
+            block_age = max(now_timestamp - block_timestamp, 0)
+            return {
+                "ready": block_age <= self._settings.max_block_age_seconds,
+                "reason": (
+                    None
+                    if block_age <= self._settings.max_block_age_seconds
+                    else "BLOCKCHAIN_STALLED"
+                ),
+                "latest_block": int(health.latest_block),
+                "block_age_seconds": block_age,
+            }
+        except Exception:
+            # การเชื่อมต่อ Blockchain: preflight เป็นเพียงตัวลดการ broadcast
+            # เมื่อ RPC ใช้งานไม่ได้ และไม่แทน durable pending/reconciliation
+            return {
+                "ready": False,
+                "reason": "BLOCKCHAIN_UNAVAILABLE",
+                "latest_block": None,
+                "block_age_seconds": None,
+            }
 
     def get_chain_of_custody(
         self,

@@ -7,7 +7,7 @@ export type WmAlgorithm = "dct" | "dwt" | "lsb" | "hybrid";
 export type TxAction = "upload" | "access" | "verify" | "transfer" | "flag";
 export type TxStatus = "pending" | "confirmed" | "failed";
 export type AccessAction = "create" | "update" | "delete" | "view" | "download" | "query" | "print" | "share" | "export";
-export type AccessResult = "success" | "failed" | "denied" | "unauthorized";
+export type AccessResult = "pending" | "success" | "failed" | "denied" | "unauthorized";
 
 export interface Case {
   case_id: string;
@@ -107,8 +107,10 @@ export interface EvidenceViewSessionResponse {
   access_session_ref: string;
   action: "VIEW";
   occurred_at: string;
-  tx_hash: string;
-  block_number: number;
+  status: "WAITING_FOR_BLOCKCHAIN" | "PENDING_BLOCKCHAIN_CONFIRMATION" | "CONFIRMED";
+  tx_hash: string | null;
+  block_number: number | null;
+  retry_after_seconds: number | null;
 }
 
 /** metadata ที่แนบมากับ binary DOWNLOAD response เดิม จึงไม่สร้าง request ซ้ำ */

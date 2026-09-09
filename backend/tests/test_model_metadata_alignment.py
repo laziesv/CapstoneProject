@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from app.database import Base
 from app.models import AccessLog  # noqa: F401
-from app.models.enums import AuditAction
+from app.models.enums import AuditAction, AuditResult
 
 
 class ModelMetadataAlignmentTests(TestCase):
@@ -32,3 +32,16 @@ class ModelMetadataAlignmentTests(TestCase):
 
     def test_query_action_is_registered(self) -> None:
         self.assertEqual(AuditAction("QUERY"), AuditAction.QUERY)
+
+    def test_pending_view_lifecycle_has_one_partial_unique_index(self) -> None:
+        table = Base.metadata.tables["access_logs"]
+        index = next(
+            item for item in table.indexes if item.name == "uq_access_logs_pending_view"
+        )
+
+        self.assertTrue(index.unique)
+        self.assertEqual(
+            [column.name for column in index.columns],
+            ["user_id", "evidence_id"],
+        )
+        self.assertEqual(AuditResult("PENDING"), AuditResult.PENDING)

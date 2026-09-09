@@ -17,7 +17,7 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { openEvidence, openingEvidenceId, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
+  const { openEvidence, openingEvidenceId, openStatus, openError, dismissOpenError } = useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -166,7 +166,7 @@ export default function DashboardPage() {
                   </p>
                   <p className="text-xs text-muted">{l.accessed_at ? new Date(l.accessed_at).toLocaleString("th-TH") : ""}</p>
                 </div>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${l.result === "success" ? "bg-success-light text-success" : "bg-danger-light text-danger"}`}>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${l.result === "success" ? "bg-success-light text-success" : l.result === "pending" ? "bg-amber-50 text-amber-700" : "bg-danger-light text-danger"}`}>
                   {l.result}
                 </span>
               </div>
@@ -176,6 +176,7 @@ export default function DashboardPage() {
       </div>
       <IntentionalEvidenceProgress
         opening={Boolean(openingEvidenceId)}
+        status={openStatus}
         error={openError}
         onDismissError={dismissOpenError}
       />

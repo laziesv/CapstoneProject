@@ -41,6 +41,9 @@ class MigrationCompatibilityTests(TestCase):
         final_merge = _load_migration(
             "e8b4c2d7a901_merge_blockchain_and_dev_histories.py"
         )
+        pending_view = _load_migration(
+            "a6c8e1f4b2d9_add_pending_view_lifecycle.py"
+        )
 
         self.assertIsNone(legacy_root.down_revision)
         self.assertEqual(legacy_head.down_revision, legacy_root.revision)
@@ -55,6 +58,7 @@ class MigrationCompatibilityTests(TestCase):
             set(final_merge.down_revision),
             {compatibility_merge.revision, drop_audit.revision},
         )
+        self.assertEqual(pending_view.down_revision, final_merge.revision)
 
     def test_python_enums_accept_legacy_and_current_labels(self) -> None:
         self.assertEqual(FileType("IMAGE"), FileType.IMAGE)

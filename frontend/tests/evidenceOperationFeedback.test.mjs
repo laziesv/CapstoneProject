@@ -7,6 +7,7 @@ import {
   downloadSuccessSummary,
   rememberViewSuccess,
   requestEvidenceDownloadOnce,
+  waitForConfirmedViewSession,
   UPLOAD_RESULT_PRESENTATION,
   uploadResultFromResponse,
   VIEW_SUCCESS_FEEDBACK,
@@ -28,8 +29,10 @@ function viewSession(evidenceId) {
     access_session_ref: `0x${"a".repeat(64)}`,
     action: "VIEW",
     occurred_at: "2026-09-07T12:00:00Z",
+    status: "CONFIRMED",
     tx_hash: `0x${"b".repeat(64)}`,
     block_number: 19001,
+    retry_after_seconds: null,
   };
 }
 
@@ -61,6 +64,42 @@ test("failed VIEW orchestration stores no success feedback", async () => {
     ),
   );
   assert.equal(consumeViewSuccess(evidenceId, storage), null);
+});
+
+test("pending VIEW polling reuses the same logical session until confirmation", async () => {
+  const evidenceId = "22222222-2222-4222-8222-222222222222";
+  const requestId = "11111111-1111-4111-8111-111111111111";
+  const calls = [];
+  const waits = [];
+  const states = [];
+  const pending = {
+    ...viewSession(evidenceId),
+    status: "PENDING_BLOCKCHAIN_CONFIRMATION",
+    tx_hash: `0x${"b".repeat(64)}`,
+    block_number: null,
+    retry_after_seconds: 2,
+  };
+  const confirmed = viewSession(evidenceId);
+  const responses = [pending, confirmed];
+
+  const result = await waitForConfirmedViewSession(
+    evidenceId,
+    requestId,
+    async (id, idempotencyId) => {
+      calls.push([id, idempotencyId]);
+      return responses.shift();
+    },
+    async (milliseconds) => waits.push(milliseconds),
+    (session) => states.push(session.status),
+  );
+
+  assert.equal(result.status, "CONFIRMED");
+  assert.deepEqual(calls, [
+    [evidenceId, requestId],
+    [evidenceId, pending.access_log_id],
+  ]);
+  assert.deepEqual(waits, [2000]);
+  assert.deepEqual(states, ["PENDING_BLOCKCHAIN_CONFIRMATION", "CONFIRMED"]);
 });
 
 test("one download action invokes the backend requester exactly once", async () => {

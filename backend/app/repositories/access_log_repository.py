@@ -23,6 +23,34 @@ class AccessLogRepository:
         return db.query(AccessLog).filter(AccessLog.log_id == log_id).first()
 
     @staticmethod
+    def get_by_id_for_update(db: Session, log_id: UUID) -> AccessLog | None:
+        return (
+            db.query(AccessLog)
+            .filter(AccessLog.log_id == log_id)
+            .with_for_update()
+            .first()
+        )
+
+    @staticmethod
+    def get_pending_view(
+        db: Session,
+        *,
+        user_id: UUID,
+        evidence_id: UUID,
+    ) -> AccessLog | None:
+        return (
+            db.query(AccessLog)
+            .filter(
+                AccessLog.user_id == user_id,
+                AccessLog.evidence_id == evidence_id,
+                AccessLog.action == AuditAction.VIEW,
+                AccessLog.result == AuditResult.PENDING,
+            )
+            .order_by(AccessLog.accessed_at.asc(), AccessLog.log_id.asc())
+            .first()
+        )
+
+    @staticmethod
     def list(
         db: Session,
         *,
@@ -148,6 +176,7 @@ class AccessLogRepository:
     def stage_view(
         db: Session,
         *,
+        log_id: UUID | None = None,
         user_id: UUID,
         evidence_id: UUID,
         case_id: UUID,
@@ -156,7 +185,7 @@ class AccessLogRepository:
         user_agent: str | None,
     ) -> AccessLog:
         access_log = AccessLog(
-            log_id=uuid4(),
+            log_id=log_id or uuid4(),
             user_id=user_id,
             case_id=case_id,
             evidence_id=evidence_id,
@@ -164,7 +193,8 @@ class AccessLogRepository:
             accessed_at=accessed_at,
             ip_address=ip_address,
             user_agent=user_agent,
-            result=AuditResult.SUCCESS,
+            result=AuditResult.PENDING,
         )
-        # เตรียม VIEW ไว้ใน transaction เดียวกับ Blockchain V3 โดยยังไม่ commit
+        # การเชื่อมต่อ Blockchain: PENDING ต้องถูก commit ก่อนรอ receipt
+        # เพื่อไม่ให้ session identity หายเมื่อ consensus หยุดผลิต block
         return AccessLogRepository.stage(db, access_log)

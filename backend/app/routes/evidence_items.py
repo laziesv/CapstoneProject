@@ -2,7 +2,7 @@ import json
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from app.schemas.evidence import (
     EvidenceCreate,
     EvidenceResponse,
     EvidenceUploadResponse,
+    EvidenceViewSessionRequest,
     EvidenceViewSessionResponse,
 )
 from app.services.case_authorization import can_access_case
@@ -31,6 +32,8 @@ from app.services.evidence_view_service import (
     EvidenceViewBlockchainWriteError,
     EvidenceViewNotFoundError,
     EvidenceViewPreparationService,
+    EvidenceViewSessionConflictError,
+    EvidenceViewState,
 )
 from app.services.access_log_service import AccessLogService, client_info
 from app.services.personalized_watermark_service import remove_personalized_copy
@@ -49,23 +52,44 @@ router = APIRouter(
 def create_view_session(
     evidence_id: UUID,
     request: Request,
+    response: Response,
+    payload: EvidenceViewSessionRequest | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     try:
-        return EvidenceViewPreparationService.create_session(
+        result = EvidenceViewPreparationService.create_session(
             db,
             evidence_id=evidence_id,
             current_user=current_user,
             ip_address=request.client.host if request.client else None,
             user_agent=request.headers.get("user-agent"),
+            request_id=payload.request_id if payload else None,
         )
+        if result.status != EvidenceViewState.CONFIRMED:
+            response.status_code = 202
+        return result
     except EvidenceViewNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except EvidenceViewSessionConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "VIEW_SESSION_CONFLICT",
+                "message": "รหัสคำขอ VIEW นี้ถูกใช้กับรายการอื่นแล้ว",
+            },
+        ) from exc
     except EvidenceViewBlockchainWriteError as exc:
         raise HTTPException(
             status_code=503,
-            detail="Evidence view could not be recorded",
+            detail={
+                "code": exc.code,
+                "message": (
+                    "ธุรกรรมเข้าดูหลักฐานถูกปฏิเสธโดย Blockchain"
+                    if exc.code == "BLOCKCHAIN_VIEW_REVERTED"
+                    else "เครือข่าย Blockchain ยังไม่พร้อมบันทึกรายการเข้าดูหลักฐาน"
+                ),
+            },
         ) from exc
 
 

@@ -55,10 +55,16 @@ function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
 
 export const evidenceService = {
   /** บันทึก VIEW จากการกดเปิดหลักฐานโดยเจตนา ก่อนอนุญาตให้ UI แสดง preview */
-  createViewSession(evidenceId: string): Promise<EvidenceViewSessionResponse> {
+  createViewSession(
+    evidenceId: string,
+    requestId?: string,
+  ): Promise<EvidenceViewSessionResponse> {
     return request<EvidenceViewSessionResponse>(
       `/api/evidences/${encodeURIComponent(evidenceId)}/view-session`,
-      { method: "POST" }
+      {
+        method: "POST",
+        body: JSON.stringify({ request_id: requestId ?? null }),
+      }
     );
   },
 

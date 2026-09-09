@@ -28,5 +28,6 @@ class AuditAction(str, enum.Enum):
 
 
 class AuditResult(str, enum.Enum):
+    PENDING = "PENDING"
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"

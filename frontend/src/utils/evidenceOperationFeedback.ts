@@ -66,8 +66,29 @@ export async function createViewSessionAndRemember(
   storage: SessionStorageLike | null = browserSessionStorage(),
 ): Promise<EvidenceViewSessionResponse> {
   const session = await createSession(evidenceId);
-  rememberViewSuccess(session, storage);
+  if (session.status === "CONFIRMED") rememberViewSuccess(session, storage);
   return session;
+}
+
+export async function waitForConfirmedViewSession(
+  evidenceId: string,
+  requestId: string,
+  createSession: (
+    id: string,
+    requestId: string,
+  ) => Promise<EvidenceViewSessionResponse>,
+  wait: (milliseconds: number) => Promise<void>,
+  onSession?: (session: EvidenceViewSessionResponse) => void,
+): Promise<EvidenceViewSessionResponse> {
+  let currentRequestId = requestId;
+  while (true) {
+    const session = await createSession(evidenceId, currentRequestId);
+    onSession?.(session);
+    currentRequestId = session.access_log_id;
+    if (session.status === "CONFIRMED") return session;
+    const retrySeconds = session.retry_after_seconds ?? 2;
+    await wait(Math.max(retrySeconds, 1) * 1000);
+  }
 }
 
 export function consumeViewSuccess(

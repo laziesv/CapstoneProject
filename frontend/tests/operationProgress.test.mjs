@@ -56,11 +56,14 @@ test("upload completion appears only in the response-success render branch", () 
 test("intentional VIEW waits for the write before navigation and has one overlay per page", () => {
   assert.match(viewProgressSource, /กำลังเปิดหลักฐาน/);
   assert.match(viewProgressSource, /ส่งคำขอเข้าถึงแล้ว/);
-  assert.match(viewProgressSource, /กำลังบันทึกการเข้าถึงและรอ Blockchain ยืนยัน/);
-  assert.equal((viewHookSource.match(/createViewSessionAndRemember\(/g) ?? []).length, 1);
+  assert.match(viewProgressSource, /รายการเข้าดูถูกส่งแล้วและกำลังรอ Blockchain ยืนยัน/);
+  assert.match(viewProgressSource, /เครือข่ายยังไม่สามารถสร้าง Block ใหม่ได้/);
+  assert.equal((viewHookSource.match(/waitForConfirmedViewSession\(/g) ?? []).length, 1);
   assert.ok(
-    viewHookSource.indexOf("await createViewSessionAndRemember") < viewHookSource.indexOf("router.push"),
+    viewHookSource.indexOf("await waitForConfirmedViewSession") < viewHookSource.indexOf("router.push"),
   );
+  assert.match(viewHookSource, /crypto\.randomUUID\(\)/);
+  assert.match(viewHookSource, /pendingSession\.access_log_id/);
   assert.equal((dashboardSource.match(/<IntentionalEvidenceProgress/g) ?? []).length, 1);
   assert.equal((caseDetailSource.match(/<IntentionalEvidenceProgress/g) ?? []).length, 1);
 });

@@ -1,4 +1,6 @@
-"""Persistence boundary for successful blockchain transaction metadata."""
+"""Persistence boundary for blockchain transaction lifecycle metadata."""
+
+from datetime import datetime
 
 from uuid import UUID
 
@@ -98,4 +100,51 @@ class BlockchainTransactionRepository:
         db.add(transaction)
         # การเชื่อมต่อ Blockchain: เก็บ metadata ร่วมกับ AccessLog ใน transaction เดียวกัน
         db.flush()
+        return transaction
+
+    @staticmethod
+    def stage_submitted_access(
+        db: Session,
+        *,
+        tx_hash: str,
+        evidence_id: UUID,
+        initiated_by: UUID,
+        contract_address: str,
+        status: str = "pending_confirmation",
+    ) -> BlockchainTransaction:
+        transaction = BlockchainTransaction(
+            tx_hash=tx_hash,
+            evidence_id=evidence_id,
+            initiated_by=initiated_by,
+            action_type=BlockchainAction.ACCESS,
+            contract_address=contract_address,
+            status=status,
+        )
+        db.add(transaction)
+        # การเชื่อมต่อ Blockchain: เก็บ tx hash ทันทีหลัง broadcast
+        # ก่อนออกไปรอ receipt ที่อาจยังไม่เกิดระหว่าง QBFT stall
+        db.flush()
+        return transaction
+
+    @staticmethod
+    def confirm_access(
+        transaction: BlockchainTransaction,
+        *,
+        block_number: int,
+        block_timestamp: datetime,
+        contract_address: str,
+    ) -> BlockchainTransaction:
+        transaction.block_number = block_number
+        transaction.block_timestamp = block_timestamp
+        transaction.contract_address = contract_address
+        transaction.status = "confirmed"
+        return transaction
+
+    @staticmethod
+    def fail_access(
+        transaction: BlockchainTransaction,
+        *,
+        status: str,
+    ) -> BlockchainTransaction:
+        transaction.status = status
         return transaction

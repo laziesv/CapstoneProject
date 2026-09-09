@@ -46,13 +46,19 @@ class EvidenceUploadResponse(EvidenceResponse):
     contract_address: str
 
 
+class EvidenceViewSessionRequest(BaseModel):
+    request_id: UUID | None = None
+
+
 class EvidenceViewSessionResponse(BaseModel):
     access_log_id: UUID
     evidence_id: UUID
     access_session_ref: str
     action: str
     occurred_at: datetime
-    tx_hash: str
-    block_number: int
+    status: str
+    tx_hash: str | None = None
+    block_number: int | None = None
+    retry_after_seconds: int | None = None
 
     model_config = ConfigDict(from_attributes=True)

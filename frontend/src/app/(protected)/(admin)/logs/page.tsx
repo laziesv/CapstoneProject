@@ -14,6 +14,7 @@ const actionStyle: Record<string, string> = {
   download: "bg-purple-50 text-purple-700",
 };
 const resultStyle: Record<string, string> = {
+  pending: "bg-amber-50 text-amber-700",
   success: "bg-green-50 text-green-700",
   denied: "bg-red-50 text-red-700",
   unauthorized: "bg-red-100 text-red-800",
@@ -94,7 +95,7 @@ export default function LogsPage() {
   const stats = useMemo(() => {
     const users = new Set(filtered.map((l) => l.user_id));
     const evidence = new Set(filtered.map((l) => l.evidence_id));
-    const denied = filtered.filter((l) => l.result !== "success").length;
+    const denied = filtered.filter((l) => !["success", "pending"].includes(l.result)).length;
     return { total: filtered.length, users: users.size, evidence: evidence.size, denied };
   }, [filtered]);
 
@@ -179,6 +180,7 @@ export default function LogsPage() {
           className="h-9 rounded-lg border border-border bg-surface px-3 text-sm text-muted outline-none focus:border-primary"
         >
           <option value="">All Results</option>
+          <option value="pending">Pending</option>
           <option value="success">Success</option>
           <option value="failed">Failed</option>
         </select>

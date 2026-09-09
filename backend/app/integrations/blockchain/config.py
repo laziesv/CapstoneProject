@@ -15,6 +15,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 # does not require a local Foundry build just to start the backend.
 DEFAULT_ARTIFACT_PATH = Path("blockchain/artifacts/EvidenceRegistryV3.json")
 DEFAULT_DEPLOYMENT_BLOCK = 12
+# การเชื่อมต่อ Blockchain: 30 วินาทีเท่ากับ 6 รอบของ QBFT block period 5 วินาที
+# และยังเปิดให้แต่ละ environment ปรับ threshold ได้เอง
+DEFAULT_MAX_BLOCK_AGE_SECONDS = 30
 
 
 def _read_bool(name: str, default: bool) -> bool:
@@ -60,6 +63,7 @@ class BlockchainSettings:
     request_timeout_seconds: int = 30
     confirmation_timeout_seconds: int = 120
     confirmation_poll_interval_seconds: float = 1.0
+    max_block_age_seconds: int = DEFAULT_MAX_BLOCK_AGE_SECONDS
 
     @classmethod
     def from_env(cls) -> "BlockchainSettings":
@@ -86,6 +90,10 @@ class BlockchainSettings:
             confirmation_poll_interval_seconds=_read_float(
                 "BLOCKCHAIN_CONFIRMATION_POLL_INTERVAL_SECONDS", 1.0
             ),
+            max_block_age_seconds=_read_int(
+                "BLOCKCHAIN_MAX_BLOCK_AGE_SECONDS",
+                DEFAULT_MAX_BLOCK_AGE_SECONDS,
+            ),
         )
         settings.validate()
         return settings
@@ -103,6 +111,8 @@ class BlockchainSettings:
             raise ValueError(
                 "BLOCKCHAIN_CONFIRMATION_POLL_INTERVAL_SECONDS must be > 0"
             )
+        if self.max_block_age_seconds <= 0:
+            raise ValueError("BLOCKCHAIN_MAX_BLOCK_AGE_SECONDS must be > 0")
         if not self.enabled:
             return
         if not self.rpc_url.strip():

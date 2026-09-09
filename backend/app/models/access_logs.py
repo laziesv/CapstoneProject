@@ -7,7 +7,9 @@ from sqlalchemy import (
     Enum,
     TIMESTAMP,
     Text,
+    Index,
     func,
+    text,
 )
 
 from sqlalchemy.dialects.postgresql import UUID
@@ -19,6 +21,15 @@ from app.models.enums import AuditAction, AuditResult
 
 class AccessLog(Base):
     __tablename__ = "access_logs"
+    __table_args__ = (
+        Index(
+            "uq_access_logs_pending_view",
+            "user_id",
+            "evidence_id",
+            unique=True,
+            postgresql_where=text("action = 'VIEW' AND result = 'PENDING'"),
+        ),
+    )
 
     log_id = Column(UUID(as_uuid=True),primary_key=True,default=uuid.uuid4)
 
