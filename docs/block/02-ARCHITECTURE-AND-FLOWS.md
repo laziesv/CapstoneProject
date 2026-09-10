@@ -661,7 +661,7 @@ flowchart LR
   OP -.diagnosis.-> API
 ```
 
-Grafana ไม่ได้อนุมัติหรือ block application writes Backend ใช้ RPC liveness preflight ของตนเอง
+Grafana ไม่ได้อนุมัติหรือ block application writes Backend ใช้ RPC liveness preflight ของตนเอง รายละเอียด panel และข้อจำกัดอยู่ใน [Grafana Monitoring Guide](10-GRAFANA-MONITORING-GUIDE.md)
 
 ## 36. Full Evidence Lifecycle
 

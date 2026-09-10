@@ -73,7 +73,7 @@ Expected runtime services:
 - `prometheus`: UP, internal-only port 9090 ใน main compose
 - `grafana`: UP และ `127.0.0.1:3001->3000`
 
-`docker compose ps` ไม่ยืนยัน consensus ให้ดู block progression และ dashboard metrics เพิ่ม
+`docker compose ps` ไม่ยืนยัน consensus ให้ดู block progression และ [Grafana Monitoring Guide](10-GRAFANA-MONITORING-GUIDE.md) เพิ่ม
 
 ## QBFT Failure and Recovery Matrix
 

@@ -130,7 +130,7 @@ python network/besu/scripts/health-check.py --rpc-url http://127.0.0.1:8545 --ex
 python scripts/verify_deployment.py --manifest network/besu/deployments/20260720/EvidenceRegistryV3.json
 ```
 
-Network validation ต้องแยก container status, RPC health และ block progression ออกจากกัน
+Network validation ต้องแยก container status, RPC health และ block progression ออกจากกัน ดู monitoring acceptance เพิ่มที่ [Grafana Monitoring Guide](10-GRAFANA-MONITORING-GUIDE.md)
 
 ## Controlled Real E2E Rules
 

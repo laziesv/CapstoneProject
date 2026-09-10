@@ -27,7 +27,7 @@ flowchart TD
   D --> A[Check application logs/error code]
 ```
 
-ใช้ dashboard ประกอบการวินิจฉัย แต่ตรวจ RPC/transaction/DB ต่อเสมอ
+ใช้ dashboard ประกอบการวินิจฉัย แต่ตรวจ RPC/transaction/DB ต่อเสมอ รายละเอียด panel อยู่ใน [Grafana Monitoring Guide](10-GRAFANA-MONITORING-GUIDE.md)
 
 ## Quick Symptom Matrix
 
@@ -83,7 +83,7 @@ Invoke-RestMethod -Uri 'http://127.0.0.1:8545' -Method Post -ContentType 'applic
 docker compose --project-directory network/besu logs --tail 100 rpc-node
 ```
 
-**Expected:** JSON-RPC result hex ของ chain ID `20260720` (`0x1352ff0` เมื่อแปลงตามค่า) ให้ยืนยันด้วย conversion ไม่พึ่งความจำ
+**Expected:** JSON-RPC result hex ของ chain ID `20260720` คือ `0x1352770` ให้ยืนยันด้วย conversion ไม่พึ่งความจำ
 
 **แก้:** ใช้ literal URL, start/restart RPC เฉพาะเมื่อ logs สนับสนุน แล้วตรวจ block progression
 
@@ -270,7 +270,7 @@ Chain-first CoC ยังแสดง event/ref เมื่อ AccessLog/user/t
 
 ## 20. Grafana No Data
 
-Prometheus/Grafana failure ไม่เท่ากับ Blockchain failure ตรวจ Prometheus container/targets/datasource/scrape endpoint แยก แล้วตรวจ RPC block progression ตรง หาก monitoring down chain ยังอาจทำงาน
+Prometheus/Grafana failure ไม่เท่ากับ Blockchain failure ตรวจ Prometheus container/targets/datasource/scrape endpoint แยก แล้วตรวจ RPC block progression ตรง หาก monitoring down chain ยังอาจทำงาน ดู [Grafana Monitoring Guide](10-GRAFANA-MONITORING-GUIDE.md)
 
 ## 21. Grafana Accessible but App Fails
 

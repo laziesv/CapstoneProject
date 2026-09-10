@@ -36,6 +36,7 @@ CapstoneProject เป็นระบบจัดการหลักฐาน�
 | 07 | [Testing and Acceptance](07-TESTING-AND-ACCEPTANCE.md) | เลือกชุดทดสอบและ acceptance criteria |
 | 08 | [AI Handoff](08-AI-HANDOFF.md) | ให้ AI เริ่มงานโดยไม่อาศัย chat history |
 | 09 | [Troubleshooting](09-TROUBLESHOOTING.md) | วินิจฉัย error ตามอาการและหลีกเลี่ยงคำสั่งอันตราย |
+| 10 | [Grafana Monitoring Guide](10-GRAFANA-MONITORING-GUIDE.md) | คู่มือ Grafana, Prometheus และ Besu Monitoring แบบละเอียด |
 
 ## ถ้าคุณต้องการ
 
@@ -44,8 +45,8 @@ CapstoneProject เป็นระบบจัดการหลักฐาน�
 - แก้ Blockchain source: อ่าน `00 -> 03 -> blockchain/README.md`
 - แก้ Backend integration: อ่าน `00 -> 02 -> 04 -> 07`
 - แก้ Frontend integration: อ่าน `00 -> 02 -> 05 -> 07`
-- ดู Grafana ในฐานะ Operator: อ่าน `00 -> 06 -> 09`
-- วินิจฉัย Blockchain จากฝั่ง Developer: อ่าน `00 -> 02 -> 09`
+- ดู Grafana ในฐานะ Operator: อ่าน `00 -> 10 -> 06 -> 09`
+- วินิจฉัย Blockchain จากฝั่ง Developer: อ่าน `00 -> 02 -> 10 -> 09`
 - แก้ network outage: อ่าน `00 -> 06 -> 09`
 - ทดสอบก่อน merge: อ่าน `00 -> 07`
 - ส่งบริบทให้ AI: ให้อ่าน `08` ก่อน แล้วเปิดไฟล์เฉพาะด้านตามงาน
