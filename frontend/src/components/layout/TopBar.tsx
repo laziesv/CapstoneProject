@@ -24,10 +24,10 @@ export default function TopBar() {
   const title = key ? titles[key] : "DEVA";
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface px-7">
-      <span className="text-base font-semibold">{title}</span>
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface/95 px-7 backdrop-blur">
+      <span className="text-base font-semibold text-foreground">{title}</span>
 
-      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-[13px] font-semibold text-white">
+      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-[13px] font-semibold text-white shadow-sm">
         {displayName.charAt(0)}
       </span>
     </header>

@@ -2,38 +2,38 @@
 
 @theme inline {
   /* พื้น–ตัวอักษร */
-  --color-background: #f7f7f7;
-  --color-foreground: #0a0b0d;
+  --color-background: #f3f6fb;
+  --color-foreground: #0b1220;
   --color-surface: #ffffff;
-  --color-surface-hover: #f7f7f7;
-  --color-border: #dee1e6;
-  --color-muted: #7c828a;
-  --color-text-secondary: #5b616e;
+  --color-surface-hover: #eef3fb;
+  --color-border: #d7deea;
+  --color-muted: #64748b;
+  --color-text-secondary: #475569;
 
   /* แถบดำ (KPI / hero) */
-  --color-ink: #0a0b0d;
-  --color-ink-raised: #16181c;
-  --color-ink-border: #23262b;
-  --color-ink-muted: #a8acb3;
+  --color-ink: #050b18;
+  --color-ink-raised: #0f1b33;
+  --color-ink-border: #1d2f52;
+  --color-ink-muted: #9aa8bf;
 
   /* รางนำทาง = แถบดำเดียวกัน */
-  --color-sidebar: #0a0b0d;
-  --color-sidebar-hover: #16181c;
-  --color-sidebar-active: #0052ff;
+  --color-sidebar: #050b18;
+  --color-sidebar-hover: #0f1b33;
+  --color-sidebar-active: #2563eb;
 
-  /* น้ำเงินหลัก */
-  --color-primary: #0052ff;
-  --color-primary-hover: #003ecc;
-  --color-primary-light: #eef2ff;
+  /* สีหลัก: น้ำเงินดำสำหรับระบบหลักฐานดิจิทัล */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-light: #eaf1ff;
 
   /* สถานะ */
-  --color-success: #05b169;
-  --color-success-light: #e6f7ef;
-  --color-warning: #8a6300;
-  --color-warning-dot: #f4b000;
-  --color-warning-light: #fdf4e0;
-  --color-danger: #cf202f;
-  --color-danger-light: #fdf1f2;
+  --color-success: #059669;
+  --color-success-light: #e8f8f1;
+  --color-warning: #b7791f;
+  --color-warning-dot: #f59e0b;
+  --color-warning-light: #fff7e6;
+  --color-danger: #dc2626;
+  --color-danger-light: #fff1f2;
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -53,8 +53,8 @@ body {
 
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #dee1e6; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #a8acb3; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
 /* ── Evidence authentication scan ───────────────────────── */
 /* เส้นสแกนสีแดงวิ่งผ่านรูประหว่างประมวลผล (hash → watermark → blockchain) */
