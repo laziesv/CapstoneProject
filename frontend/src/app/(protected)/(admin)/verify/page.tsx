@@ -359,21 +359,27 @@ function VerificationReport({ result }: { result: VerifyResult }) {
 }
 
 function AccessHistoryRow({ entry, position, note }: { entry: AccessHistoryEntry; position: number; note?: string }) {
+  const tampered = entry.integrityState === "INTEGRITY_MISMATCH" || entry.mismatches.length > 0;
   return (
-    <div className={`grid gap-3 py-4 text-sm lg:grid-cols-[3rem_10rem_minmax(0,1fr)_8rem] ${entry.matched ? "border-l-2 border-primary bg-blue-50/50 px-3" : "px-1"}`}>
+    <div className={`grid gap-3 py-4 text-sm lg:grid-cols-[3rem_10rem_minmax(0,1fr)_8rem] ${entry.matched ? "border-l-2 border-primary bg-blue-50/50 px-3" : tampered ? "border-l-2 border-warning bg-warning-light/30 px-3" : "px-1"}`}>
       <span className="text-muted">#{position}</span>
       <div>
         <p className="font-semibold">{formatForensicAction(entry.action)}</p>
         {entry.actorName && <p className="mt-0.5 text-xs text-muted">{entry.actorName}</p>}
         {entry.matched && <p className="mt-1 text-xs font-medium text-primary">รายการดาวน์โหลดที่ตรงกับ Watermark</p>}
+        {tampered && <p className="mt-1 text-xs font-medium text-warning">AccessLog ไม่ตรงกับ Blockchain</p>}
         {note && <p className="mt-1 text-xs text-muted">{note}</p>}
       </div>
       <div>
         <p>{formatForensicUnixTime(entry.occurred_at)}</p>
+        {entry.databaseAccessedAt && tampered && (
+          <p className="mt-1 text-xs text-warning">เวลาใน DB: {formatForensicDateTime(entry.databaseAccessedAt)}</p>
+        )}
         <details className="mt-2 text-xs text-muted">
           <summary className="cursor-pointer">รายละเอียดทางเทคนิค</summary>
           <p className="mt-2 break-all font-mono">Transaction: {entry.tx_hash}</p>
           <p className="mt-1 font-mono">Transaction Index: {entry.transaction_index ?? "—"} · Log Index: {entry.log_index ?? "—"}</p>
+          {entry.mismatches.length > 0 && <IntegrityMismatchTable mismatches={entry.mismatches} />}
         </details>
       </div>
       <Link href={blockchainExplorerHref("transaction", entry.tx_hash)} className="inline-flex items-start gap-1 text-primary hover:underline">
@@ -393,12 +399,15 @@ interface AccessHistoryEntry {
   key: string;
   action: string;
   occurred_at: number | null;
+  databaseAccessedAt: string | null;
   tx_hash: string;
   block_number: number | null;
   transaction_index: number | null;
   log_index: number | null;
   matched: boolean;
   actorName: string | null;
+  integrityState: string | null;
+  mismatches: IntegrityMismatch[];
 }
 
 function BlockchainAccessHistory({ result }: { result: VerifyResult }) {
@@ -422,12 +431,15 @@ function BlockchainAccessHistory({ result }: { result: VerifyResult }) {
     key: `${e.tx_hash}-${e.log_index}`,
     action: e.action,
     occurred_at: e.occurred_at,
+    databaseAccessedAt: result.databaseAccessedAt,
     tx_hash: e.tx_hash,
     block_number: e.block_number,
     transaction_index: e.transaction_index,
     log_index: e.log_index,
     matched: e.matched,
     actorName: null,
+    integrityState: e.matched ? result.databaseIntegrityState : null,
+    mismatches: e.matched ? result.attributionMismatches : [],
   }));
 
   const complete: AccessHistoryEntry[] = (full?.access_history ?? [])
@@ -435,6 +447,7 @@ function BlockchainAccessHistory({ result }: { result: VerifyResult }) {
       key: item.access_session_ref,
       action: item.action,
       occurred_at: item.blockchain?.occurred_at ?? null,
+      databaseAccessedAt: item.database?.accessed_at ?? item.accessed_at,
       tx_hash: item.blockchain?.transaction_hash ?? item.transaction?.tx_hash ?? "",
       block_number: item.blockchain?.block_number ?? item.transaction?.block_number ?? null,
       transaction_index: item.blockchain?.transaction_index ?? null,
@@ -443,6 +456,8 @@ function BlockchainAccessHistory({ result }: { result: VerifyResult }) {
       matched: Boolean(result.dynamicDecoded)
         && item.access_session_ref.toLowerCase() === result.dynamicDecoded!.toLowerCase(),
       actorName: item.user?.full_name || item.user?.display_name || null,
+      integrityState: item.integrity_state,
+      mismatches: item.mismatches,
     }))
     .sort((a, b) => compareBlockchainOrder(
       { blockNumber: a.block_number, transactionIndex: a.transaction_index, logIndex: a.log_index, recordedAt: a.occurred_at, stableKey: a.key },

@@ -16,6 +16,9 @@ const mono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "DEVA — Blockchain & Watermark-based Digital Evidence Authentication",
   description: "คลังหลักฐานภาพดิจิทัลรับรองด้วยลายน้ำและบล็อกเชน",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

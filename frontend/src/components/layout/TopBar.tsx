@@ -12,6 +12,7 @@ const titles: Record<string, string> = {
   "/logs": "บันทึกการเข้าถึง",
   "/users": "จัดการผู้ใช้",
   "/profile": "โปรไฟล์",
+  "/blockchain": "บล็อกเชน",
 };
 
 export default function TopBar() {

@@ -6,7 +6,7 @@ export const actionLabel: Record<string, string> = {
   view: "เปิดดู",
   download: "ดาวน์โหลด",
   upload: "อัปโหลด",
-  query: "ค้นหา",
+  query: "ค้น",
   verify: "ตรวจลายน้ำ",
   print: "พิมพ์",
   export: "ส่งออก",
