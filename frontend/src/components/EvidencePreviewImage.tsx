@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { ApiError, evidenceService } from "@/services";
+import ProtectedImage from "@/components/ProtectedImage";
 
 
 const unavailableFileIds = new Set<string>();
@@ -63,5 +64,7 @@ export function EvidencePreviewImage({
   );
   if (loading) return loadingFallback ?? fallback;
   if (!fileId || preview?.fileId !== fileId) return fallback;
-  return <img src={preview.objectUrl} alt={alt} className={className} />;
+  // ใช้ ProtectedImage เพื่อกันคลิกขวา/ลากภาพ ให้การนำหลักฐานออกต้องผ่านปุ่มดาวน์โหลด
+  // ซึ่งบันทึกลง Blockchain และฝังลายน้ำระบุผู้โหลด
+  return <ProtectedImage src={preview.objectUrl} alt={alt} className={className} />;
 }

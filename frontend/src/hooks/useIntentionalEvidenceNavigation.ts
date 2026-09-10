@@ -27,7 +27,9 @@ export function useIntentionalEvidenceNavigation() {
     "SUBMITTING" | "WAITING_FOR_BLOCKCHAIN" | "PENDING_BLOCKCHAIN_CONFIRMATION"
   >("SUBMITTING");
 
-  const openEvidence = async (evidenceId: string) => {
+  /** evidenceId ใช้เรียก API (ต้องเป็น UUID) ส่วน displayRef ใช้ทำ URL ให้อ่านออก
+   *  เช่น EV-20260910-B7E872 — ถ้าไม่ส่งมาจะกลับไปใช้ UUID */
+  const openEvidence = async (evidenceId: string, displayRef?: string | null) => {
     if (inProgress.current) return;
     if (!user?.user_id) {
       setOpenError("ไม่พบผู้ใช้ที่เข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
@@ -63,7 +65,7 @@ export function useIntentionalEvidenceNavigation() {
       rememberViewSuccess(session);
       window.sessionStorage.removeItem(requestKey);
       navigationStarted = true;
-      router.push(`/evidence/${evidenceId}`);
+      router.push(`/evidence/${encodeURIComponent(displayRef || evidenceId)}`);
     } catch (cause) {
       if (cause instanceof ApiError) {
         window.sessionStorage.removeItem(requestKey);

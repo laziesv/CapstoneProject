@@ -8,6 +8,7 @@ export type Role = "admin" | "investigator" | "officer" | "viewer";
 // ไม่ตรง rule ไหน = ทุก role ที่ล็อกอินเข้าได้ (dashboard, cases ดู, evidence ดู, profile)
 const RULES: { prefix: string; roles: Role[] }[] = [
   { prefix: "/verify", roles: ["admin"] },
+  { prefix: "/blockchain", roles: ["admin"] },
   { prefix: "/logs", roles: ["admin"] },
   { prefix: "/users", roles: ["admin"] },
   // งานคดี/หลักฐาน — admin (ผู้ดูแลระบบ) ทำไม่ได้

@@ -27,6 +27,7 @@ import type {
   BlockchainTransactionResult,
 } from "@/interfaces";
 import { ApiError, blockchainService } from "@/services";
+import StatBand from "@/components/ui/StatBand";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import { formatForensicAction, formatForensicUnixTime } from "@/utils/forensics";
 import { copyTextWithFeedback } from "@/components/feedback/CopySuccessFeedback";
@@ -36,12 +37,18 @@ import {
   isBlockchainSearchType,
 } from "@/utils/blockchainExplorer";
 
-const SEARCH_OPTIONS: Array<{ value: BlockchainSearchType; label: string; placeholder: string }> = [
-  { value: "block", label: "Block Number", placeholder: "เช่น 21551" },
-  { value: "transaction", label: "Transaction Hash", placeholder: "0x..." },
-  { value: "evidence", label: "Evidence ID", placeholder: "UUID ของหลักฐาน" },
-  { value: "evidence-ref", label: "Evidence Ref", placeholder: "0x + hexadecimal 64 ตัว" },
-  { value: "access-session", label: "Access Session Ref", placeholder: "0x + hexadecimal 64 ตัว" },
+const SEARCH_OPTIONS: Array<{
+  value: BlockchainSearchType;
+  label: string;
+  technical: string;
+  placeholder: string;
+  help: string;
+}> = [
+  { value: "block", label: "เลขบล็อก", technical: "Block Number", placeholder: "เช่น 21551", help: "ดูทุกธุรกรรมที่ถูกบันทึกในบล็อกนั้น" },
+  { value: "transaction", label: "ธุรกรรม", technical: "Transaction Hash", placeholder: "0x...", help: "ดูรายละเอียดธุรกรรมเดียวและผลที่บันทึกไว้" },
+  { value: "evidence", label: "หลักฐาน", technical: "Evidence ID", placeholder: "UUID ของหลักฐาน", help: "ดูการลงทะเบียนและประวัติการเข้าถึงของหลักฐานชิ้นนั้น" },
+  { value: "evidence-ref", label: "รหัสอ้างอิงหลักฐาน", technical: "Evidence Ref", placeholder: "0x + hexadecimal 64 ตัว", help: "ค่าที่ใช้อ้างถึงหลักฐานบนเชนโดยไม่เปิดเผย UUID" },
+  { value: "access-session", label: "รอบการเข้าถึง", technical: "Access Session Ref", placeholder: "0x + hexadecimal 64 ตัว", help: "ค่าที่ฝังใน Dynamic Watermark ของสำเนาที่ดาวน์โหลด" },
 ];
 
 export default function BlockchainExplorerPage() {
@@ -100,7 +107,7 @@ export default function BlockchainExplorerPage() {
 
       <NetworkOverview overview={overview} />
 
-      <section className="border-y border-border bg-surface py-5">
+      <section className="rounded-xl border border-border bg-surface px-5 py-5">
         <div className="flex items-center gap-2">
           <Search className="h-5 w-5 text-primary" />
           <h2 className="font-semibold">ค้นหาข้อมูลบน Blockchain</h2>
@@ -111,13 +118,16 @@ export default function BlockchainExplorerPage() {
               key={option.value}
               type="button"
               onClick={() => { setType(option.value); setResult(null); setError(null); }}
-              className={`border px-3 py-2 text-xs font-medium transition-colors ${
+              className={`rounded-lg border px-3 py-2 text-left transition-colors ${
                 type === option.value
                   ? "border-primary bg-primary text-white"
                   : "border-border bg-white text-muted hover:border-primary/50 hover:text-text"
               }`}
             >
-              {option.label}
+              <span className="block text-xs font-medium">{option.label}</span>
+              <span className={`block text-[10px] ${type === option.value ? "text-white/70" : "text-muted"}`}>
+                {option.technical}
+              </span>
             </button>
           ))}
         </div>
@@ -143,6 +153,9 @@ export default function BlockchainExplorerPage() {
         </form>
       </section>
 
+      {!loading && !error && !result && (
+        <SearchGuide onPick={(picked) => { setType(picked); setResult(null); setError(null); }} />
+      )}
       {loading && <StateMessage icon={<Loader2 className="h-6 w-6 animate-spin" />} text="กำลังอ่านข้อมูลจาก Blockchain..." />}
       {error && !loading && <StateMessage danger icon={<ServerCrash className="h-6 w-6" />} text={error} />}
       {result && !loading && <SearchResult result={result} />}
@@ -151,32 +164,74 @@ export default function BlockchainExplorerPage() {
 }
 
 function NetworkOverview({ overview }: { overview: BlockchainOverview | null }) {
-  const items = [
-    ["Network", overview?.network],
-    ["Consensus", overview?.consensus],
-    ["Chain ID", numberValue(overview?.chain_id)],
-    ["Current Block", numberValue(overview?.latest_block)],
-    ["Deployment Block", numberValue(overview?.deployment_block)],
-    ["EvidenceRegistryV3", overview?.contract_address],
-  ];
   const connected = Boolean(overview?.enabled && overview.connected && overview.contract_deployed);
   return (
-    <section className="border border-border bg-surface">
-      <div className="flex items-center justify-between gap-4 border-b border-border px-4 py-3">
-        <div className="flex items-center gap-2"><Blocks className="h-5 w-5 text-primary" /><h2 className="font-semibold">เครือข่ายและสัญญา</h2></div>
-        <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${connected ? "text-success" : "text-danger"}`}>
-          <span className={`h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-danger"}`} />
-          {connected ? "Connected" : "Unavailable"}
-        </span>
-      </div>
-      <div className="grid sm:grid-cols-2 xl:grid-cols-3">
-        {items.map(([label, itemValue]) => (
-          <div key={label} className="min-w-0 border-b border-r border-border px-4 py-3">
-            <p className="text-xs text-muted">{label}</p>
-            <p className="mt-1 break-all font-mono text-sm">{itemValue || "—"}</p>
+    <div className="space-y-4">
+      {/* ตัวเลขที่สำคัญที่สุดของหน้า — ใช้แถบเดียวกับแดชบอร์ดให้ระบบดูเป็นชุดเดียวกัน */}
+      <StatBand
+        items={[
+          {
+            label: "สถานะการเชื่อมต่อ",
+            value: connected ? "เชื่อมต่อแล้ว" : "ไม่พร้อมใช้งาน",
+            valueTone: connected ? "success" : "danger",
+            hint: overview?.network ?? "—",
+          },
+          {
+            label: "บล็อกล่าสุด",
+            value: overview?.latest_block?.toLocaleString("th-TH") ?? "—",
+            hint: `เริ่มบันทึกที่บล็อก ${overview?.deployment_block?.toLocaleString("th-TH") ?? "—"}`,
+          },
+          { label: "ระบบฉันทามติ", value: overview?.consensus ?? "—" },
+          { label: "Chain ID", value: overview?.chain_id != null ? String(overview.chain_id) : "—", hint: "เครือข่ายเฉพาะขององค์กร" },
+        ]}
+      />
+
+      <section className="rounded-xl border border-border bg-surface px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Blocks className="h-4 w-4 text-primary" aria-hidden="true" />
+            <h2 className="text-sm font-semibold">สัญญาที่ใช้บันทึกหลักฐาน</h2>
+            <span className="text-xs text-muted">EvidenceRegistryV3</span>
           </div>
-        ))}
+          <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${connected ? "text-success" : "text-danger"}`}>
+            <span className={`h-2 w-2 rounded-full ${connected ? "bg-success" : "bg-danger"}`} aria-hidden="true" />
+            {connected ? "สัญญาพร้อมใช้งาน" : "ยังไม่พร้อมใช้งาน"}
+          </span>
+        </div>
+        <p className="mt-2 break-all rounded-lg bg-surface-hover px-3 py-2 font-mono text-xs">
+          {overview?.contract_address ?? "—"}
+        </p>
+      </section>
+    </div>
+  );
+}
+
+/** แนะนำว่าหน้านี้ค้นอะไรได้บ้าง แทนพื้นที่ว่างก่อนผู้ใช้เริ่มค้นหา */
+function SearchGuide({ onPick }: { onPick: (type: BlockchainSearchType) => void }) {
+  return (
+    <section className="rounded-xl border border-dashed border-border bg-surface px-5 py-6">
+      <div className="flex items-center gap-2">
+        <Search className="h-4 w-4 text-muted" aria-hidden="true" />
+        <h2 className="text-sm font-semibold">ค้นหาอะไรได้บ้าง</h2>
       </div>
+      <p className="mt-1 text-xs text-muted">
+        ทุกรายการอ่านจากเครือข่ายโดยตรงแบบอ่านอย่างเดียว ไม่ผ่านฐานข้อมูลของระบบ
+      </p>
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        {SEARCH_OPTIONS.map((option) => (
+          <li key={option.value}>
+            <button
+              type="button"
+              onClick={() => onPick(option.value)}
+              className="h-full w-full rounded-lg border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-surface-hover"
+            >
+              <span className="block text-sm font-medium">{option.label}</span>
+              <span className="mt-0.5 block text-[11px] text-muted">{option.technical}</span>
+              <span className="mt-1.5 block text-xs leading-5 text-muted">{option.help}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

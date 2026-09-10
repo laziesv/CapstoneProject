@@ -541,7 +541,14 @@ class ChainOfCustodyRouteTests(unittest.TestCase):
             result = chain_of_custody(EVIDENCE_ID, self.db, user)
 
         self.assertIs(result, expected)
-        service.get_chain_of_custody.assert_called_once_with(self.db, EVIDENCE_ID)
+        # การแบ่งหน้าประวัติการเข้าถึง: route ส่ง limit/offset ต่อให้ service เสมอ
+        service.get_chain_of_custody.assert_called_once()
+        call = service.get_chain_of_custody.call_args
+        self.assertEqual(call.args, (self.db, EVIDENCE_ID))
+        self.assertEqual(
+            set(call.kwargs),
+            {"access_history_limit", "access_history_offset"},
+        )
 
     def test_route_requires_admin_dependency(self):
         dependency = inspect.signature(chain_of_custody).parameters[

@@ -120,4 +120,9 @@ class ChainOfCustodyResponse(BaseModel):
     uploader: ChainUserIdentity | None
     registration_transaction: ChainTransactionMetadata | None
     access_history: list[ChainAccessHistoryItem]
+    # หลักฐานที่ถูกเข้าถึงบ่อยมีประวัติได้หลายพันรายการ — access_history เป็นเพียงหน้าเดียว
+    # ส่วน verification/verified ยังคำนวณจากประวัติทั้งหมดเสมอ
+    access_history_total: int = 0
+    access_history_limit: int | None = None
+    access_history_offset: int = 0
     verification: ChainOfCustodyVerification

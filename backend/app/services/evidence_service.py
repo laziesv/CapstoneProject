@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.models.evidence_items import EvidenceItem
 from app.models.evidence_files import EvidenceFile
 from app.repositories.evidence_items_repository import EvidenceRepository
+from app.utils.ref_lookup import resolve_by_ref
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
 from app.models.enums import FileType
@@ -64,6 +65,15 @@ class EvidenceService:
             file_id
         )
 
+
+    @staticmethod
+    def get_by_ref(db: Session, ref):
+        """หาหลักฐานจาก UUID หรือเลขหลักฐาน (เช่น EV-20260910-B7E872) — ไม่เจอคืน None"""
+        return resolve_by_ref(
+            ref,
+            lambda uid: EvidenceRepository.get_by_id(db, uid),
+            lambda number: EvidenceRepository.get_by_number(db, number),
+        )
 
     @staticmethod
     def get_all(db: Session, case_id=None):

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Check,
   CheckCircle2,
@@ -8,12 +9,14 @@ import {
   CircleAlert,
   Clock3,
   Copy,
+  Download,
+  Eye,
   FilePlus2,
   Loader2,
   RefreshCw,
   ShieldCheck,
-  UserRound,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import type {
   ChainAccessHistoryItem,
@@ -42,6 +45,9 @@ interface ChainOfCustodyPanelProps {
   evidenceId: string;
 }
 
+/** จำนวนเหตุการณ์ที่แสดงก่อนกด "แสดงทั้งหมด" */
+const TIMELINE_WINDOW = 10;
+
 type TimelineEvent =
   | { kind: "registration"; key: string }
   | { kind: "access"; key: string; entry: ChainAccessHistoryItem };
@@ -50,12 +56,15 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
   const [data, setData] = useState<ChainOfCustodyResponse>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
+  // โหลดประวัติทีละหน้าจาก backend — ไม่ดึงทั้งหมดมาแล้วค่อยซ่อน
+  const [olderPages, setOlderPages] = useState<ChainAccessHistoryItem[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(undefined);
     try {
-      setData(await evidenceService.getChainOfCustody(evidenceId));
+      setData(await evidenceService.getChainOfCustody(evidenceId, { limit: TIMELINE_WINDOW }));
     } catch (cause) {
       setData(undefined);
       setError(errorMessage(cause));
@@ -67,10 +76,11 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
   useEffect(() => {
     let cancelled = false;
     evidenceService
-      .getChainOfCustody(evidenceId)
+      .getChainOfCustody(evidenceId, { limit: TIMELINE_WINDOW })
       .then((response) => {
         if (cancelled) return;
         setData(response);
+        setOlderPages([]);
         setError(undefined);
         setLoading(false);
       })
@@ -118,7 +128,28 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
     );
   }
 
-  const timeline = buildTimeline(data);
+  // รวมหน้าที่โหลดเพิ่มเข้ากับหน้าแรก แล้วค่อยจัดลำดับตามตำแหน่งบนเชน
+  const loaded = [...olderPages, ...data.access_history];
+  const timeline = buildTimeline(data, loaded);
+  const remaining = Math.max(0, data.access_history_total - loaded.length);
+  // ลงทะเบียนหลักฐานเป็นจุดกำเนิดของ chain of custody — ปักหมุดไว้แม้ยังโหลดไม่ครบ
+  const pinnedRegistration = remaining > 0 && timeline[0]?.kind === "registration";
+  const visibleTimeline = pinnedRegistration ? timeline.slice(1) : timeline;
+
+  const loadOlder = async () => {
+    setLoadingMore(true);
+    try {
+      const page = await evidenceService.getChainOfCustody(evidenceId, {
+        limit: TIMELINE_WINDOW,
+        offset: loaded.length,
+      });
+      setOlderPages((current) => [...page.access_history, ...current]);
+    } catch {
+      // เงียบไว้ — ประวัติที่โหลดมาแล้วยังใช้งานได้ ผู้ใช้กดซ้ำได้
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-surface" aria-labelledby="chain-of-custody-heading">
@@ -215,14 +246,35 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
             <p className="text-sm">ยังไม่มีรายการที่บันทึกบน Blockchain</p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {timeline.map((event) =>
+          <ol className="px-5 py-2">
+            {pinnedRegistration && <RegistrationHistoryRow data={data} />}
+            {remaining > 0 && (
+              <li className="py-3 pl-12 text-xs text-muted">
+                ยังไม่ได้โหลดอีก {remaining.toLocaleString("th-TH")} เหตุการณ์ระหว่างนี้
+              </li>
+            )}
+            {visibleTimeline.map((event) =>
               event.kind === "registration" ? (
                 <RegistrationHistoryRow key={event.key} data={data} />
               ) : (
                 <AccessHistoryRow key={event.key} entry={event.entry} />
               ),
             )}
+          </ol>
+        )}
+        {remaining > 0 && (
+          <div className="border-t border-border px-5 py-3">
+            <button
+              type="button"
+              onClick={() => void loadOlder()}
+              disabled={loadingMore}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-hover disabled:opacity-50"
+            >
+              {loadingMore
+                ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
+              โหลดเหตุการณ์ก่อนหน้า (เหลืออีก {remaining.toLocaleString("th-TH")})
+            </button>
           </div>
         )}
       </div>
@@ -230,25 +282,65 @@ export function ChainOfCustodyPanel({ evidenceId }: ChainOfCustodyPanelProps) {
   );
 }
 
+/** โครงร่วมของทุกเหตุการณ์ — รางเวลาด้านซ้าย + เนื้อหาเรียงบนลงล่างเหมือนอ่านเรื่องเล่า */
+function TimelineRow({
+  icon: Icon,
+  accent,
+  title,
+  badge,
+  blockNumber,
+  actor,
+  when,
+  children,
+}: {
+  icon: LucideIcon;
+  accent: string;
+  title: string;
+  badge?: ReactNode;
+  blockNumber: number | null | undefined;
+  actor: ReactNode;
+  when: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <li className="relative flex gap-4 py-4 last:[&>div:first-child>span:last-child]:hidden">
+      {/* รางเวลา: จุดของเหตุการณ์นี้ + เส้นต่อลงไปยังเหตุการณ์ถัดไป */}
+      <div className="flex flex-col items-center" aria-hidden="true">
+        <span className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${accent}`}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="mt-1 w-px flex-1 bg-border" />
+      </div>
+
+      <div className="min-w-0 flex-1 pb-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <p className="text-sm font-semibold">{title}</p>
+          {badge}
+          <BlockChip number={blockNumber} />
+        </div>
+        <div className="mt-2">{actor}</div>
+        <p className="mt-2 text-xs text-muted">{when}</p>
+        {children}
+      </div>
+    </li>
+  );
+}
+
 function RegistrationHistoryRow({ data }: { data: ChainOfCustodyResponse }) {
   return (
-    <article className="grid gap-4 px-5 py-4 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)]">
-      <div>
-        <div className="flex items-center gap-2 text-primary">
-          <FilePlus2 className="h-4 w-4" aria-hidden="true" />
-          <p className="text-sm font-semibold">{formatForensicAction("REGISTER")}</p>
-        </div>
-        <p className="mt-2 text-xs text-muted">Block {data.evidence.registration_block_number ?? "—"}</p>
-      </div>
-      <ActorProfile user={data.uploader} referenceVerified={data.verification.uploader_ref_matches} />
-      <div className="space-y-2 text-xs">
-        <AuditValue label="เวลาที่ธุรกรรมถูกบันทึกลง Blockchain" value={formatForensicUnixTime(data.evidence.blockchain_recorded_at)} />
-        <TechnicalDetails compact>
-          <AuditValue label="รหัสอ้างอิงหลักฐาน" value={data.evidence.evidence_ref} copyable />
-          <AuditValue label="Transaction Hash" value={data.evidence.registration_tx_hash} copyable />
-        </TechnicalDetails>
-      </div>
-    </article>
+    <TimelineRow
+      icon={FilePlus2}
+      accent="bg-primary/10 text-primary"
+      title={formatForensicAction("REGISTER")}
+      blockNumber={data.evidence.registration_block_number}
+      actor={<ActorProfile user={data.uploader} referenceVerified={data.verification.uploader_ref_matches} />}
+      when={<>บันทึกลง Blockchain เมื่อ {formatForensicUnixTime(data.evidence.blockchain_recorded_at)}</>}
+    >
+      <TechnicalDetails compact>
+        <AuditValue label="รหัสอ้างอิงหลักฐาน" value={data.evidence.evidence_ref} copyable />
+        <AuditValue label="Transaction Hash" value={data.evidence.registration_tx_hash} copyable />
+      </TechnicalDetails>
+    </TimelineRow>
   );
 }
 
@@ -258,16 +350,27 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
     officerRefMatches: entry.verification.officer_ref_matches,
     databaseUserPresent: entry.database_user !== null,
   });
-  return (
-    <article className="grid gap-4 px-5 py-4 lg:grid-cols-[10rem_minmax(0,1fr)_minmax(0,1fr)]">
-      <div>
-        <p className="text-sm font-semibold">{formatForensicAction(entry.action)}</p>
-        <div className="mt-2"><VerificationBadge state={entry.integrity_state} compact /></div>
-        <p className="mt-2 text-xs text-muted">Block {entry.blockchain?.block_number ?? entry.transaction?.block_number ?? "—"}</p>
-      </div>
+  const actionIcon = entry.action?.toUpperCase() === "DOWNLOAD" ? Download : Eye;
+  // แสดงการกระทำบนเชนเฉพาะตอนไม่ตรงกับที่หัวข้อบอก — ปกติซ้ำกันจึงไม่ต้องย้ำ
+  const chainActionDiffers =
+    entry.blockchain?.action != null
+    && entry.blockchain.action.toUpperCase() !== (entry.action ?? "").toUpperCase();
 
+  return (
+    <TimelineRow
+      icon={actionIcon}
+      accent="bg-surface-hover text-muted"
+      title={formatForensicAction(entry.action)}
+      badge={<VerificationBadge state={entry.integrity_state} compact />}
+      blockNumber={entry.blockchain?.block_number ?? entry.transaction?.block_number}
+      when={
+        <>
+          {formatForensicDateTime(entry.accessed_at)}
+          {inclusionDelay && <span className="ml-2 text-muted/70">· ขึ้นเชนช้ากว่า {inclusionDelay}</span>}
+        </>
+      }
+      actor={
       <div>
-        <p className="mb-2 text-xs font-semibold text-muted">ผู้ใช้ที่อ้างอิงจาก Blockchain</p>
         <ActorProfile user={entry.user} referenceVerified={entry.user !== null} />
         {showDatabaseActor && (
           <div className="mt-4 border-t border-warning/20 pt-3">
@@ -286,17 +389,26 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
           </p>
         )}
       </div>
-
-      <div className="space-y-2">
-        <AuditValue label="การกระทำบน Blockchain" value={formatForensicAction(entry.blockchain?.action)} />
-        {entry.database && !entry.verification.action_matches && (
-          <AuditValue label="การกระทำปัจจุบันในฐานข้อมูล" value={formatForensicAction(entry.database.action)} />
-        )}
-        <AuditValue label="เวลาที่เกิดการเข้าถึงในฐานข้อมูล" value={formatForensicDateTime(entry.accessed_at)} />
-        <AuditValue label="เวลาการเข้าถึงที่อ้างอิงบน Blockchain" value={formatForensicUnixTime(entry.blockchain?.occurred_at)} />
-        <AuditValue label="เวลาที่ธุรกรรมถูกบันทึกลง Blockchain" value={formatForensicUnixTime(entry.blockchain?.recorded_at)} />
-        {inclusionDelay && <AuditValue label="หน่วงเวลา" value={inclusionDelay} />}
+      }
+    >
+      {chainActionDiffers && (
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-warning">
+          <CircleAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+          การกระทำบน Blockchain คือ {formatForensicAction(entry.blockchain?.action)}
+        </p>
+      )}
+      {entry.database && !entry.verification.action_matches && (
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-warning">
+          <CircleAlert className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+          การกระทำปัจจุบันในฐานข้อมูลคือ {formatForensicAction(entry.database.action)}
+        </p>
+      )}
+      <div className="mt-1">
+        {/* เวลาสามชั้นเป็นข้อมูลนิติวิทยาศาสตร์ ไม่ใช่สิ่งที่ต้องกวาดตาอ่าน — เก็บไว้ในส่วนกาง */}
         <TechnicalDetails compact>
+          <AuditValue label="เวลาที่เกิดการเข้าถึงในฐานข้อมูล" value={formatForensicDateTime(entry.accessed_at)} />
+          <AuditValue label="เวลาการเข้าถึงที่อ้างอิงบน Blockchain" value={formatForensicUnixTime(entry.blockchain?.occurred_at)} />
+          <AuditValue label="เวลาที่ธุรกรรมถูกบันทึกลง Blockchain" value={formatForensicUnixTime(entry.blockchain?.recorded_at)} />
           <AuditValue label="รหัสอ้างอิงรอบการเข้าถึง" value={entry.access_session_ref} copyable />
           <AuditValue label="Blockchain Evidence Reference" value={entry.blockchain?.evidence_ref ?? null} copyable />
           <AuditValue label="Blockchain Officer Reference" value={entry.blockchain?.officer_ref ?? null} copyable />
@@ -310,7 +422,7 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
       </div>
 
       {entry.mismatches.length > 0 && (
-        <div className="overflow-hidden border border-warning/30 bg-warning-light/30 lg:col-span-3">
+        <div className="mt-3 overflow-hidden rounded-lg border border-warning/30 bg-warning-light/30">
           <div className="flex items-center gap-2 border-b border-warning/20 px-3 py-2 text-xs font-semibold text-warning">
             <CircleAlert className="h-4 w-4" aria-hidden="true" />
             พบข้อมูลไม่ตรงกับ Blockchain
@@ -323,7 +435,17 @@ function AccessHistoryRow({ entry }: { entry: ChainAccessHistoryItem }) {
           </div>
         </div>
       )}
-    </article>
+    </TimelineRow>
+  );
+}
+
+/** เลขบล็อกของเหตุการณ์ — ทำเป็นชิปให้เห็นว่าเป็นหมุดอ้างอิงบนเชน ไม่ใช่ข้อความประกอบ */
+function BlockChip({ number }: { number: number | null | undefined }) {
+  return (
+    <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-border bg-surface-hover px-2.5 py-1 text-xs text-muted">
+      บล็อก
+      <span className="font-mono font-medium text-foreground/80">{number ?? "—"}</span>
+    </span>
   );
 }
 
@@ -333,20 +455,19 @@ function ActorProfile({ user }: { user: ChainUserIdentity | null; referenceVerif
   }
   return (
     <div className="min-w-0">
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-surface-hover text-muted">
-          <UserRound className="h-4 w-4" aria-hidden="true" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{user.full_name || user.display_name}</p>
-          <p className="text-xs text-muted">{user.rank || user.role}</p>
-        </div>
-      </div>
-      <dl className="mt-3 grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs">
-        <dt className="text-muted">Badge Number</dt><dd className="truncate">{user.badge_number || "—"}</dd>
-        <dt className="text-muted">Username</dt><dd className="truncate">{user.username}</dd>
-        <dt className="text-muted">Email</dt><dd className="truncate">{user.email}</dd>
-      </dl>
+      {/* ไม่ใส่ avatar — ในลำดับเหตุการณ์จะไปซ้อนความหมายกับจุดบนรางเวลา */}
+      <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
+        <span className="font-medium">{user.full_name || user.display_name}</span>
+        <span className="text-xs text-muted">{user.rank || user.role}</span>
+      </p>
+      {/* ย่อข้อมูลระบุตัวตนเป็นบรรทัดเดียว — ลำดับเหตุการณ์ซ้ำผู้ใช้คนเดิมได้หลายแถว */}
+      <p className="mt-1 truncate text-xs text-muted" title={`${user.badge_number || "—"} · ${user.username} · ${user.email}`}>
+        <span className="font-mono">{user.badge_number || "—"}</span>
+        <span className="mx-1.5 text-border">·</span>
+        {user.username}
+        <span className="mx-1.5 text-border">·</span>
+        {user.email}
+      </p>
     </div>
   );
 }
@@ -446,10 +567,10 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-function buildTimeline(data: ChainOfCustodyResponse): TimelineEvent[] {
+function buildTimeline(data: ChainOfCustodyResponse, accessHistory: ChainAccessHistoryItem[]): TimelineEvent[] {
   const events: TimelineEvent[] = [
     { kind: "registration", key: `registration-${data.evidence.evidence_id}` },
-    ...data.access_history.map((entry) => ({ kind: "access" as const, key: `access-${entry.access_session_ref}`, entry })),
+    ...accessHistory.map((entry) => ({ kind: "access" as const, key: `access-${entry.access_session_ref}`, entry })),
   ];
   return events.sort((left, right) => compareBlockchainOrder(
     timelineOrder(left, data),

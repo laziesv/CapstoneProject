@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -19,9 +19,10 @@ import {
   XCircle,
 } from "lucide-react";
 
-import type { IntegrityMismatch, VerifyResult, WatermarkVerificationUser } from "@/interfaces";
-import { watermarkService } from "@/services";
+import type { ChainOfCustodyResponse, IntegrityMismatch, VerifyResult, WatermarkVerificationUser } from "@/interfaces";
+import { evidenceService, watermarkService } from "@/services";
 import {
+  compareBlockchainOrder,
   forensicMismatchLabel,
   formatForensicAction,
   formatForensicDateTime,
@@ -40,6 +41,7 @@ import {
 import { OperationProgress } from "@/components/feedback/OperationProgress";
 import { copyTextWithFeedback } from "@/components/feedback/CopySuccessFeedback";
 import { WatermarkQrPresentation } from "@/components/evidence/WatermarkQrPresentation";
+import ProtectedImage from "@/components/ProtectedImage";
 
 export default function VerifyPage() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -103,8 +105,7 @@ export default function VerifyPage() {
             />
             {preview ? (
               <div className="relative">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={preview} alt="ภาพสำหรับตรวจสอบ" className="mx-auto max-h-72 max-w-full object-contain" />
+                <ProtectedImage src={preview} alt="ภาพสำหรับตรวจสอบ" className="mx-auto max-h-72 max-w-full object-contain" />
                 {isVerifying && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/35">
                     <Loader2 className="h-7 w-7 animate-spin text-white" />
@@ -159,21 +160,39 @@ function VerificationSummary({ result, loading, error }: { result: VerifyResult 
   );
 }
 
+/** สีประจำผลการตรวจ — ใช้ร่วมกันทั้งแบนเนอร์สรุปและการ์ดรายข้อ */
+const TONE_STYLE = {
+  success: { text: "text-success", bg: "bg-success-light", border: "border-success/30", Icon: ShieldCheck },
+  warning: { text: "text-warning", bg: "bg-warning-light", border: "border-warning/30", Icon: ShieldAlert },
+  danger: { text: "text-danger", bg: "bg-danger-light", border: "border-danger/30", Icon: XCircle },
+} as const;
+
 function VerifiedSummary({ result }: { result: VerifyResult }) {
   const presentation = buildVerificationPresentation(result);
-  const titleColor = presentation.tone === "success"
-    ? "text-success"
-    : presentation.tone === "warning"
-      ? "text-warning"
-      : "text-danger";
+  const tone = TONE_STYLE[presentation.tone];
+  const passed = presentation.checks.filter((c) => c.tone === "success").length;
+  const total = presentation.checks.length;
+
   return (
     <div className="mt-5 space-y-4">
-      <div>
-        <p className={`text-lg font-semibold ${titleColor}`}>{presentation.title}</p>
-        <p className="mt-1 text-sm text-muted">{presentation.description}</p>
-        <p className="mt-1 text-xs text-muted">{verificationType(result.dynamicMode)}</p>
+      {/* สรุปผลให้เห็นตั้งแต่แวบแรก ก่อนลงรายละเอียดรายข้อ */}
+      <div className={`flex items-start gap-4 rounded-xl border ${tone.border} ${tone.bg} px-5 py-4`}>
+        <tone.Icon className={`mt-0.5 h-9 w-9 flex-shrink-0 ${tone.text}`} aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <p className={`text-xl font-semibold ${tone.text}`}>{presentation.title}</p>
+            <span className={`rounded-full border ${tone.border} bg-surface px-2.5 py-0.5 text-xs font-semibold ${tone.text}`}>
+              ผ่าน {passed}/{total} ข้อ
+            </span>
+          </div>
+          <p className="mt-1.5 text-sm leading-6 text-foreground/80">{presentation.description}</p>
+          <p className="mt-2 text-xs text-muted">
+            Dynamic Watermark อ้างอิงจาก
+            <span className="ml-1.5 font-medium text-foreground/70">{verificationType(result.dynamicMode)}</span>
+          </p>
+        </div>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2">
         {presentation.checks.map((check) => (
           <VerificationCheckCard key={check.id} check={check} />
         ))}
@@ -183,24 +202,17 @@ function VerifiedSummary({ result }: { result: VerifyResult }) {
 }
 
 function VerificationCheckCard({ check }: { check: VerificationCheckPresentation }) {
-  const Icon = check.tone === "success"
-    ? CheckCircle2
-    : check.tone === "warning"
-      ? ShieldAlert
-      : XCircle;
-  const color = check.tone === "success"
-    ? "text-success"
-    : check.tone === "warning"
-      ? "text-warning"
-      : "text-danger";
+  const tone = TONE_STYLE[check.tone];
+  const Icon = check.tone === "success" ? CheckCircle2 : tone.Icon;
   return (
-    <div className="flex items-start gap-3 border border-border bg-slate-50 px-3 py-3">
-      <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${color}`} aria-hidden="true" />
-      <div className="min-w-0">
-        <p className="text-xs font-semibold">{check.title}</p>
-        <p className={`mt-1 text-xs font-medium ${color}`}>{check.result}</p>
-        <p className="mt-1 text-xs leading-5 text-muted">{check.explanation}</p>
-      </div>
+    <div className={`min-w-0 rounded-lg border border-border border-l-2 ${tone.border} bg-surface px-4 py-3.5`}>
+      <p className="text-sm font-semibold leading-5">{check.title}</p>
+      {/* ผ่าน/ไม่ผ่าน เป็นชิปเพื่อให้กวาดสายตาทีเดียวเห็นครบทุกข้อ */}
+      <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full ${tone.bg} px-2.5 py-1 text-xs font-medium ${tone.text}`}>
+        <Icon className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+        {check.result}
+      </span>
+      <p className="mt-2 text-xs leading-5 text-muted">{check.explanation}</p>
     </div>
   );
 }
@@ -346,41 +358,159 @@ function VerificationReport({ result }: { result: VerifyResult }) {
   );
 }
 
+function AccessHistoryRow({ entry, position, note }: { entry: AccessHistoryEntry; position: number; note?: string }) {
+  return (
+    <div className={`grid gap-3 py-4 text-sm lg:grid-cols-[3rem_10rem_minmax(0,1fr)_8rem] ${entry.matched ? "border-l-2 border-primary bg-blue-50/50 px-3" : "px-1"}`}>
+      <span className="text-muted">#{position}</span>
+      <div>
+        <p className="font-semibold">{formatForensicAction(entry.action)}</p>
+        {entry.actorName && <p className="mt-0.5 text-xs text-muted">{entry.actorName}</p>}
+        {entry.matched && <p className="mt-1 text-xs font-medium text-primary">รายการดาวน์โหลดที่ตรงกับ Watermark</p>}
+        {note && <p className="mt-1 text-xs text-muted">{note}</p>}
+      </div>
+      <div>
+        <p>{formatForensicUnixTime(entry.occurred_at)}</p>
+        <details className="mt-2 text-xs text-muted">
+          <summary className="cursor-pointer">รายละเอียดทางเทคนิค</summary>
+          <p className="mt-2 break-all font-mono">Transaction: {entry.tx_hash}</p>
+          <p className="mt-1 font-mono">Transaction Index: {entry.transaction_index ?? "—"} · Log Index: {entry.log_index ?? "—"}</p>
+        </details>
+      </div>
+      <Link href={blockchainExplorerHref("transaction", entry.tx_hash)} className="inline-flex items-start gap-1 text-primary hover:underline">
+        Block {entry.block_number} <ExternalLink className="mt-0.5 h-3.5 w-3.5" />
+      </Link>
+    </div>
+  );
+}
+
+/** จำนวนรายการที่แสดงก่อนกด "แสดงทั้งหมด" — หลักฐานที่เข้าถึงบ่อยมีประวัติได้หลายร้อยรายการ */
+const ACCESS_HISTORY_WINDOW = 10;
+/** จำนวนที่ดึงจาก backend ต่อครั้ง — คุมขนาด response ไม่ให้บานตามจำนวนการเข้าถึง */
+const VERIFY_HISTORY_FETCH = 50;
+
+/** เหตุการณ์ 1 รายการในรายการประวัติ — รวมรูปแบบจาก watermark verify กับ chain-of-custody */
+interface AccessHistoryEntry {
+  key: string;
+  action: string;
+  occurred_at: number | null;
+  tx_hash: string;
+  block_number: number | null;
+  transaction_index: number | null;
+  log_index: number | null;
+  matched: boolean;
+  actorName: string | null;
+}
+
 function BlockchainAccessHistory({ result }: { result: VerifyResult }) {
+  // ประวัติจาก /watermark/verify ถูกกรองไว้เฉพาะผู้ใช้ที่ตรงกับลายน้ำ (กรองที่ backend)
+  // จึงดึงประวัติเต็มของหลักฐานชิ้นนี้จาก chain-of-custody มาแสดงแทน
+  const [full, setFull] = useState<ChainOfCustodyResponse | null>(null);
+  const [fullError, setFullError] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!result.evidenceId) return;
+    let cancelled = false;
+    evidenceService
+      .getChainOfCustody(result.evidenceId, { limit: VERIFY_HISTORY_FETCH })
+      .then((data) => { if (!cancelled) setFull(data); })
+      .catch(() => { if (!cancelled) setFullError(true); });
+    return () => { cancelled = true; };
+  }, [result.evidenceId]);
+
+  const fallback: AccessHistoryEntry[] = result.blockchainAccessHistory.map((e) => ({
+    key: `${e.tx_hash}-${e.log_index}`,
+    action: e.action,
+    occurred_at: e.occurred_at,
+    tx_hash: e.tx_hash,
+    block_number: e.block_number,
+    transaction_index: e.transaction_index,
+    log_index: e.log_index,
+    matched: e.matched,
+    actorName: null,
+  }));
+
+  const complete: AccessHistoryEntry[] = (full?.access_history ?? [])
+    .map((item) => ({
+      key: item.access_session_ref,
+      action: item.action,
+      occurred_at: item.blockchain?.occurred_at ?? null,
+      tx_hash: item.blockchain?.transaction_hash ?? item.transaction?.tx_hash ?? "",
+      block_number: item.blockchain?.block_number ?? item.transaction?.block_number ?? null,
+      transaction_index: item.blockchain?.transaction_index ?? null,
+      log_index: item.blockchain?.log_index ?? null,
+      // รายการที่ Dynamic Watermark ในไฟล์นี้ชี้ถึง
+      matched: Boolean(result.dynamicDecoded)
+        && item.access_session_ref.toLowerCase() === result.dynamicDecoded!.toLowerCase(),
+      actorName: item.user?.full_name || item.user?.display_name || null,
+    }))
+    .sort((a, b) => compareBlockchainOrder(
+      { blockNumber: a.block_number, transactionIndex: a.transaction_index, logIndex: a.log_index, recordedAt: a.occurred_at, stableKey: a.key },
+      { blockNumber: b.block_number, transactionIndex: b.transaction_index, logIndex: b.log_index, recordedAt: b.occurred_at, stableKey: b.key },
+    ));
+
+  const showingComplete = complete.length > 0;
+  const events = showingComplete ? complete : fallback;
+
+  // หลักฐานที่ถูกเปิดดูบ่อยอาจมีประวัติหลายร้อยรายการ — ย่อเหลือช่วงท้ายไว้ก่อน
+  // แต่รายการที่ตรงกับลายน้ำต้องเห็นเสมอ เพราะเป็นหัวใจของการตรวจสอบ
+  const matchedIndex = events.findIndex((e) => e.matched);
+  const windowStart = Math.max(0, events.length - ACCESS_HISTORY_WINDOW);
+  const hidden = expanded ? 0 : windowStart;
+  const visible = expanded ? events : events.slice(windowStart);
+  const matchedPinned = !expanded && matchedIndex >= 0 && matchedIndex < windowStart
+    ? { entry: events[matchedIndex], position: matchedIndex + 1 }
+    : null;
+
   return (
     <section className="mt-6 border-t border-border pt-5">
       <div className="flex items-start gap-2">
         <Clock3 className="mt-0.5 h-5 w-5 text-primary" />
         <div>
-          <h3 className="font-semibold">ประวัติการเข้าถึงก่อนการดาวน์โหลดนี้</h3>
-          <p className="mt-1 text-xs text-muted">เฉพาะเหตุการณ์ของผู้ใช้ที่อ้างอิงจาก Blockchain และเรียงตามตำแหน่งบนเชน</p>
+          <h3 className="font-semibold">
+            {showingComplete ? "ประวัติการเข้าถึงทั้งหมดของหลักฐานชิ้นนี้" : "ประวัติการเข้าถึงก่อนการดาวน์โหลดนี้"}
+          </h3>
+          <p className="mt-1 text-xs text-muted">
+            {showingComplete
+              ? "ทุกเหตุการณ์ของทุกผู้ใช้ที่บันทึกไว้บน Blockchain เรียงตามตำแหน่งบนเชน"
+              : "เฉพาะเหตุการณ์ของผู้ใช้ที่อ้างอิงจาก Blockchain และเรียงตามตำแหน่งบนเชน"}
+          </p>
+          {showingComplete && full && full.access_history_total > events.length && (
+            <p className="mt-1 text-xs text-muted">
+              แสดง {events.length.toLocaleString("th-TH")} รายการล่าสุด จากทั้งหมด {full.access_history_total.toLocaleString("th-TH")} รายการ
+            </p>
+          )}
+          {fullError && (
+            <p className="mt-1 text-xs text-warning">อ่านประวัติเต็มจาก Blockchain ไม่สำเร็จ — แสดงเฉพาะเหตุการณ์ของผู้ใช้ที่ตรงกับลายน้ำ</p>
+          )}
         </div>
       </div>
-      {result.blockchainAccessHistory.length === 0 ? (
+      {events.length === 0 ? (
         <p className="mt-4 border-y border-border py-4 text-sm text-muted">ไม่พบประวัติการเข้าถึงก่อนหน้า</p>
       ) : (
-        <div className="mt-4 divide-y divide-border border-y border-border">
-          {result.blockchainAccessHistory.map((event, index) => (
-            <div key={`${event.tx_hash}-${event.log_index}`} className={`grid gap-3 py-4 text-sm lg:grid-cols-[3rem_10rem_minmax(0,1fr)_8rem] ${event.matched ? "border-l-2 border-primary bg-blue-50/50 px-3" : "px-1"}`}>
-              <span className="text-muted">#{index + 1}</span>
-              <div>
-                <p className="font-semibold">{formatForensicAction(event.action)}</p>
-                {event.matched && <p className="mt-1 text-xs font-medium text-primary">รายการดาวน์โหลดที่ตรงกับ Watermark</p>}
-              </div>
-              <div>
-                <p>{formatForensicUnixTime(event.occurred_at)}</p>
-                <details className="mt-2 text-xs text-muted">
-                  <summary className="cursor-pointer">รายละเอียดทางเทคนิค</summary>
-                  <p className="mt-2 break-all font-mono">Transaction: {event.tx_hash}</p>
-                  <p className="mt-1 font-mono">Transaction Index: {event.transaction_index ?? "—"} · Log Index: {event.log_index ?? "—"}</p>
-                </details>
-              </div>
-              <Link href={blockchainExplorerHref("transaction", event.tx_hash)} className="inline-flex items-start gap-1 text-primary hover:underline">
-                Block {event.block_number} <ExternalLink className="mt-0.5 h-3.5 w-3.5" />
-              </Link>
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="mt-4 divide-y divide-border border-y border-border">
+            {matchedPinned && (
+              <AccessHistoryRow entry={matchedPinned.entry} position={matchedPinned.position} note="อยู่นอกช่วงที่แสดง — ปักหมุดไว้ให้เห็นเสมอ" />
+            )}
+            {hidden > 0 && (
+              <p className="px-1 py-3 text-xs text-muted">ซ่อนอยู่อีก {hidden.toLocaleString("th-TH")} รายการก่อนหน้านี้</p>
+            )}
+            {visible.map((event, index) => (
+              <AccessHistoryRow key={event.key} entry={event} position={(expanded ? 0 : windowStart) + index + 1} />
+            ))}
+          </div>
+          {events.length > ACCESS_HISTORY_WINDOW && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-hover"
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+              {expanded ? "ย่อรายการ" : `แสดงที่โหลดมาทั้งหมด ${events.length.toLocaleString("th-TH")} รายการ`}
+            </button>
+          )}
+        </>
       )}
     </section>
   );

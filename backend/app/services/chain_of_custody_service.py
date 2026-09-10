@@ -53,7 +53,16 @@ class ChainOfCustodyService:
         self,
         db: Session,
         evidence_id: UUID,
+        *,
+        access_history_limit: int | None = None,
+        access_history_offset: int = 0,
     ) -> ChainOfCustodyResponse:
+        """ประวัติการครอบครองหลักฐาน 1 ชิ้น
+
+        access_history_limit/offset ตัดเฉพาะรายการที่ส่งกลับ โดยนับจาก **รายการล่าสุด**
+        ย้อนขึ้นไป (offset=0 คือหน้าที่ใหม่ที่สุด) เพราะหน้าจอสนใจเหตุการณ์ล่าสุดก่อน
+        ส่วน verified/integrity_state ยังคำนวณจากประวัติทั้งหมด จึงไม่เพี้ยนตามการแบ่งหน้า
+        """
         evidence = EvidenceRepository.get_by_id(db, evidence_id)
         if evidence is None:
             raise ChainOfCustodyEvidenceNotFoundError("Evidence not found")
@@ -241,6 +250,13 @@ class ChainOfCustodyService:
             access_history=access_history,
         )
 
+        # ตัดหน้าเฉพาะตอนส่งออก — ทุกค่าตรวจสอบด้านบนคำนวณจากประวัติเต็มไปแล้ว
+        access_history_page = self._paginate_access_history(
+            access_history,
+            limit=access_history_limit,
+            offset=access_history_offset,
+        )
+
         return ChainOfCustodyResponse(
             verified=verified,
             integrity_state=integrity_state,
@@ -260,7 +276,10 @@ class ChainOfCustodyService:
             ),
             uploader=uploader,
             registration_transaction=registration_transaction,
-            access_history=access_history,
+            access_history=access_history_page,
+            access_history_total=access_records_total,
+            access_history_limit=access_history_limit,
+            access_history_offset=max(0, access_history_offset),
             verification=ChainOfCustodyVerification(
                 evidence_exists=evidence_exists,
                 evidence_hash_matches=evidence_hash_matches,
@@ -270,6 +289,22 @@ class ChainOfCustodyService:
                 access_records_total=access_records_total,
             ),
         )
+
+    @staticmethod
+    def _paginate_access_history(
+        access_history: list[ChainAccessHistoryItem],
+        *,
+        limit: int | None,
+        offset: int,
+    ) -> list[ChainAccessHistoryItem]:
+        """ตัดหน้าโดยนับจากรายการล่าสุดย้อนขึ้นไป และคงลำดับเวลาเดิมของผลลัพธ์ไว้"""
+        if limit is None:
+            return access_history
+        total = len(access_history)
+        skip_from_end = max(0, offset)
+        end = max(0, total - skip_from_end)
+        start = max(0, end - max(0, limit))
+        return access_history[start:end]
 
     def _canonical_access_item(
         self,

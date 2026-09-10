@@ -2,7 +2,7 @@ import json
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -106,6 +106,11 @@ def chain_of_custody(
     evidence_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_admin_user),
+    # ประวัติการเข้าถึงอาจมีหลายพันรายการ — จำกัดขนาด response ได้
+    # limit ว่าง = คืนทั้งหมด (ค่าเดิม) · offset นับจากรายการล่าสุดย้อนขึ้นไป
+    # (วางไว้ท้ายสุดเพื่อไม่ให้ลำดับ argument เดิมของผู้เรียกเปลี่ยน)
+    limit: int | None = Query(None, ge=1, le=200),
+    offset: int = Query(0, ge=0),
 ):
     evidence = EvidenceRepository.get_by_id(db, evidence_id)
     case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None
@@ -113,7 +118,12 @@ def chain_of_custody(
         raise HTTPException(status_code=404, detail="Evidence not found")
 
     try:
-        return ChainOfCustodyService().get_chain_of_custody(db, evidence_id)
+        return ChainOfCustodyService().get_chain_of_custody(
+            db,
+            evidence_id,
+            access_history_limit=limit,
+            access_history_offset=offset,
+        )
     except ChainOfCustodyEvidenceNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Evidence not found") from exc
     except (
@@ -264,3 +274,32 @@ def list_all(
             r.file_hash = None
 
     return responses
+
+
+@router.get(
+    "/{evidence_ref}",
+    response_model=EvidenceResponse,
+)
+def get_one(
+    evidence_ref: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """หลักฐาน 1 ชิ้น — รับได้ทั้ง UUID และเลขหลักฐาน (เช่น EV-20260910-B7E872)
+
+    เป็นการอ่านอย่างเดียว **ไม่บันทึก VIEW** เพราะการเปิดดูหลักฐานมี
+    /{evidence_id}/view-session เป็นเจ้าของอยู่แล้ว ถ้าบันทึกที่นี่ด้วยจะได้ log ซ้ำสองแถว
+    """
+    evidence = EvidenceService.get_by_ref(db, evidence_ref)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail="Evidence not found")
+
+    case = CaseRepository.get_by_id(db, evidence.case_id)
+    if case is None or not can_access_case(db, current_user, case):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+
+    response = EvidenceResponse.model_validate(evidence)
+    # SHA-256 เปิดเผยลายนิ้วมือของไฟล์ — เห็นได้เฉพาะ admin (เหมือน list_all)
+    if current_user.role != "admin":
+        response.file_hash = None
+    return response

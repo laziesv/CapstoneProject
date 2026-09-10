@@ -6,8 +6,9 @@ export type WatermarkType = "static" | "dynamic";
 export type WmAlgorithm = "dct" | "dwt" | "lsb" | "hybrid";
 export type TxAction = "upload" | "access" | "verify" | "transfer" | "flag";
 export type TxStatus = "pending" | "confirmed" | "failed";
-export type AccessAction = "create" | "update" | "delete" | "view" | "download" | "query" | "print" | "share" | "export";
-export type AccessResult = "pending" | "success" | "failed" | "denied" | "unauthorized";
+// ตรงกับ enum ฝั่ง backend (AuditAction / AuditResult) — DB มีแค่ค่าเหล่านี้จริง
+export type AccessAction = "create" | "update" | "delete" | "view" | "download" | "query";
+export type AccessResult = "pending" | "success" | "failed";
 
 export interface Case {
   case_id: string;
@@ -322,6 +323,36 @@ export interface VerifyResult {
   blockchainAccessHistory: WatermarkBlockchainAccessEvent[];
 }
 
+/** ผลเทียบ access log รายรายการกับที่บันทึกบนเชน
+ *  match=ตรง, altered=มีในระบบแต่แฮชไม่ตรง (ถูกแก้), missing=มีบนเชนแต่หายจากระบบ (ถูกลบ) */
+export interface LogAuditEntry {
+  label: string;   // ใครทำอะไรเมื่อไหร่ (อ่านออก)
+  hash: string;    // แฮชของบันทึกนี้
+  status: "match" | "altered" | "missing";
+}
+
+/** ผลตรวจสอบความสมบูรณ์กับบล็อกเชน — เทียบ 2 ชั้น: แฮชไฟล์ + audit trail (access log)
+ *  TODO(backend): ยัง mock อยู่ (ไม่มี endpoint บล็อกเชน) — สลับเป็นการเทียบจริงเมื่อพร้อม */
+export interface BlockchainVerification {
+  verified: boolean;        // สรุปรวม = fileMatch && logMatch
+  // (1) ความสมบูรณ์ของไฟล์
+  fileMatch: boolean;
+  recordedHash: string;     // แฮชไฟล์ที่บันทึกบนเชนตอน upload
+  currentHash: string;      // แฮชไฟล์ปัจจุบัน
+  // (2) audit trail — access log (เทียบทีละรายการด้วยแฮช)
+  logMatch: boolean;
+  localLogCount: number;    // จำนวน access log ในระบบ (จริง)
+  onChainLogCount: number;  // จำนวนที่บันทึกบนเชน
+  logEntries: LogAuditEntry[]; // ผลเทียบรายรายการ
+  // ธุรกรรมบนเชน
+  txHash: string;
+  blockNumber: number;
+  blockTimestamp: string;
+  contractAddress: string;
+  network: string;
+  confirmations: number;
+}
+
 export interface AccessLog {
   log_id: string;
   user_id: string;
@@ -343,11 +374,16 @@ export interface AccessLogFilters {
   user_id?: string;
   action?: string;
   result?: string;
-  limit?: number;
+  q?: string;                 // ค้นหา ชื่อผู้ใช้ / เลขหลักฐาน / IP (join ที่ backend)
+  date_from?: string;         // YYYY-MM-DD (รวมทั้งวัน)
+  date_to?: string;           // YYYY-MM-DD (รวมทั้งวัน)
+  only_anomaly?: boolean;     // เฉพาะรายการผล != success
+  exclude_query?: boolean;    // ตัดรายการประเภท "ค้นหา" (QUERY) ออก
+  limit?: number;             // ว่าง = คืนทุกรายการ
   offset?: number;
-  exclude_query?: boolean;
 }
 
+/** ผลลัพธ์แบบแบ่งหน้าของ GET /api/access-logs (total = ทั้งหมดก่อนตัดหน้า) */
 export interface AccessLogPage {
   items: AccessLog[];
   total: number;

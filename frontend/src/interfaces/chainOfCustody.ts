@@ -112,5 +112,9 @@ export interface ChainOfCustodyResponse {
   uploader: ChainUserIdentity | null;
   registration_transaction: ChainTransactionMetadata | null;
   access_history: ChainAccessHistoryItem[];
+  /** จำนวนรายการทั้งหมด — access_history เป็นเพียงหน้าเดียว ส่วน verification คิดจากทั้งหมด */
+  access_history_total: number;
+  access_history_limit: number | null;
+  access_history_offset: number;
   verification: ChainOfCustodyVerification;
 }

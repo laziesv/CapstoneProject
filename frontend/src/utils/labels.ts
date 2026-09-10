@@ -17,6 +17,8 @@ export const labelForAction = (a: string) => actionLabel[a] ?? a;
 /** ผลลัพธ์การเข้าถึง (AccessLog.result) — คงความต่างของแต่ละสถานะ */
 export const resultLabel: Record<string, string> = {
   success: "สำเร็จ",
+  // VIEW ถูกบันทึกเป็น PENDING ก่อน แล้วค่อยเปลี่ยนเมื่อ Blockchain ยืนยัน — ไม่ใช่ความล้มเหลว
+  pending: "รอยืนยัน",
   denied: "ถูกปฏิเสธ",
   unauthorized: "ไม่มีสิทธิ์",
   failed: "ล้มเหลว",

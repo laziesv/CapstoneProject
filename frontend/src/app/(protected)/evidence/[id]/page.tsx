@@ -118,7 +118,7 @@ export default function EvidenceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link href={`/cases/${evidence.case_id}`} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
+      <Link href={`/cases/${evidence.case_number ?? evidence.case_id}`} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
         <ArrowLeft className="h-4 w-4" /> กลับไปหน้าคดี {evidence.case_number ?? ""}
       </Link>
 
@@ -208,7 +208,7 @@ export default function EvidenceDetailPage() {
             </div>
             <dl className="divide-y divide-border text-sm">
               <InfoRow icon={FolderOpen} label="คดี">
-                <Link href={`/cases/${evidence.case_id}`} className="font-mono text-xs font-medium text-primary hover:underline">
+                <Link href={`/cases/${evidence.case_number ?? evidence.case_id}`} className="font-mono text-xs font-medium text-primary hover:underline">
                   {evidence.case_number || "—"}
                 </Link>
               </InfoRow>
@@ -227,36 +227,31 @@ export default function EvidenceDetailPage() {
             </dl>
           </div>
 
-          {/* File Hash — admin เท่านั้น */}
-          {isAdmin && (
-          <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-            <div className="mb-2 flex items-center gap-2">
-              <Fingerprint className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">SHA-256 Hash</h3>
-            </div>
-            <p className="break-all rounded-lg bg-slate-900 p-3 font-mono text-[10px] leading-relaxed text-emerald-300">
-              {/* TODO(backend): server คำนวณไว้แล้วใน evidence_files.file_hash แค่ยังไม่ส่งกลับมา */}
-              {evidence.file_hash_sha256 ?? "— API ยังไม่ส่ง hash กลับมา"}
-            </p>
-          </div>
-          )}
+          {/* ค่าแฮชไฟล์ต้นฉบับไม่แสดงตรงนี้แล้ว — มีอยู่ในลำดับการครอบครองหลักฐานด้านล่าง
+              ซึ่งแสดงคู่กับค่าบน Blockchain ให้เทียบกันได้จริง */}
 
           {/* Watermark Status — admin เท่านั้น */}
           {isAdmin && (
           <div className="space-y-3 rounded-xl border border-border bg-surface p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">Watermark</h3>
+              <h3 className="text-sm font-semibold">สถานะการคุ้มครองหลักฐาน</h3>
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Static Watermark</span>
-                <span className={`text-xs font-medium ${evidence.is_watermarked ? "text-success" : "text-muted"}`}>{evidence.is_watermarked ? "✓ Embedded" : "— Not embedded"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Blockchain</span>
-                <span className={`text-xs font-medium ${evidence.is_blockchain_verified ? "text-success" : "text-muted"}`}>{evidence.is_blockchain_verified ? "✓ On-chain" : "— Pending"}</span>
-              </div>
+            <div className="space-y-2.5">
+              <ProtectionRow
+                label="ลายน้ำดิจิทัล"
+                hint="ฝังไว้ในไฟล์ตั้งแต่อัปโหลด"
+                ok={evidence.is_watermarked}
+                okText="ฝังแล้ว"
+                pendingText="ยังไม่ฝัง"
+              />
+              <ProtectionRow
+                label="บันทึกบน Blockchain"
+                hint="ลงทะเบียนค่าแฮชไว้บนเชนแล้ว"
+                ok={evidence.is_blockchain_verified}
+                okText="บันทึกแล้ว"
+                pendingText="รอบันทึก"
+              />
             </div>
           </div>
           )}
@@ -309,6 +304,32 @@ function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: str
         {label}
       </dt>
       <dd className="min-w-0 flex-1 truncate text-right font-medium">{children}</dd>
+    </div>
+  );
+}
+
+/** หนึ่งบรรทัดของการ์ด "สถานะการคุ้มครองหลักฐาน" — ชื่อ + คำอธิบายสั้น + ชิปผลลัพธ์ */
+function ProtectionRow({
+  label,
+  hint,
+  ok,
+  okText,
+  pendingText,
+}: { label: string; hint: string; ok: boolean; okText: string; pendingText: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-muted">{hint}</p>
+      </div>
+      <span
+        className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+          ok ? "bg-success-light text-success" : "bg-surface-hover text-muted"
+        }`}
+      >
+        {ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+        {ok ? okText : pendingText}
+      </span>
     </div>
   );
 }

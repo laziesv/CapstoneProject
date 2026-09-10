@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import ProtectedImage from "@/components/ProtectedImage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -205,7 +206,7 @@ export default function UploadEvidencePage() {
               <div className="grid grid-cols-5 gap-3">
                 {items.map((it, i) => (
                   <div key={it.preview} className="relative rounded-lg overflow-hidden aspect-square bg-slate-100">
-                    <img src={it.preview} alt="" className="h-full w-full object-cover" />
+                    <ProtectedImage src={it.preview} alt="" className="h-full w-full object-cover" />
                     <button onClick={() => removeFile(i)} className="absolute top-1 right-1 rounded-full bg-black/50 p-0.5 text-white hover:bg-black/70"><X className="h-3 w-3" /></button>
                   </div>
                 ))}
@@ -251,7 +252,7 @@ export default function UploadEvidencePage() {
                     <tr key={it.preview} className="border-b border-border/60 align-top">
                       <td className="py-3 pr-3">
                         <div className="flex items-center gap-2">
-                          <img src={it.preview} alt="" className="h-10 w-10 flex-shrink-0 rounded object-cover" />
+                          <ProtectedImage src={it.preview} alt="" className="h-10 w-10 flex-shrink-0 rounded object-cover" />
                           <span className="max-w-[10rem] truncate text-xs text-text-secondary" title={it.file.name}>{it.file.name}</span>
                         </div>
                       </td>
