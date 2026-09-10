@@ -27,6 +27,17 @@ class CaseRepository:
         )
 
     @staticmethod
+    def get_by_number(db: Session, case_number: str):
+        return (
+            db.query(Case)
+            .filter(
+                Case.case_number == case_number,
+                Case.deleted_at.is_(None),
+            )
+            .first()
+        )
+
+    @staticmethod
     def get_last_case(db: Session):
         return (
             db.query(Case)

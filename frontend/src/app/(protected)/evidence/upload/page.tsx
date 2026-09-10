@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import ProtectedImage from "@/components/ProtectedImage";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
@@ -11,14 +12,12 @@ import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { readCapturedAt } from "@/utils/exif";
 import { formatIncident } from "@/utils/format";
 import type { Case, UploadEvidenceFile, UploadedEvidenceRef } from "@/interfaces";
+import { OperationDialog } from "@/components/feedback/OperationDialog";
+import { OperationProgress } from "@/components/feedback/OperationProgress";
+import { userFacingApiError } from "@/utils/evidenceDownloadError";
+import { UPLOAD_RESULT_PRESENTATION } from "@/utils/evidenceOperationFeedback";
 
 type Step = 1 | 2 | 3;
-
-/** ขั้นตอนที่ระบบทำกับ "แต่ละไฟล์" — ไล่ทีละบรรทัดในหน้า Authenticate */
-const PHASES = ["อ่านไฟล์", "คำนวณ SHA-256", "ฝังลายน้ำ (DWT+QIM)", "บันทึกลง Blockchain"];
-const PHASE_MS = 380;
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** ไฟล์ที่รออัพโหลด + metadata ของตัวเอง (1 รายการ = 1 หลักฐาน)
  *  exifCapturedAt อ่านครั้งเดียวตอนเพิ่มไฟล์ แล้วผูกติดกับไฟล์นั้นถาวร —
@@ -44,11 +43,11 @@ export default function UploadEvidencePage() {
   const [step, setStep] = useState<Step>(1);
   const [items, setItems] = useState<PendingFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  // ── สถานะของขั้น Authenticate ──
+  // ── สถานะของขั้นผลการบันทึก ──
   const [isProcessing, setIsProcessing] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(0);  // ไฟล์ที่กำลังประมวลผล
-  const [phase, setPhase] = useState(0);          // ขั้นตอนของไฟล์นั้น
   const [results, setResults] = useState<UploadedEvidenceRef[] | null>(null);
+  const [operationError, setOperationError] = useState<{ title: string; message: string } | null>(null);
+  const uploadInProgress = useRef(false);
 
   const myCases = useMemo(
     () => (cases ? visibleCases(user, cases, supervisorMap ?? {}) : []),
@@ -90,34 +89,32 @@ export default function UploadEvidencePage() {
     });
 
   const handleSubmit = async () => {
+    if (uploadInProgress.current) return;
+    uploadInProgress.current = true;
     setStep(3);
     setIsProcessing(true);
-    setActiveIdx(0);
-    setPhase(0);
+    setOperationError(null);
 
-    const refs = await evidenceService.upload({
-      case_id: caseId,
-      files: items.map((it) => ({
-        file: it.file,
-        description: it.description,
-        captured_at: capturedAtOf(it) || undefined,
-        captured_at_source: sourceOf(it),
-      })),
-    });
+    try {
+      const refs = await evidenceService.upload({
+        case_id: caseId,
+        files: items.map((it) => ({
+          file: it.file,
+          description: it.description,
+          captured_at: capturedAtOf(it) || undefined,
+          captured_at_source: sourceOf(it),
+        })),
+      });
 
-    // เดินขั้นตอนทีละไฟล์ให้เห็นว่าแต่ละไฟล์ถูกประมวลผลแยกกัน
-    for (let i = 0; i < items.length; i++) {
-      setActiveIdx(i);
-      for (let p = 0; p < PHASES.length; p++) {
-        setPhase(p);
-        await sleep(PHASE_MS);
-      }
-      setPhase(PHASES.length); // ครบทุกขั้นของไฟล์นี้
-      await sleep(200);
+      setResults(refs);
+    } catch (cause) {
+      const feedback = userFacingApiError(cause);
+      setOperationError({ title: feedback.title, message: feedback.message });
+      setStep(2);
+    } finally {
+      uploadInProgress.current = false;
+      setIsProcessing(false);
     }
-
-    setResults(refs);
-    setIsProcessing(false);
   };
 
   /** ออกจากหน้า — คืน object URL ของ preview ทั้งหมดก่อน */
@@ -126,7 +123,7 @@ export default function UploadEvidencePage() {
     router.push(`/cases/${caseId}`);
   };
 
-  const stepLabels = ["Upload Images", "Review", "Authenticate"];
+  const stepLabels = ["Upload Images", "Review", UPLOAD_RESULT_PRESENTATION.stepLabel];
   const missingDates = items.filter((it) => !capturedAtOf(it)).length;
 
   // ── Guards ──────────────────────────────────────────
@@ -209,7 +206,7 @@ export default function UploadEvidencePage() {
               <div className="grid grid-cols-5 gap-3">
                 {items.map((it, i) => (
                   <div key={it.preview} className="relative rounded-lg overflow-hidden aspect-square bg-slate-100">
-                    <img src={it.preview} alt="" className="h-full w-full object-cover" />
+                    <ProtectedImage src={it.preview} alt="" className="h-full w-full object-cover" />
                     <button onClick={() => removeFile(i)} className="absolute top-1 right-1 rounded-full bg-black/50 p-0.5 text-white hover:bg-black/70"><X className="h-3 w-3" /></button>
                   </div>
                 ))}
@@ -255,7 +252,7 @@ export default function UploadEvidencePage() {
                     <tr key={it.preview} className="border-b border-border/60 align-top">
                       <td className="py-3 pr-3">
                         <div className="flex items-center gap-2">
-                          <img src={it.preview} alt="" className="h-10 w-10 flex-shrink-0 rounded object-cover" />
+                          <ProtectedImage src={it.preview} alt="" className="h-10 w-10 flex-shrink-0 rounded object-cover" />
                           <span className="max-w-[10rem] truncate text-xs text-text-secondary" title={it.file.name}>{it.file.name}</span>
                         </div>
                       </td>
@@ -290,58 +287,51 @@ export default function UploadEvidencePage() {
 
             <div className="flex gap-2">
               <button onClick={() => setStep(1)} className="rounded-lg border border-border px-5 py-2.5 text-sm hover:bg-surface-hover transition-colors">Back</button>
-              <button onClick={handleSubmit} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors">
-                <Shield className="h-4 w-4" /> Upload &amp; Authenticate
+              <button onClick={handleSubmit} disabled={isProcessing} className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:cursor-wait disabled:opacity-60">
+                <Shield className="h-4 w-4" /> อัปโหลดและบันทึกหลักฐาน
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Authenticate — โชว์กลไกภายในทีละไฟล์ แล้วสรุป hash + QR */}
+        {/* Step 3: แสดงผลจาก upload response โดยไม่อ้างว่าเป็น read-back verification */}
         {step === 3 && (
           <div className="space-y-5">
             {isProcessing ? (
-              <>
-                <div>
-                  <h2 className="font-semibold">กำลังรับรองหลักฐาน</h2>
-                  <p className="mt-1 text-xs text-muted">แต่ละไฟล์ถูกประมวลผลแยกกัน — hash ที่ได้จึงเป็นของไฟล์นั้นโดยเฉพาะ</p>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  {/* รูปที่กำลังประมวลผล + เส้นสแกน */}
-                  <div className="space-y-2">
-                    <div className="scan-frame mx-auto max-w-sm rounded-xl border border-border bg-slate-900">
-                      {items[activeIdx] && (
-                        <img src={items[activeIdx].preview} alt="" className="w-full object-contain opacity-90" style={{ maxHeight: 260 }} />
-                      )}
-                      <div className="scan-line" />
-                    </div>
-                    <p className="text-center text-xs text-muted">
-                      ไฟล์ <span className="font-medium text-foreground">{activeIdx + 1} / {items.length}</span>
-                      {items[activeIdx] && <> · <span className="font-mono">{items[activeIdx].file.name}</span></>}
-                    </p>
-                  </div>
-
-                  {/* ขั้นตอนของไฟล์ปัจจุบัน */}
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2.5 self-start">
-                    {PHASES.map((label, i) => (
-                      <div key={label} className="flex items-center gap-3 text-sm">
-                        {phase > i ? <CheckCircle2 className="h-4 w-4 text-success" />
-                          : phase === i ? <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                          : <div className="h-4 w-4 rounded-full border border-border" />}
-                        <span className={phase >= i ? "text-foreground" : "text-muted"}>{label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </>
+              <OperationProgress
+                title="กำลังบันทึกหลักฐาน"
+                description="กรุณารอผลการดำเนินการจริงจากระบบ"
+                steps={[
+                  { label: "เตรียมไฟล์สำหรับอัปโหลด", state: "completed" },
+                  { label: "กำลังส่งและประมวลผลหลักฐานในระบบ", state: "active" },
+                  { label: "รอผลการลงทะเบียน", state: "pending" },
+                ]}
+                details={[
+                  "คำนวณ SHA-256",
+                  "ฝัง Watermark",
+                  "บันทึกฐานข้อมูล",
+                  "ส่งธุรกรรม Blockchain",
+                ]}
+              />
             ) : (
               <>
                 <div className="rounded-lg border border-success/20 bg-success-light p-4">
                   <p className="flex items-center gap-2 text-sm font-medium text-success">
-                    <CheckCircle2 className="h-4 w-4" /> รับรองสำเร็จ {results?.length} ไฟล์ — ลายน้ำถูกฝังและบันทึกลง Blockchain แล้ว
+                    <CheckCircle2 className="h-4 w-4" /> บันทึกธุรกรรมลง Blockchain สำเร็จแล้ว
                   </p>
+                  <p className="mt-1 text-xs text-success">บันทึกหลักฐานสำเร็จ {results?.length} ไฟล์</p>
                 </div>
+
+                <OperationProgress
+                  title={UPLOAD_RESULT_PRESENTATION.heading}
+                  description={UPLOAD_RESULT_PRESENTATION.description}
+                  steps={[
+                    { label: "เตรียมไฟล์", state: "completed" },
+                    { label: "ประมวลผลหลักฐาน", state: "completed" },
+                    { label: "บันทึกข้อมูลสำเร็จ", state: "completed" },
+                    { label: "บันทึกธุรกรรม Blockchain สำเร็จ", state: "completed" },
+                  ]}
+                />
 
                 <p className="text-xs text-muted">สแกน QR เพื่ออ่านค่า SHA-256 ของไฟล์นั้น ใช้เทียบกับ hash ของไฟล์ต้นฉบับได้</p>
 
@@ -356,14 +346,14 @@ export default function UploadEvidencePage() {
                           <span className="font-mono text-sm font-semibold text-primary">{r.evidence_number}</span>
                           <span className="truncate text-xs text-text-secondary">{r.original_filename}</span>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted">SHA-256</p>
-                          <p className="break-all rounded bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-text-secondary">{r.file_hash_sha256}</p>
+                        <ResultValue label="Evidence ID" value={r.evidence_id} />
+                        <ResultValue label="Original File SHA-256" value={r.file_hash_sha256} />
+                        <ResultValue label="Evidence Ref" value={r.evidence_ref} />
+                        <ResultValue label="Transaction Hash" value={r.tx_hash} />
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <ResultValue label="Block Number" value={String(r.block_number)} />
+                          <ResultValue label="Contract Address" value={r.contract_address} />
                         </div>
-                        <p className="text-xs text-muted">
-                          tx <span className="font-mono text-primary">{r.tx_hash.slice(0, 18)}…</span>
-                          {" · "}block <span className="font-mono">#{r.block_number}</span>
-                        </p>
                       </div>
                     </div>
                   ))}
@@ -377,6 +367,24 @@ export default function UploadEvidencePage() {
           </div>
         )}
       </div>
+
+      {operationError && (
+        <OperationDialog
+          title={operationError.title}
+          message={operationError.message}
+          tone="error"
+          onClose={() => setOperationError(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ResultValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted">{label}</p>
+      <p className="break-all rounded bg-slate-50 p-2 font-mono text-[10px] leading-relaxed text-text-secondary">{value}</p>
     </div>
   );
 }

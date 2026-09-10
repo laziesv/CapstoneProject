@@ -5,3 +5,5 @@ export * from "./auth";
 export * from "./user";
 export * from "./evidence";
 export * from "./dashboard";
+export * from "./chainOfCustody";
+export * from "./blockchainExplorer";

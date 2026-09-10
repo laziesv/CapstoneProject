@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useState } from "react";
 import { getUser, logout } from "@/utils/session";
 import type { AuthUser } from "@/interfaces";
 
@@ -19,14 +19,10 @@ export const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(() => getUser());
 
   const refresh = useCallback(() => setUser(getUser()), []);
   const signOut = useCallback(() => logout(), []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
 
   return (
     <AuthContext.Provider value={{ user, refresh, signOut }}>

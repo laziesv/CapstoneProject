@@ -1,3 +1,5 @@
+from typing import List
+
 from sqlalchemy.orm import Session
 
 from app.models.users import User
@@ -39,6 +41,19 @@ class UserRepository:
         )
 
     @staticmethod
+    def get_by_ids(
+        db: Session,
+        user_ids: set,
+    ) -> List[User]:
+        if not user_ids:
+            return []
+        return (
+            db.query(User)
+            .filter(User.user_id.in_(user_ids))
+            .all()
+        )
+
+    @staticmethod
     def list(
         db: Session,
     ) -> list[User]:
@@ -49,9 +64,15 @@ class UserRepository:
         )
 
     @staticmethod
+    def get_all(db: Session) -> List[User]:
+        """Backward-compatible alias for callers using the previous API."""
+        return UserRepository.list(db)
+
+    @staticmethod
     def list_active(
         db: Session,
-    ) -> list[User]:
+    # ใช้ List เพื่อไม่ให้ชนกับชื่อเมธอด list ที่ประกาศไว้ก่อนหน้า
+    ) -> List[User]:
         """เฉพาะผู้ใช้ที่ยังใช้งานอยู่ — ใช้กับ dropdown เลือกผู้รับผิดชอบ"""
         return (
             db.query(User)

@@ -4,6 +4,7 @@
 
 import { TOKEN_KEY, USER_KEY } from "@/config";
 import type { AuthUser } from "@/interfaces";
+import { clearPendingViewRequestIds } from "@/utils/viewRequestIdentity";
 
 export function setSession(token: string, user: AuthUser) {
   localStorage.setItem(TOKEN_KEY, token);
@@ -13,6 +14,7 @@ export function setSession(token: string, user: AuthUser) {
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  clearPendingViewRequestIds();
 }
 
 export function getToken(): string | null {

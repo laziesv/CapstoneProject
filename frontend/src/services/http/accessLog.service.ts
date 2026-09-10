@@ -1,33 +1,40 @@
 // ── Access log service ──────────────────────────────────
-// สัญญา (contract) สำหรับ endpoint กลุ่ม /api/access-logs (admin เท่านั้น)
-// ดูว่าใครเข้าถึงหลักฐานชิ้นไหน เวลาใด
+// เชื่อมกับ API จริงแล้ว (admin เท่านั้น)
 //
 // ┌──────────────────────────────────────────────────────────────────────┐
-// │ endpoint ที่ backend ต้องทำ                                           │
-// ├──────────────────────────────────────────────────────────────────────┤
 // │ GET /api/access-logs?evidence_id=&user_id=&action=&result=           │
-// │     → AccessLog[] (admin only, กรองตาม query ได้ทุกตัว)               │
+// │       &q=&date_from=&date_to=&only_anomaly=&limit=&offset=            │
+// │     → AccessLogPage { items, total, limit, offset } (admin only)      │
+// │       limit ว่าง = คืนทุกรายการ; ใส่ limit/offset = แบ่งหน้าที่ server │
 // └──────────────────────────────────────────────────────────────────────┘
 //
-// สถานะปัจจุบัน: mock — กรอง mockLogs ฝั่ง client ระหว่างที่ backend ยังไม่มี
-// TODO(backend): เมื่อ endpoint พร้อม เปลี่ยน implementation เป็น:
-//   const params = new URLSearchParams();
-//   for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
-//   const qs = params.toString();
-//   return request<AccessLog[]>(`/api/access-logs${qs ? `?${qs}` : ""}`);
+// log ถูกสร้างที่ server เอง: เปิดหน้าหลักฐาน = VIEW, กดดาวน์โหลด = DOWNLOAD
+// (ดู evidence.service.ts) — ที่นี่แค่ "อ่าน" ประวัติมาแสดง
 
-import type { AccessLog, AccessLogFilters } from "@/interfaces";
-import { mockLogs } from "@/utils/mockData";
+import type { AccessLog, AccessLogFilters, AccessLogPage } from "@/interfaces";
+import { request } from "./client";
+
+function buildQuery(filters: AccessLogFilters): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    // ข้ามค่าว่าง/false — ส่งเฉพาะตัวกรองที่ถูกตั้งจริง
+    if (value === undefined || value === null || value === "" || value === false) continue;
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
 
 export const accessLogService = {
-  /** รายการบันทึกการเข้าถึง (กรองตามหลักฐาน/ผู้ใช้/action/ผลได้) */
+  /** รายการแบ่งหน้า (server-side) — ใช้กับหน้า /logs และตารางที่ต้องแบ่งหน้า */
+  async listPage(filters: AccessLogFilters = {}): Promise<AccessLogPage> {
+    return request<AccessLogPage>(`/api/access-logs${buildQuery(filters)}`);
+  },
+
+  /** รายการทั้งหมดที่ตรงตัวกรอง (unwrap envelope) — ใช้เมื่อต้องการทุกรายการ
+   *  เช่น dashboard (กราฟ/อันดับ) และตรวจ chain-of-custody รายชิ้น */
   async list(filters: AccessLogFilters = {}): Promise<AccessLog[]> {
-    return mockLogs.filter((l) => {
-      if (filters.evidence_id && l.evidence_id !== filters.evidence_id) return false;
-      if (filters.user_id && l.user_id !== filters.user_id) return false;
-      if (filters.action && l.action !== filters.action) return false;
-      if (filters.result && l.result !== filters.result) return false;
-      return true;
-    });
+    const page = await accessLogService.listPage(filters);
+    return page.items;
   },
 };

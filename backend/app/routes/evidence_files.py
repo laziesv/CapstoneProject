@@ -9,6 +9,12 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.deps import get_current_user
+from app.models.enums import FileType
+from app.models.users import User
+from app.repositories.case_repository import CaseRepository
+from app.repositories.evidence_items_repository import EvidenceRepository
+from app.services.case_authorization import can_access_case
 from app.services.evidence_service import EvidenceService
 
 
@@ -21,26 +27,22 @@ router = APIRouter(
 @router.get("/{file_id}")
 def preview_file(
     file_id: UUID,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
+    file = EvidenceService.get_file(db, file_id)
+    if file is None or file.file_type != FileType.WATERMARKED:
+        raise HTTPException(status_code=404, detail="File not found")
 
-    file = EvidenceService.get_file(
-        db,
-        file_id
-    )
+    evidence = EvidenceRepository.get_by_id(db, file.evidence_id)
+    case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None
+    if case is None or not can_access_case(db, current_user, case):
+        raise HTTPException(status_code=404, detail="File not found")
 
-    if not file:
-        raise HTTPException(
-            status_code=404,
-            detail="File not found"
-        )
+    if not file.file_path or not os.path.exists(file.file_path):
+        raise HTTPException(status_code=404, detail="File not found")
 
-
-    if not os.path.exists(file.file_path):
-        raise HTTPException(
-            status_code=404,
-            detail="Physical file not found"
-        )
+    # การดูตัวอย่างต้องผ่านการยืนยันตัวตนและสิทธิ์ แต่ยังไม่ใช่เหตุการณ์ดาวน์โหลดที่บันทึกบนเชน
 
 
     # เดา MIME จากนามสกุลไฟล์จริง — file.file_type เป็น ORIGINAL/WATERMARKED

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ── Base ────────────────────────────────────────────────
@@ -40,6 +40,8 @@ class UserUpdate(BaseModel):
 
 # ── Response ────────────────────────────────────────────
 class UserResponse(UserBase):
+    model_config = ConfigDict(from_attributes=True)
+
     user_id: UUID
 
     role: str = "officer"
@@ -53,20 +55,15 @@ class UserResponse(UserBase):
     updated_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
-
-
 # ── Selectable ──────────────────────────────────────────
 # ข้อมูลเท่าที่จำเป็นสำหรับ dropdown "ผู้รับผิดชอบคดี"
 # แยก schema ต่างหากเพราะ endpoint นี้เปิดให้ทุก role เรียก — ไม่ควรหลุด
 # email / role / is_active / last_login_at ออกไปให้คนที่ไม่ใช่ admin
 class UserSelectable(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     user_id: UUID
     username: str
     full_name: Optional[str] = None
     rank: Optional[str] = None
     supervisor_id: Optional[UUID] = None
-
-    class Config:
-        from_attributes = True

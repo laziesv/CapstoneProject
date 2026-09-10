@@ -35,3 +35,30 @@ class EvidenceResponse(BaseModel):
     file_size_bytes: int | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EvidenceUploadResponse(EvidenceResponse):
+    # การเชื่อมต่อ Blockchain: คืนข้อมูลจากธุรกรรม recordEvidence รอบนี้โดยตรง
+    # เพื่อให้หน้า Upload ไม่ต้องสร้างค่าจำลองหรือยิงคำขอ read-back เพิ่ม
+    evidence_ref: str
+    tx_hash: str
+    block_number: int
+    contract_address: str
+
+
+class EvidenceViewSessionRequest(BaseModel):
+    request_id: UUID | None = None
+
+
+class EvidenceViewSessionResponse(BaseModel):
+    access_log_id: UUID
+    evidence_id: UUID
+    access_session_ref: str
+    action: str
+    occurred_at: datetime
+    status: str
+    tx_hash: str | None = None
+    block_number: int | None = None
+    retry_after_seconds: int | None = None
+
+    model_config = ConfigDict(from_attributes=True)

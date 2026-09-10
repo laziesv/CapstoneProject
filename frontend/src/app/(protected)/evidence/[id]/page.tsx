@@ -1,15 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Link2, Clock, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download } from "lucide-react";
+import { ArrowLeft, CheckCircle2, ShieldCheck, Link2, Fingerprint, ShieldAlert, Loader2, ImageOff, Image as ImageIcon, Calendar, HardDrive, FolderOpen, FileText, UploadCloud, Download, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
-import { caseService, evidenceService, accessLogService } from "@/services";
+import { ApiError, caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
-import type { Case, EvidenceItem, BlockchainTx, AccessLog } from "@/interfaces";
+import type { Case, EvidenceDownloadMetadata, EvidenceItem } from "@/interfaces";
+import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
+import { ChainOfCustodyPanel } from "@/components/evidence/ChainOfCustodyPanel";
+import { OperationToast } from "@/components/feedback/OperationToast";
+import { WatermarkQrPresentation } from "@/components/evidence/WatermarkQrPresentation";
+import { EvidenceHashComparison } from "@/components/evidence/EvidenceHashComparison";
+import {
+  downloadErrorDialog,
+  type DownloadErrorDialogContent,
+} from "@/utils/evidenceDownloadError";
+import {
+  consumeViewSuccess,
+  downloadSuccessSummary,
+  VIEW_SUCCESS_FEEDBACK,
+} from "@/utils/evidenceOperationFeedback";
+import { personalizedWatermarkPayloads } from "@/utils/watermarkPresentation";
 
 
 export default function EvidenceDetailPage() {
@@ -18,9 +33,20 @@ export default function EvidenceDetailPage() {
   const supervisorMap = useSupervisorMap();
   const [evidence, setEvidence] = useState<EvidenceItem | null | undefined>(undefined);
   const [caseData, setCaseData] = useState<Case | undefined>(undefined);
-  const [relatedTx, setRelatedTx] = useState<BlockchainTx[]>([]);
-  const [relatedLogs, setRelatedLogs] = useState<AccessLog[]>([]);
   const [downloading, setDownloading] = useState(false);
+  const [downloadDialog, setDownloadDialog] = useState<DownloadErrorDialogContent | null>(null);
+  const [downloadSuccess, setDownloadSuccess] = useState<EvidenceDownloadMetadata | null>(null);
+  const [showViewSuccess, setShowViewSuccess] = useState(false);
+  const downloadInProgress = useRef(false);
+
+  const dismissViewSuccess = useCallback(() => setShowViewSuccess(false), []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setShowViewSuccess(consumeViewSuccess(id) !== null);
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [id]);
 
   useEffect(() => {
     (async () => {
@@ -29,14 +55,8 @@ export default function EvidenceDetailPage() {
         setEvidence(null);
         return;
       }
-      const [c, tx, logs] = await Promise.all([
-        caseService.get(ev.case_id),
-        evidenceService.transactionsOf(id),
-        accessLogService.list({ evidence_id: id }),
-      ]);
+      const c = await caseService.get(ev.case_id);
       setCaseData(c);
-      setRelatedTx(tx);
-      setRelatedLogs(logs);
       setEvidence(ev);
     })();
   }, [id]);
@@ -55,21 +75,32 @@ export default function EvidenceDetailPage() {
   // ข้อมูลเชิงลึก (hash/blockchain/logs/watermark) เปิดเผยกลไกภายใน — เฉพาะ admin
   const allowed = isAdmin ? true : caseData ? canSeeCase(user, caseData, supervisorMap) : false;
 
-  // ดาวน์โหลดไฟล์ที่ฝังลายน้ำแล้ว (thumbnail_url ชี้ display_file_id = ตัวลายน้ำ)
-  // endpoint ข้ามโดเมน (8000↔3000) ทำให้ attribute download ถูกเมิน — ต้องดึงเป็น blob เอง
   const handleDownload = async () => {
-    if (!evidence?.thumbnail_url) return;
+    if (downloadInProgress.current) return;
+    downloadInProgress.current = true;
     setDownloading(true);
+    setDownloadDialog(null);
+    setDownloadSuccess(null);
     try {
-      const res = await fetch(evidence.thumbnail_url);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = evidence.original_filename || `${evidence.evidence_number}.png`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const download = await evidenceService.download(evidence.evidence_id);
+      const url = URL.createObjectURL(download.blob);
+      try {
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = evidence.original_filename || `${evidence.evidence_number}.bin`;
+        anchor.click();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      setDownloadSuccess(download.metadata);
+    } catch (cause) {
+      setDownloadDialog(downloadErrorDialog(
+        cause instanceof ApiError || cause instanceof TypeError
+          ? cause
+          : { message: "เกิดข้อผิดพลาดระหว่างดาวน์โหลด กรุณาลองใหม่อีกครั้ง" },
+      ));
     } finally {
+      downloadInProgress.current = false;
       setDownloading(false);
     }
   };
@@ -87,7 +118,7 @@ export default function EvidenceDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Link href={`/cases/${evidence.case_id}`} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
+      <Link href={`/cases/${evidence.case_number ?? evidence.case_id}`} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-primary transition-colors">
         <ArrowLeft className="h-4 w-4" /> กลับไปหน้าคดี {evidence.case_number ?? ""}
       </Link>
 
@@ -101,7 +132,7 @@ export default function EvidenceDetailPage() {
         <div className="flex flex-col items-end gap-2">
           <button
             onClick={handleDownload}
-            disabled={!evidence.thumbnail_url || downloading}
+            disabled={downloading}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 disabled:opacity-50"
           >
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -120,7 +151,7 @@ export default function EvidenceDetailPage() {
       {isAdmin && (
       <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
         <Fingerprint className="h-5 w-5 text-primary" />
-        <p className="text-sm text-blue-800">การเข้าถึงหน้านี้ถูกบันทึกลง Blockchain และฝัง Dynamic Watermark อัตโนมัติ</p>
+        <p className="text-sm text-blue-800">เมื่อดาวน์โหลด ระบบจะบันทึกการเข้าถึงลง Blockchain และฝัง Dynamic Watermark อัตโนมัติ</p>
       </div>
       )}
 
@@ -128,20 +159,25 @@ export default function EvidenceDetailPage() {
         {/* Left: Image */}
         <div className="space-y-6 lg:col-span-2">
           <figure className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
-            {evidence.thumbnail_url ? (
-              // พื้นเข้ม + object-contain เพื่อให้เห็นภาพหลักฐานเต็มเฟรม ไม่โดนครอบ
-              <div className="flex items-center justify-center bg-slate-900" style={{ minHeight: 320 }}>
-                <img src={evidence.thumbnail_url} alt={evidence.description || evidence.original_filename} className="max-h-[540px] w-full object-contain" />
-              </div>
-            ) : (
-              // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
-              // (endpoint ดูรูปมีแล้วที่ /api/evidence-files/{file_id})
-              <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
-                <ImageOff className="h-8 w-8 text-muted" />
-                <p className="text-sm text-muted">ยังแสดงรูปไม่ได้</p>
-                <p className="text-xs text-muted">ไฟล์ถูกเก็บไว้แล้ว แต่ API ยังไม่ส่ง file_id กลับมา</p>
-              </div>
-            )}
+            <div className="relative flex items-center justify-center bg-slate-900" style={{ minHeight: 320 }}>
+              <EvidencePreviewImage
+                fileId={evidence.display_file_id}
+                alt={evidence.description || evidence.original_filename}
+                className="max-h-[540px] w-full object-contain"
+                fallback={
+                  <div className="flex w-full flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
+                    <ImageOff className="h-8 w-8 text-muted" />
+                    <p className="text-sm text-muted">ไม่พบไฟล์หลักฐานเดิม</p>
+                  </div>
+                }
+                loadingFallback={
+                  <div className="flex flex-col items-center justify-center gap-2 bg-slate-50 py-24 text-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted" />
+                    <p className="text-sm text-muted">กำลังโหลดภาพตัวอย่าง</p>
+                  </div>
+                }
+              />
+            </div>
             <figcaption className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 text-xs text-muted">
               <span className="inline-flex items-center gap-1.5 truncate">
                 <ImageIcon className="h-3.5 w-3.5 flex-shrink-0" /> {evidence.original_filename}
@@ -154,54 +190,6 @@ export default function EvidenceDetailPage() {
             </figcaption>
           </figure>
 
-          {/* Blockchain Transactions — admin เท่านั้น */}
-          {isAdmin && (
-          <div className="rounded-xl border border-border bg-surface">
-            <div className="border-b border-border px-5 py-3 flex items-center gap-2">
-              <Link2 className="h-4 w-4 text-muted" />
-              <h3 className="font-semibold text-sm">Blockchain Transactions</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead><tr className="border-b border-border text-left text-muted"><th className="px-5 py-2">Tx Hash</th><th className="px-5 py-2">Action</th><th className="px-5 py-2">Block</th><th className="px-5 py-2">Status</th><th className="px-5 py-2">Time</th></tr></thead>
-                <tbody className="divide-y divide-border">
-                  {relatedTx.map((tx) => (
-                    <tr key={tx.tx_internal_id} className="hover:bg-surface-hover">
-                      <td className="px-5 py-2 font-mono text-primary">{tx.tx_hash.slice(0, 18)}...</td>
-                      <td className="px-5 py-2"><span className="rounded bg-slate-100 px-1.5 py-0.5">{tx.action_type}</span></td>
-                      <td className="px-5 py-2 font-mono">{tx.block_number}</td>
-                      <td className="px-5 py-2"><span className={`rounded-full px-2 py-0.5 ${tx.status === "confirmed" ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-700"}`}>{tx.status}</span></td>
-                      <td className="px-5 py-2 text-muted">{new Date(tx.block_timestamp).toLocaleString("th-TH")}</td>
-                    </tr>
-                  ))}
-                  {relatedTx.length === 0 && <tr><td colSpan={5} className="px-5 py-4 text-center text-muted">No transactions found</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          )}
-
-          {/* Access History — admin เท่านั้น */}
-          {isAdmin && (
-          <div className="rounded-xl border border-border bg-surface">
-            <div className="border-b border-border px-5 py-3 flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted" />
-              <h3 className="font-semibold text-sm">Access History</h3>
-            </div>
-            <div className="divide-y divide-border">
-              {relatedLogs.map((l) => (
-                <div key={l.log_id} className="flex items-center gap-4 px-5 py-3 text-xs">
-                  <span className="font-medium">{l.user_name}</span>
-                  <span className="rounded bg-slate-100 px-1.5 py-0.5">{l.action}</span>
-                  <span className="text-muted">{l.ip_address}</span>
-                  <span className={`ml-auto rounded-full px-2 py-0.5 ${l.result === "success" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>{l.result}</span>
-                  <span className="text-muted">{new Date(l.accessed_at).toLocaleString("th-TH")}</span>
-                </div>
-              ))}
-              {relatedLogs.length === 0 && <p className="px-5 py-4 text-center text-xs text-muted">No access logs</p>}
-            </div>
-          </div>
-          )}
         </div>
 
         {/* Right: Info */}
@@ -220,7 +208,7 @@ export default function EvidenceDetailPage() {
             </div>
             <dl className="divide-y divide-border text-sm">
               <InfoRow icon={FolderOpen} label="คดี">
-                <Link href={`/cases/${evidence.case_id}`} className="font-mono text-xs font-medium text-primary hover:underline">
+                <Link href={`/cases/${evidence.case_number ?? evidence.case_id}`} className="font-mono text-xs font-medium text-primary hover:underline">
                   {evidence.case_number || "—"}
                 </Link>
               </InfoRow>
@@ -239,41 +227,71 @@ export default function EvidenceDetailPage() {
             </dl>
           </div>
 
-          {/* File Hash — admin เท่านั้น */}
-          {isAdmin && (
-          <div className="rounded-xl border border-border bg-surface p-5 shadow-sm">
-            <div className="mb-2 flex items-center gap-2">
-              <Fingerprint className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">SHA-256 Hash</h3>
-            </div>
-            <p className="break-all rounded-lg bg-slate-900 p-3 font-mono text-[10px] leading-relaxed text-emerald-300">
-              {/* TODO(backend): server คำนวณไว้แล้วใน evidence_files.file_hash แค่ยังไม่ส่งกลับมา */}
-              {evidence.file_hash_sha256 ?? "— API ยังไม่ส่ง hash กลับมา"}
-            </p>
-          </div>
-          )}
+          {/* ค่าแฮชไฟล์ต้นฉบับไม่แสดงตรงนี้แล้ว — มีอยู่ในลำดับการครอบครองหลักฐานด้านล่าง
+              ซึ่งแสดงคู่กับค่าบน Blockchain ให้เทียบกันได้จริง */}
 
           {/* Watermark Status — admin เท่านั้น */}
           {isAdmin && (
           <div className="space-y-3 rounded-xl border border-border bg-surface p-5 shadow-sm">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-primary" />
-              <h3 className="text-sm font-semibold">Watermark</h3>
+              <h3 className="text-sm font-semibold">สถานะการคุ้มครองหลักฐาน</h3>
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Static Watermark</span>
-                <span className={`text-xs font-medium ${evidence.is_watermarked ? "text-success" : "text-muted"}`}>{evidence.is_watermarked ? "✓ Embedded" : "— Not embedded"}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted">Blockchain</span>
-                <span className={`text-xs font-medium ${evidence.is_blockchain_verified ? "text-success" : "text-muted"}`}>{evidence.is_blockchain_verified ? "✓ On-chain" : "— Pending"}</span>
-              </div>
+            <div className="space-y-2.5">
+              <ProtectionRow
+                label="ลายน้ำดิจิทัล"
+                hint="ฝังไว้ในไฟล์ตั้งแต่อัปโหลด"
+                ok={evidence.is_watermarked}
+                okText="ฝังแล้ว"
+                pendingText="ยังไม่ฝัง"
+              />
+              <ProtectionRow
+                label="บันทึกบน Blockchain"
+                hint="ลงทะเบียนค่าแฮชไว้บนเชนแล้ว"
+                ok={evidence.is_blockchain_verified}
+                okText="บันทึกแล้ว"
+                pendingText="รอบันทึก"
+              />
             </div>
           </div>
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <div id="chain-of-custody">
+          <ChainOfCustodyPanel evidenceId={evidence.evidence_id} />
+        </div>
+      )}
+
+      {downloadDialog && (
+        <DownloadErrorModal
+          content={downloadDialog}
+          onClose={() => setDownloadDialog(null)}
+          onViewChainOfCustody={isAdmin ? () => {
+            setDownloadDialog(null);
+            document.getElementById("chain-of-custody")?.scrollIntoView({
+              behavior: "smooth",
+              block: "start",
+            });
+          } : undefined}
+        />
+      )}
+
+      {downloadSuccess && (
+        <DownloadSuccessModal
+          metadata={downloadSuccess}
+          onClose={() => setDownloadSuccess(null)}
+        />
+      )}
+
+      {showViewSuccess && (
+        <OperationToast
+          title={VIEW_SUCCESS_FEEDBACK.title}
+          message={VIEW_SUCCESS_FEEDBACK.message}
+          onClose={dismissViewSuccess}
+        />
+      )}
     </div>
   );
 }
@@ -290,6 +308,32 @@ function InfoRow({ icon: Icon, label, children }: { icon: LucideIcon; label: str
   );
 }
 
+/** หนึ่งบรรทัดของการ์ด "สถานะการคุ้มครองหลักฐาน" — ชื่อ + คำอธิบายสั้น + ชิปผลลัพธ์ */
+function ProtectionRow({
+  label,
+  hint,
+  ok,
+  okText,
+  pendingText,
+}: { label: string; hint: string; ok: boolean; okText: string; pendingText: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="mt-0.5 text-xs leading-5 text-muted">{hint}</p>
+      </div>
+      <span
+        className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+          ok ? "bg-success-light text-success" : "bg-surface-hover text-muted"
+        }`}
+      >
+        {ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <ShieldAlert className="h-3.5 w-3.5" />}
+        {ok ? okText : pendingText}
+      </span>
+    </div>
+  );
+}
+
 function StatusPill({ ok, icon: Icon, okText, noText }: { ok: boolean; icon: LucideIcon; okText: string; noText: string }) {
   return (
     <span
@@ -300,5 +344,126 @@ function StatusPill({ ok, icon: Icon, okText, noText }: { ok: boolean; icon: Luc
       <Icon className="h-3.5 w-3.5" />
       {ok ? okText : noText}
     </span>
+  );
+}
+
+function DownloadErrorModal({
+  content,
+  onClose,
+  onViewChainOfCustody,
+}: {
+  content: DownloadErrorDialogContent;
+  onClose: () => void;
+  onViewChainOfCustody?: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation">
+      <section
+        aria-labelledby="download-error-title"
+        aria-modal="true"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-xl"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <ShieldAlert className="mt-0.5 h-5 w-5 flex-shrink-0 text-warning" />
+            <div>
+              <h2 id="download-error-title" className="font-semibold">{content.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-muted">{content.message}</p>
+            </div>
+          </div>
+          <button type="button" aria-label="ปิด" title="ปิด" className="text-muted hover:text-text" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {content.kind === "integrity" && content.hashComparison && (
+          <EvidenceHashComparison comparison={content.hashComparison} />
+        )}
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          {onViewChainOfCustody && content.kind === "integrity" && (
+            <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium hover:bg-surface-hover" onClick={onViewChainOfCustody}>
+              <Link2 className="h-4 w-4" /> ดู Chain of Custody
+            </button>
+          )}
+          <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90" onClick={onClose}>
+            <CheckCircle2 className="h-4 w-4" /> รับทราบ
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DownloadSuccessModal({
+  metadata,
+  onClose,
+}: {
+  metadata: EvidenceDownloadMetadata;
+  onClose: () => void;
+}) {
+  const summary = downloadSuccessSummary(metadata);
+  const watermarkPayloads = personalizedWatermarkPayloads(metadata);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation">
+      <section
+        aria-labelledby="download-success-title"
+        aria-modal="true"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-xl"
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-success" aria-hidden="true" />
+            <div>
+              <h2 id="download-success-title" className="font-semibold">{summary.title}</h2>
+              <p className="mt-1 text-sm text-muted">{summary.message}</p>
+            </div>
+          </div>
+          <button type="button" aria-label="ปิด" title="ปิด" className="text-muted hover:text-text" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-4 text-sm">
+          <WatermarkQrPresentation
+            title="Personalized Watermark"
+            qrTitle="QR ที่ใช้กับสำเนานี้"
+            staticValue={watermarkPayloads.staticPayload}
+            dynamicValue={watermarkPayloads.dynamicPayload}
+            dynamicMode="personalized"
+            generateQr
+          />
+          <section className="border-t border-border pt-4">
+            <h3 className="text-xs font-semibold text-muted">Blockchain Access Record</h3>
+            <dl className="mt-2 space-y-2">
+              <DownloadSummaryRow label="การกระทำ" value={summary.action} />
+              <DownloadSummaryRow label="Block" value={summary.blockNumber === null ? null : String(summary.blockNumber)} />
+              <DownloadSummaryRow label="Transaction" value={summary.transactionHash} />
+            </dl>
+          </section>
+          <p className={`flex items-start gap-2 border-t border-border pt-4 text-xs ${summary.integrityVerified ? "text-success" : "text-warning"}`}>
+            {summary.integrityVerified
+              ? <ShieldCheck className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              : <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden="true" />}
+            <span><strong>ความถูกต้องของไฟล์ต้นฉบับ:</strong> {summary.integrityMessage}</span>
+          </p>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button type="button" className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90" onClick={onClose}>
+            <CheckCircle2 className="h-4 w-4" /> รับทราบ
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function DownloadSummaryRow({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div className="grid grid-cols-[minmax(8rem,12rem)_minmax(0,1fr)] gap-3">
+      <dt className="text-muted">{label}</dt>
+      <dd className="break-all text-right font-mono text-xs">{value || "—"}</dd>
+    </div>
   );
 }

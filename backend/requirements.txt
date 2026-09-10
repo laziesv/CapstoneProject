@@ -15,3 +15,30 @@ bcrypt==4.0.1
 python-multipart==0.0.20
 
 email-validator==2.2.0
+
+# ── Watermarking (DWT+QIM) + QR ─────────────────────────
+numpy
+opencv-python
+scikit-image
+PyWavelets
+qrcode[pil]
+# pyzbar ต้องมี ZBar shared library ในเครื่องด้วย:
+#   Windows/macOS: wheel แถม DLL มาให้แล้ว (ติดตั้งผ่าน pip พอ)
+#   Linux (เช่น Docker/CI): sudo apt-get install -y libzbar0
+pyzbar
+
+# ── Blockchain (Besu QBFT / EvidenceRegistryV3) ──────────
+# app/integrations/blockchain/service.py import web3 ตรง ๆ และ main.py include
+# blockchain router แบบไม่มี try/except ถ้าขาดชุดนี้แอปจะ start ไม่ขึ้นเลย
+# ไม่ใช่แค่ฟีเจอร์ blockchain ใช้ไม่ได้
+#
+# ตรึงเวอร์ชันไว้: web3 7.x ถอด geth_poa_middleware ออก แต่ Besu QBFT ใช้
+# header แบบ PoA จึงยังต้องอยู่ที่ 6.x
+web3==6.20.4
+eth-account==0.11.3
+eth-utils==4.1.1
+
+# blockchain_client มาจาก git submodule (blockchain/) ต้อง init ก่อน:
+#   git submodule update --init --recursive
+# บรรทัดล่างเป็น path สัมพัทธ์กับโฟลเดอร์ที่รัน pip — รันจาก backend/ ตาม README
+-e ../blockchain
