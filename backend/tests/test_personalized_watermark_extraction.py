@@ -46,6 +46,7 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             original_path = base / f"original{suffix}"
+            watermarked_path = base / f"watermarked{suffix}"
             owned_root = base / "owned"
             params = (
                 [cv2.IMWRITE_JPEG_QUALITY, 95]
@@ -62,6 +63,18 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
                     params,
                 )
             )
+            original_y, original_cr, original_cb = cv2.split(
+                cv2.cvtColor(source, cv2.COLOR_BGR2YCrCb)
+            )
+            static_y = DigitalWatermarkingSystem().embed_static(
+                original_y,
+                evidence_uuid="11111111-2222-3333-4444-555555555555",
+            )
+            static_image = cv2.cvtColor(
+                cv2.merge([static_y, original_cr, original_cb]),
+                cv2.COLOR_YCrCb2BGR,
+            )
+            self.assertTrue(cv2.imwrite(str(watermarked_path), static_image, params))
 
             with patch.object(
                 watermark_module,
@@ -70,7 +83,7 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
             ):
                 service = PersonalizedWatermarkService()
                 result = service.create_personalized_copy(
-                    original_path=str(original_path),
+                    watermarked_path=str(watermarked_path),
                     evidence_id=UUID(
                         "11111111-2222-3333-4444-555555555555"
                     ),
@@ -150,9 +163,13 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             original_path = base / "original.png"
+            watermarked_path = base / "watermarked.png"
             owned_root = base / "owned"
             self.assertTrue(
                 cv2.imwrite(str(original_path), self._low_texture_image())
+            )
+            self.assertTrue(
+                cv2.imwrite(str(watermarked_path), self._low_texture_image())
             )
 
             with patch.object(
@@ -162,7 +179,7 @@ class PersonalizedWatermarkExtractionTests(unittest.TestCase):
             ):
                 service = PersonalizedWatermarkService()
                 result = service.create_personalized_copy(
-                    original_path=str(original_path),
+                    watermarked_path=str(watermarked_path),
                     evidence_id=UUID(
                         "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
                     ),

@@ -35,8 +35,9 @@ from app.services.evidence_view_service import (
     EvidenceViewSessionConflictError,
     EvidenceViewState,
 )
-from app.services.access_log_service import AccessLogService, client_info
+from app.services.access_log_service import AccessLogService
 from app.services.personalized_watermark_service import remove_personalized_copy
+from app.utils.request_context import get_client_info
 
 
 router = APIRouter(
@@ -246,7 +247,7 @@ def list_all(
     responses = [EvidenceResponse.model_validate(it) for it in items]
 
     if request is not None:
-        ip_address, user_agent = client_info(request)
+        ip_address, user_agent = get_client_info(request)
         AccessLogService.record_query(
             db,
             user_id=current_user.user_id,

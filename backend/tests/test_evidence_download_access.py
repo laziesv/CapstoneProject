@@ -12,6 +12,7 @@ from app.integrations.blockchain.transaction_repository import (
 )
 from app.models.enums import AuditAction, AuditResult, BlockchainAction
 from app.repositories.access_log_repository import AccessLogRepository
+from app.repositories.evidence_items_repository import EvidenceRepository
 from app.services.evidence_access_service import EvidenceAccessService
 
 
@@ -24,7 +25,11 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
             created_by=self.user.user_id,
             assigned_officer=None,
         )
-        self.file = SimpleNamespace(file_path="watermarked.png")
+        self.file = SimpleNamespace(
+            file_path="watermarked.png",
+            file_hash="ef" * 32,
+            file_size_bytes=1000,
+        )
         self.original_file = SimpleNamespace(
             file_path="original.png",
             file_hash="ab" * 32,
@@ -49,17 +54,19 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.watermark.create_personalized_copy.return_value = SimpleNamespace(
             file_path="personalized.png",
             file_hash="cd" * 32,
+            file_size_bytes=1234,
         )
+        self.watermarked_backup = MagicMock()
         self.integrity = MagicMock()
         self.integrity.verify.return_value = SimpleNamespace(
             verified=True,
             status="VERIFIED",
         )
 
-    def prepare(self):
+    def prepare(self, *, current_watermarked_hash: str | None = None):
         with (
             patch(
-                "app.services.evidence_access_service.EvidenceRepository.get_by_id",
+                "app.services.evidence_access_service.EvidenceRepository.get_by_id_for_update",
                 return_value=self.evidence,
             ),
             patch(
@@ -82,6 +89,14 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                 "app.services.evidence_access_service.BlockchainTransactionRepository.stage_access",
                 return_value=self.transaction,
             ) as stage_transaction,
+            patch(
+                "app.services.evidence_access_service.persist_latest_watermark",
+                return_value=self.watermarked_backup,
+            ),
+            patch(
+                "app.services.evidence_access_service.calculate_sha256",
+                return_value=current_watermarked_hash or self.file.file_hash,
+            ),
         ):
             self.stage_log = stage_log
             self.stage_transaction = stage_transaction
@@ -96,6 +111,32 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
                 integrity_service=self.integrity,
             )
         return result, stage_log, stage_transaction
+
+    def test_changed_watermarked_file_blocks_before_download_writes(self):
+        with self.assertRaises(HTTPException) as raised:
+            self.prepare(current_watermarked_hash="00" * 32)
+
+        self.assertEqual(raised.exception.status_code, 409)
+        self.assertEqual(
+            raised.exception.detail["code"],
+            "WATERMARKED_FILE_INTEGRITY_MISMATCH",
+        )
+        self.watermark.create_personalized_copy.assert_not_called()
+        self.blockchain.record_access.assert_not_called()
+        self.db.commit.assert_not_called()
+
+    def test_repository_locks_evidence_for_rolling_watermark_update(self):
+        expected = SimpleNamespace(evidence_id=self.evidence.evidence_id)
+        filtered_query = self.db.query.return_value.filter.return_value
+        filtered_query.with_for_update.return_value.first.return_value = expected
+
+        result = EvidenceRepository.get_by_id_for_update(
+            self.db,
+            self.evidence.evidence_id,
+        )
+
+        self.assertIs(result, expected)
+        filtered_query.with_for_update.assert_called_once_with()
 
     @staticmethod
     def mismatch_integrity(
@@ -166,7 +207,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
     def test_authorization_happens_before_staging_or_chain_write(self):
         with (
             patch(
-                "app.services.evidence_access_service.EvidenceRepository.get_by_id",
+                "app.services.evidence_access_service.EvidenceRepository.get_by_id_for_update",
                 return_value=self.evidence,
             ),
             patch(
@@ -204,7 +245,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.evidence.watermarked_file = None
         with (
             patch(
-                "app.services.evidence_access_service.EvidenceRepository.get_by_id",
+                "app.services.evidence_access_service.EvidenceRepository.get_by_id_for_update",
                 return_value=self.evidence,
             ),
             patch(
@@ -232,7 +273,7 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
     def test_missing_physical_file_does_not_stage_or_write_chain(self):
         with (
             patch(
-                "app.services.evidence_access_service.EvidenceRepository.get_by_id",
+                "app.services.evidence_access_service.EvidenceRepository.get_by_id_for_update",
                 return_value=self.evidence,
             ),
             patch(

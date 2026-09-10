@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -35,11 +36,48 @@ class PersonalizedWatermarkResult:
     file_size_bytes: int
 
 
+@dataclass
+class WatermarkedFileBackup:
+    target_path: str
+    backup_path: str
+
+    def restore(self) -> None:
+        os.replace(self.backup_path, self.target_path)
+
+    def discard(self) -> None:
+        Path(self.backup_path).unlink(missing_ok=True)
+
+
+def persist_latest_watermark(
+    *,
+    personalized_path: str,
+    watermarked_path: str,
+) -> WatermarkedFileBackup:
+    """Atomically replace the stored watermark while retaining a rollback copy."""
+    target = Path(watermarked_path)
+    descriptor, backup_path = tempfile.mkstemp(
+        prefix=f".{target.name}.",
+        suffix=".backup",
+        dir=target.parent,
+    )
+    os.close(descriptor)
+    staged_path = f"{backup_path}.next"
+    try:
+        shutil.copy2(target, backup_path)
+        shutil.copy2(personalized_path, staged_path)
+        os.replace(staged_path, target)
+        return WatermarkedFileBackup(str(target), backup_path)
+    except Exception:
+        Path(backup_path).unlink(missing_ok=True)
+        Path(staged_path).unlink(missing_ok=True)
+        raise
+
+
 class PersonalizedWatermarkService:
     def create_personalized_copy(
         self,
         *,
-        original_path: str,
+        watermarked_path: str,
         evidence_id: UUID,
         access_session_ref: str,
     ) -> PersonalizedWatermarkResult:
@@ -47,7 +85,7 @@ class PersonalizedWatermarkService:
             access_session_ref,
             "access_session_ref",
         )
-        suffix = Path(original_path).suffix.lower() or ".png"
+        suffix = Path(watermarked_path).suffix.lower() or ".png"
         PERSONALIZED_TEMP_ROOT.mkdir(parents=True, exist_ok=True)
         descriptor, temporary_path = tempfile.mkstemp(
             prefix=f"evidence-{evidence_id}-",
@@ -57,18 +95,14 @@ class PersonalizedWatermarkService:
         os.close(descriptor)
 
         try:
-            original = cv2.imread(original_path, cv2.IMREAD_COLOR)
-            if original is None:
-                raise ValueError("Unable to read original evidence image")
+            watermarked = cv2.imread(watermarked_path, cv2.IMREAD_COLOR)
+            if watermarked is None:
+                raise ValueError("Unable to read statically watermarked evidence image")
 
-            y, cr, cb = cv2.split(cv2.cvtColor(original, cv2.COLOR_BGR2YCrCb))
+            y, cr, cb = cv2.split(cv2.cvtColor(watermarked, cv2.COLOR_BGR2YCrCb))
             system = DigitalWatermarkingSystem()
-            static_y = system.embed_static(
-                y,
-                evidence_uuid=str(evidence_id),
-            )
             watermarked_y = system.embed_dynamic(
-                static_y,
+                y,
                 dynamic_hash=canonical_session_ref,
             )
             target_height, target_width = watermarked_y.shape[:2]

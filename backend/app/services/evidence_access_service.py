@@ -1,4 +1,6 @@
+import logging
 import os
+import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import UUID
@@ -18,12 +20,18 @@ from app.repositories.evidence_items_repository import EvidenceRepository
 from app.services.case_authorization import can_access_case
 from app.services.personalized_watermark_service import (
     PersonalizedWatermarkService,
+    WatermarkedFileBackup,
+    persist_latest_watermark,
     remove_personalized_copy,
 )
 from app.services.original_evidence_integrity_service import (
     OriginalEvidenceIntegrityResult,
     OriginalEvidenceIntegrityService,
 )
+from app.utils.hash import calculate_sha256
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -52,7 +60,9 @@ class EvidenceAccessService:
         watermark_service: PersonalizedWatermarkService | None = None,
         integrity_service: OriginalEvidenceIntegrityService | None = None,
     ) -> EvidenceDownload:
-        evidence = EvidenceRepository.get_by_id(db, evidence_id)
+        # Dynamic watermark เป็น rolling state จึงต้องเรียง Download ของหลักฐาน
+        # เดียวกัน ไม่ให้สอง request อ่านและเขียนไฟล์ฐานพร้อมกัน
+        evidence = EvidenceRepository.get_by_id_for_update(db, evidence_id)
         case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None
         if case is None or not can_access_case(db, current_user, case):
             raise HTTPException(status_code=404, detail="Evidence not found")
@@ -70,7 +80,21 @@ class EvidenceAccessService:
             raise HTTPException(status_code=404, detail="Evidence not found")
 
         personalized_path = None
+        watermarked_backup: WatermarkedFileBackup | None = None
         try:
+            current_watermarked_hash = calculate_sha256(watermarked_file.file_path)
+            if not secrets.compare_digest(
+                current_watermarked_hash,
+                watermarked_file.file_hash,
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "WATERMARKED_FILE_INTEGRITY_MISMATCH",
+                        "reason": "ไฟล์ลายน้ำที่จัดเก็บไม่ตรงกับค่าแฮชในฐานข้อมูล",
+                    },
+                )
+
             service = blockchain_service or BlockchainIntegrationService()
             integrity = (
                 integrity_service
@@ -102,7 +126,7 @@ class EvidenceAccessService:
             access_session_ref = derive_access_session_ref(access_log.log_id)
             personalizer = watermark_service or PersonalizedWatermarkService()
             personalized = personalizer.create_personalized_copy(
-                original_path=original_file.file_path,
+                watermarked_path=watermarked_file.file_path,
                 evidence_id=evidence.evidence_id,
                 access_session_ref=access_session_ref,
             )
@@ -125,8 +149,24 @@ class EvidenceAccessService:
             )
             access_log.tx_internal_id = transaction.tx_internal_id
 
+            # เก็บ Dynamic ล่าสุดเป็นฐานสำหรับการเข้าถึงครั้งถัดไป และเก็บ
+            # backup ไว้จนกว่า DB transaction จะ commit สำเร็จ
+            watermarked_backup = persist_latest_watermark(
+                personalized_path=personalized.file_path,
+                watermarked_path=watermarked_file.file_path,
+            )
+            watermarked_file.file_hash = personalized.file_hash
+            watermarked_file.file_size_bytes = personalized.file_size_bytes
+
             # การเชื่อมต่อ Blockchain: หาก commit ล้มเหลวหลังเชนยืนยัน ห้ามส่งธุรกรรมซ้ำอัตโนมัติ
             db.commit()
+            committed_backup = watermarked_backup
+            watermarked_backup = None
+            try:
+                committed_backup.discard()
+            except OSError:
+                # ไฟล์หลักและ DB commit แล้ว; backup ที่ค้างอยู่ลบภายหลังได้
+                logger.exception("Unable to remove committed watermark backup")
         except Exception as exc:
             try:
                 db.rollback()
@@ -134,6 +174,11 @@ class EvidenceAccessService:
                 # รักษาข้อผิดพลาดต้นเหตุไว้ แม้ session จะ rollback ไม่สำเร็จ
                 pass
             finally:
+                if watermarked_backup is not None:
+                    try:
+                        watermarked_backup.restore()
+                    except OSError:
+                        logger.exception("Unable to restore previous watermark file")
                 if personalized_path is not None:
                     remove_personalized_copy(personalized_path)
             if isinstance(exc, HTTPException):

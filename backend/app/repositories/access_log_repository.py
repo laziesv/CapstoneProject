@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from datetime import datetime
-from typing import List
 from uuid import UUID, uuid4
 
 from sqlalchemy import or_
@@ -118,7 +119,7 @@ class AccessLogRepository:
         db: Session,
         *,
         evidence_id: UUID,
-    ) -> List[AccessLog]:
+    ) -> list[AccessLog]:
         return (
             db.query(AccessLog)
             .filter(
@@ -135,7 +136,7 @@ class AccessLogRepository:
         db: Session,
         *,
         evidence_id: UUID,
-    ) -> List[AccessLog]:
+    ) -> list[AccessLog]:
         return (
             db.query(AccessLog)
             .filter(

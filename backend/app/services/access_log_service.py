@@ -1,7 +1,8 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
+from enum import Enum
+from typing import TypedDict, TypeVar
 from uuid import UUID
 
-from fastapi import Request
 from sqlalchemy.orm import Session
 
 from app.models.access_logs import AccessLog
@@ -9,16 +10,25 @@ from app.models.enums import AuditAction, AuditResult
 from app.repositories.access_log_repository import AccessLogRepository
 
 
-def client_info(request: Request) -> tuple[str | None, str | None]:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ip_address = forwarded.split(",")[0].strip()
-    else:
-        ip_address = request.client.host if request.client else None
-    return ip_address, request.headers.get("user-agent")
+EnumT = TypeVar("EnumT", bound=Enum)
 
 
-def _to_enum(enum_type, value):
+class AccessLogFilters(TypedDict, total=False):
+    case_id: UUID | None
+    evidence_id: UUID | None
+    user_id: UUID | None
+    action: str | None
+    result: str | None
+    q: str | None
+    date_from: date | None
+    date_to: date | None
+    only_anomaly: bool
+    exclude_query: bool
+    limit: int | None
+    offset: int
+
+
+def _to_enum(enum_type: type[EnumT], value: object) -> EnumT | None:
     if not value:
         return None
     try:
@@ -57,7 +67,7 @@ class AccessLogService:
     @staticmethod
     def list(
         db: Session,
-        filters: dict,
+        filters: AccessLogFilters,
     ) -> tuple[list[AccessLog], int]:
         date_from_value = filters.get("date_from")
         date_to_value = filters.get("date_to")

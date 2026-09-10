@@ -20,12 +20,33 @@ from app.services.evidence_access_service import (
 )
 from app.services.personalized_watermark_service import (
     PersonalizedWatermarkService,
+    persist_latest_watermark,
     remove_personalized_copy,
 )
 from app.services import personalized_watermark_service as watermark_module
 
 
 class PersonalizedWatermarkServiceTests(unittest.TestCase):
+    def test_latest_download_can_be_persisted_and_rolled_back(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            canonical = base / "canonical.png"
+            personalized = base / "personalized.png"
+            canonical.write_bytes(b"static-plus-previous-dynamic")
+            personalized.write_bytes(b"static-plus-latest-dynamic")
+
+            backup = persist_latest_watermark(
+                personalized_path=str(personalized),
+                watermarked_path=str(canonical),
+            )
+            self.assertEqual(canonical.read_bytes(), personalized.read_bytes())
+
+            backup.restore()
+            self.assertEqual(
+                canonical.read_bytes(),
+                b"static-plus-previous-dynamic",
+            )
+
     def test_two_sessions_embed_distinct_canonical_dynamic_values(self):
         evidence_id = uuid4()
         session_a = derive_access_session_ref(uuid4())
@@ -37,13 +58,12 @@ class PersonalizedWatermarkServiceTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             owned_root = Path(directory) / "owned"
-            original_path = Path(directory) / "original.png"
+            watermarked_path = Path(directory) / "watermarked.png"
             original = np.full((32, 32, 3), 120, dtype=np.uint8)
-            original_path.write_bytes(b"canonical-original")
-            original_bytes = original_path.read_bytes()
+            watermarked_path.write_bytes(b"canonical-static")
+            watermarked_bytes = watermarked_path.read_bytes()
 
             system = MagicMock()
-            system.embed_static.side_effect = lambda channel, **_kwargs: channel
             system.embed_dynamic.side_effect = [
                 np.full((32, 32), 80, dtype=np.uint8),
                 np.full((32, 32), 160, dtype=np.uint8),
@@ -94,12 +114,12 @@ class PersonalizedWatermarkServiceTests(unittest.TestCase):
                 ),
             ):
                 result_a = PersonalizedWatermarkService().create_personalized_copy(
-                    original_path=str(original_path),
+                    watermarked_path=str(watermarked_path),
                     evidence_id=evidence_id,
                     access_session_ref=session_a,
                 )
                 result_b = PersonalizedWatermarkService().create_personalized_copy(
-                    original_path=str(original_path),
+                    watermarked_path=str(watermarked_path),
                     evidence_id=evidence_id,
                     access_session_ref=session_b,
                 )
@@ -122,8 +142,9 @@ class PersonalizedWatermarkServiceTests(unittest.TestCase):
                         "dynamic_hash": session_b,
                     },
                 )
-                self.assertTrue(original_path.exists())
-                self.assertEqual(original_path.read_bytes(), original_bytes)
+                system.embed_static.assert_not_called()
+                self.assertTrue(watermarked_path.exists())
+                self.assertEqual(watermarked_path.read_bytes(), watermarked_bytes)
             finally:
                 Path(result_a.file_path).unlink(missing_ok=True)
                 Path(result_b.file_path).unlink(missing_ok=True)
@@ -135,8 +156,8 @@ class PersonalizedWatermarkServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             owned_root = Path(directory) / "owned"
             owned_root.mkdir()
-            original_path = Path(directory) / "original.png"
-            original_path.write_bytes(b"invalid-image")
+            watermarked_path = Path(directory) / "watermarked.png"
+            watermarked_path.write_bytes(b"invalid-image")
             partial_path = owned_root / "partial.png"
             descriptor = os.open(
                 partial_path,
@@ -157,7 +178,7 @@ class PersonalizedWatermarkServiceTests(unittest.TestCase):
             ):
                 with self.assertRaises(ValueError):
                     PersonalizedWatermarkService().create_personalized_copy(
-                        original_path=str(original_path),
+                        watermarked_path=str(watermarked_path),
                         evidence_id=evidence_id,
                         access_session_ref=session_ref,
                     )
@@ -208,7 +229,11 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             file_path="original.png",
             file_hash="ab" * 32,
         )
-        self.canonical = SimpleNamespace(file_path="canonical-watermarked.png")
+        self.canonical = SimpleNamespace(
+            file_path="canonical-watermarked.png",
+            file_hash="ef" * 32,
+            file_size_bytes=1000,
+        )
         self.evidence = SimpleNamespace(
             evidence_id=uuid4(),
             evidence_number="EV-TEST",
@@ -226,7 +251,10 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
         self.watermark = MagicMock()
         self.watermark.create_personalized_copy.return_value = SimpleNamespace(
             file_path="personalized.png",
+            file_hash="cd" * 32,
+            file_size_bytes=1234,
         )
+        self.watermarked_backup = MagicMock()
         self.integrity = MagicMock()
         self.integrity.verify.return_value = SimpleNamespace(
             verified=True,
@@ -244,7 +272,7 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
 
         patchers = (
             patch(
-                "app.services.evidence_access_service.EvidenceRepository.get_by_id",
+                "app.services.evidence_access_service.EvidenceRepository.get_by_id_for_update",
                 return_value=self.evidence,
             ),
             patch(
@@ -269,6 +297,14 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
                     tx_internal_id=uuid4()
                 ),
             ),
+            patch(
+                "app.services.evidence_access_service.persist_latest_watermark",
+                return_value=self.watermarked_backup,
+            ),
+            patch(
+                "app.services.evidence_access_service.calculate_sha256",
+                side_effect=lambda *_args, **_kwargs: self.canonical.file_hash,
+            ),
         )
         with ExitStack() as stack:
             for patcher in patchers:
@@ -290,12 +326,12 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             )
         return result, log
 
-    def test_original_source_and_session_identity_are_used_before_chain(self):
+    def test_static_watermarked_source_and_session_identity_are_used_before_chain(self):
         result, log = self.prepare()
         expected_session = derive_access_session_ref(log.log_id)
 
         self.watermark.create_personalized_copy.assert_called_once_with(
-            original_path=self.original.file_path,
+            watermarked_path=self.canonical.file_path,
             evidence_id=self.evidence.evidence_id,
             access_session_ref=expected_session,
         )
@@ -315,8 +351,16 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             SimpleNamespace(log_id=uuid4(), tx_internal_id=None),
         ]
         self.watermark.create_personalized_copy.side_effect = [
-            SimpleNamespace(file_path="personalized-a.png"),
-            SimpleNamespace(file_path="personalized-b.png"),
+            SimpleNamespace(
+                file_path="personalized-a.png",
+                file_hash="aa" * 32,
+                file_size_bytes=100,
+            ),
+            SimpleNamespace(
+                file_path="personalized-b.png",
+                file_hash="bb" * 32,
+                file_size_bytes=101,
+            ),
         ]
 
         with self.common_patches(logs):

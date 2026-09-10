@@ -29,6 +29,19 @@ class EvidenceRepository:
             .first()
         )
 
+    @staticmethod
+    def get_by_id_for_update(
+        db: Session,
+        evidence_id,
+    ):
+        """Lock one evidence row so rolling watermark updates are serialized."""
+        return (
+            db.query(EvidenceItem)
+            .filter(EvidenceItem.evidence_id == evidence_id)
+            .with_for_update()
+            .first()
+        )
+
 
     @staticmethod
     def get_by_number(
