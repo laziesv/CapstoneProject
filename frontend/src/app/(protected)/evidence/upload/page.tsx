@@ -12,7 +12,7 @@ import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { readCapturedAt } from "@/utils/exif";
 import { formatIncident } from "@/utils/format";
 import type { Case, UploadEvidenceFile, UploadedEvidenceRef } from "@/interfaces";
-import { OperationToast } from "@/components/feedback/OperationToast";
+import { OperationDialog } from "@/components/feedback/OperationDialog";
 import { OperationProgress } from "@/components/feedback/OperationProgress";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import { UPLOAD_RESULT_PRESENTATION } from "@/utils/evidenceOperationFeedback";
@@ -369,7 +369,7 @@ export default function UploadEvidencePage() {
       </div>
 
       {operationError && (
-        <OperationToast
+        <OperationDialog
           title={operationError.title}
           message={operationError.message}
           tone="error"
