@@ -26,7 +26,11 @@ from app.services.chain_of_custody_service import (
     ChainOfCustodyMalformedChainDataError,
     ChainOfCustodyService,
 )
-from app.services.evidence_service import EvidenceBlockchainWriteError, EvidenceService
+from app.services.evidence_service import (
+    EvidenceBlockchainWriteError,
+    EvidenceImageTooSmallError,
+    EvidenceService,
+)
 from app.services.evidence_access_service import EvidenceAccessService
 from app.services.evidence_view_service import (
     EvidenceViewBlockchainWriteError,
@@ -215,6 +219,22 @@ def upload(
             block_number=result.block_number,
             contract_address=result.contract_address,
         )
+    except EvidenceImageTooSmallError as exc:
+        # 422 = ไฟล์อ่านได้และคำขอถูกต้อง แต่เนื้อภาพไม่เข้าเงื่อนไขของระบบลายน้ำ
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "IMAGE_TOO_SMALL_FOR_WATERMARK",
+                "message": (
+                    f"ภาพมีขนาด {exc.width}x{exc.height} พิกเซล เล็กเกินกว่าจะฝัง"
+                    f"ลายน้ำที่ตรวจสอบย้อนกลับได้ ด้านที่สั้นที่สุดต้องมีอย่างน้อย "
+                    f"{exc.minimum_side} พิกเซล"
+                ),
+                "width": exc.width,
+                "height": exc.height,
+                "minimum_side": exc.minimum_side,
+            },
+        ) from exc
     except EvidenceBlockchainWriteError as exc:
         # ตอบกลับแบบชัดเจนเมื่อบันทึก Blockchain ไม่สำเร็จ แทนข้อผิดพลาด 500
         raise HTTPException(

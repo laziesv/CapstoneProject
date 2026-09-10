@@ -135,7 +135,9 @@ class EvidenceUploadTransactionTests(TestCase):
             description="synthetic evidence",
             captured_at=None,
         )
-        image = Mock()
+        # ต้องมี .shape จริง เพราะ upload ตรวจขนาดภาพก่อนฝังลายน้ำ
+        # (1024 ผ่านเกณฑ์ขั้นต่ำของ watermark_constraints)
+        image = Mock(shape=(1024, 1024, 3))
         channel = MagicMock()
         channel.shape = (8, 8)
 
@@ -280,7 +282,9 @@ class EvidenceUploadTransactionTests(TestCase):
         db = Mock()
         upload_file = SimpleNamespace(filename="synthetic.png", file=Mock())
         data = SimpleNamespace(case_id=Mock(), description=None, captured_at=None)
-        image = Mock()
+        # ต้องมี .shape จริง เพราะ upload ตรวจขนาดภาพก่อนฝังลายน้ำ
+        # (1024 ผ่านเกณฑ์ขั้นต่ำของ watermark_constraints)
+        image = Mock(shape=(1024, 1024, 3))
         channel = MagicMock()
         channel.shape = (8, 8)
         original_error = ValueError("watermarked hash failed")
@@ -377,7 +381,9 @@ class EvidenceUploadTransactionTests(TestCase):
         db = Mock()
         upload_file = SimpleNamespace(filename="synthetic.png", file=Mock())
         data = SimpleNamespace(case_id=Mock(), description=None, captured_at=None)
-        image = Mock()
+        # ต้องมี .shape จริง เพราะ upload ตรวจขนาดภาพก่อนฝังลายน้ำ
+        # (1024 ผ่านเกณฑ์ขั้นต่ำของ watermark_constraints)
+        image = Mock(shape=(1024, 1024, 3))
         channel = MagicMock()
         channel.shape = (8, 8)
         blockchain_service = Mock()
@@ -492,7 +498,9 @@ class EvidenceUploadTransactionTests(TestCase):
         db.commit.side_effect = RuntimeError("database commit failed")
         upload_file = SimpleNamespace(filename="synthetic.png", file=Mock())
         data = SimpleNamespace(case_id=Mock(), description=None, captured_at=None)
-        image = Mock()
+        # ต้องมี .shape จริง เพราะ upload ตรวจขนาดภาพก่อนฝังลายน้ำ
+        # (1024 ผ่านเกณฑ์ขั้นต่ำของ watermark_constraints)
+        image = Mock(shape=(1024, 1024, 3))
         channel = MagicMock()
         channel.shape = (8, 8)
         blockchain_service = Mock()

@@ -121,3 +121,16 @@ test("combined mismatch preserves all three compared hashes", () => {
     databaseMatchesBlockchain: false,
   });
 });
+
+test("image-too-small keeps the backend's required pixel size in the message", () => {
+  // ข้อความต้องบอกตัวเลขที่ผู้ใช้ต้องทำตาม ไม่ใช่ถูกกลืนเป็นข้อความกลาง ๆ
+  const feedback = userFacingApiError({
+    status: 422,
+    code: "IMAGE_TOO_SMALL_FOR_WATERMARK",
+    message:
+      "ภาพมีขนาด 260x320 พิกเซล เล็กเกินกว่าจะฝังลายน้ำที่ตรวจสอบย้อนกลับได้ "
+      + "ด้านที่สั้นที่สุดต้องมีอย่างน้อย 640 พิกเซล",
+  });
+  assert.equal(feedback.title, "ภาพมีขนาดเล็กเกินไป");
+  assert.match(feedback.message, /640/);
+});

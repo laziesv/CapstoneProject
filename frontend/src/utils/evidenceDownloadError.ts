@@ -82,6 +82,17 @@ export function userFacingApiError(error: DownloadErrorLike | unknown): ApiError
       kind: "server",
     };
   }
+  // ภาพเล็กเกินกว่าจะฝังลายน้ำที่ตรวจสอบย้อนกลับได้ — ข้อความจาก backend
+  // ระบุขนาดขั้นต่ำเป็นตัวเลขไว้แล้ว จึงส่งต่อตามเดิม แต่ตั้งหัวข้อให้ตรงเรื่อง
+  if (code === "IMAGE_TOO_SMALL_FOR_WATERMARK") {
+    return {
+      title: "ภาพมีขนาดเล็กเกินไป",
+      message: typeof candidate.message === "string"
+        ? candidate.message
+        : "กรุณาใช้ภาพที่มีความละเอียดสูงกว่านี้",
+      kind: "general",
+    };
+  }
   return {
     title: "ไม่สามารถดำเนินการได้",
     message: typeof candidate.message === "string"

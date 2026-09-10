@@ -27,12 +27,32 @@ _WM_DIR = os.path.join(os.path.dirname(__file__), "..", "watermark")
 if _WM_DIR not in sys.path:
     sys.path.insert(0, _WM_DIR)
 from app.watermark.mainyy import DigitalWatermarkingSystem
+from app.services.watermark_constraints import (
+    is_watermarkable,
+    min_source_side,
+)
 
 UPLOAD_DIR = "uploads/evidence"
 
 
 class EvidenceBlockchainWriteError(RuntimeError):
     """Raised when evidence registration cannot be confirmed on chain."""
+
+
+class EvidenceImageTooSmallError(ValueError):
+    """ภาพเล็กเกินกว่าจะฝังลายน้ำแล้วตรวจสอบย้อนกลับได้
+
+    เก็บขนาดจริงกับขนาดขั้นต่ำไว้ เพื่อให้ชั้น route บอกผู้ใช้ได้ว่าต้องใหญ่แค่ไหน
+    """
+
+    def __init__(self, *, width: int, height: int, minimum_side: int):
+        self.width = width
+        self.height = height
+        self.minimum_side = minimum_side
+        super().__init__(
+            f"image {width}x{height} is smaller than the watermark minimum "
+            f"of {minimum_side}px on the shorter side"
+        )
 
 
 @dataclass(frozen=True)
@@ -141,6 +161,18 @@ class EvidenceService:
             bgr = cv2.imread(file_path, cv2.IMREAD_COLOR)
             if bgr is None:
                 raise ValueError("อ่านไฟล์ภาพไม่ได้ ฝังลายน้ำไม่สำเร็จ")
+
+            # ภาพที่เล็กเกินไปจะฝังลายน้ำ "สำเร็จ" แต่ถอดกลับไม่ได้ตลอดไป
+            # ปฏิเสธตั้งแต่ตอนนี้ ก่อนเขียนไฟล์ลายน้ำและก่อนบันทึกลง Blockchain
+            # เพราะถ้าปล่อยผ่าน ผู้ใช้จะเข้าใจว่าหลักฐานถูกคุ้มครองแล้วทั้งที่ไม่ใช่
+            # (การ raise ที่นี่ทำให้ rollback + ลบไฟล์ที่เพิ่งเขียนตาม except ด้านล่าง)
+            image_height, image_width = bgr.shape[:2]
+            if not is_watermarkable(image_height, image_width):
+                raise EvidenceImageTooSmallError(
+                    width=image_width,
+                    height=image_height,
+                    minimum_side=min_source_side(),
+                )
 
             # ปรับทุกช่องสีเป็นขนาดเดียวกับที่ embed()/extract() ใช้งาน
             # เพื่อให้ประกอบภาพกลับได้โดยลายน้ำไม่เสียตำแหน่ง
