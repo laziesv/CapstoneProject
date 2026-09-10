@@ -10,7 +10,7 @@
 
 ## Repository Boundary
 
-`blockchain/` เป็น Git submodule ที่ชี้ไปยัง `laziesv/Blockchain` คนละ Git history กับ Parent repository การแก้ source ภายในต้อง commit/push ที่ submodule ก่อน แล้วจึง update parent pointer
+`blockchain/` เป็น Git submodule ที่ชี้ไปยัง [`Unsull/Blockchain`](https://github.com/Unsull/Blockchain) ตาม `.gitmodules` และ `origin` จริง โดยมี Git history คนละชุดกับ Parent repository การแก้ source ภายในต้อง commit/push ที่ submodule ก่อน แล้วจึง update parent pointer
 
 ```mermaid
 flowchart TD

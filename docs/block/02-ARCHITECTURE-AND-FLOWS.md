@@ -281,8 +281,12 @@ VIEW ถูกบันทึกก่อน navigation เพื่อแยก
 
 ```mermaid
 stateDiagram-v2
-  [*] --> WAITING_FOR_BLOCKCHAIN: new request
+  [*] --> WAITING_FOR_BLOCKCHAIN: existing durable session not safe to submit yet
+  [*] --> PENDING_BLOCKCHAIN_CONFIRMATION: tx hash persisted and receipt pending
+  [*] --> CONFIRMED: receipt/session confirmed in first request
+  [*] --> [*]: new preflight failure; no durable state
   WAITING_FOR_BLOCKCHAIN --> PENDING_BLOCKCHAIN_CONFIRMATION: submitted tx hash persisted
+  WAITING_FOR_BLOCKCHAIN --> CONFIRMED: existing session found on-chain
   PENDING_BLOCKCHAIN_CONFIRMATION --> CONFIRMED: receipt/session event found
   PENDING_BLOCKCHAIN_CONFIRMATION --> PENDING_BLOCKCHAIN_CONFIRMATION: same request polls
   WAITING_FOR_BLOCKCHAIN --> [*]: definitive pre-submit failure
@@ -290,6 +294,23 @@ stateDiagram-v2
 ```
 
 Public states ที่ Frontend ใช้มีสามค่าเท่านั้น `WAITING_FOR_BLOCKCHAIN`, `PENDING_BLOCKCHAIN_CONFIRMATION`, `CONFIRMED` ส่วน DB `AccessLog.result` มี `PENDING`, `SUCCESS`, `FAILED` เป็นต้น
+
+### Unified VIEW State Mapping
+
+Public/API state ไม่ได้เท่ากับ DB state โดยตรง และ `SUBMITTING` เป็นสถานะ local ของ Frontend ไม่ใช่ค่า API ตารางนี้อ้างอิง `EvidenceViewPreparationService`, route `view-session`, models และ Frontend polling ปัจจุบัน
+
+| Phase | Public/API และ HTTP | `AccessLog.result` | `BlockchainTransaction.status` | `tx_hash` | Receipt/Event | UI behavior | เปิด Evidence? | Recovery rule |
+|---|---|---|---|---|---|---|---:|---|
+| A. คำขอใหม่ก่อน durable state | ไม่มี success state; preflight fail เป็น controlled `503` | ไม่มี row | ไม่มี row | ไม่มี | ไม่มี | `SUBMITTING` แล้วแสดง unavailable error | NO | รอ network พร้อมแล้วเริ่ม intent ใหม่; preflight ห้ามสร้าง log/tx |
+| B. AccessLog durable แต่ยังไม่ broadcast | internal ใน request แรก; retry อาจได้ `WAITING_FOR_BLOCKCHAIN` / `202` | `PENDING` | ไม่มี row | ไม่มี | ไม่มี | รอและ poll ด้วย `request_id` เดิม | NO | ตรวจ session เดิมและ liveness ก่อน submit ด้วย AccessLog เดิม |
+| C. Broadcast แล้ว รอ confirmation | `PENDING_BLOCKCHAIN_CONFIRMATION` / `202` | `PENDING` | `pending_confirmation` | มี | ยังไม่มี valid receipt/event ที่ยืนยันแล้ว | แสดง pending และ poll request เดิม | NO | ตรวจ tx, receipt และ session เดิม; ห้ามสร้าง duplicate |
+| D. ไม่ทราบผลการ submission | `PENDING_BLOCKCHAIN_CONFIRMATION` / `202` | `PENDING` | `submission_unknown` | มี deterministic hash | ไม่ทราบ | แสดง pending และ poll request เดิม | NO | query tx/session จาก hash ที่เก็บไว้; ห้าม blind resubmit |
+| E. Dropped transaction candidate | `PENDING_BLOCKCHAIN_CONFIRMATION` / `202` | `PENDING` | `pending_confirmation` ของ logical row เดิม | มี old hash แต่ RPC หาไม่พบ | ไม่มี receipt และไม่มี session หลังพ้น recovery delay | ยัง pending และไม่ navigate | NO | เมื่อ network healthy ให้ lock/recheck แล้ว replacement แบบ guarded โดยใช้ AccessLog, session ref และ logical tx row เดิม |
+| F. Confirmed | `CONFIRMED` / `200` | `SUCCESS` | `confirmed` | มี | receipt status `1` และ event/session/action ถูก valid | ล้าง request ที่จำไว้แล้ว navigate | YES | ไม่ submit ซ้ำ; retry อ่านผล confirmed เดิม |
+| G. Definitive pre-submit failure | ไม่มี success state; controlled `503` | `FAILED` ถ้ามี durable AccessLog แล้ว | ไม่มี row สำหรับ initial build/sign/nonce/client submission failure | ไม่มี | ไม่มี | แสดง error | NO | ไม่ทำเป็น success และไม่ auto-retry write |
+| H. Reverted/definitive confirmation failure | ไม่มี success state; controlled `503` | `FAILED` | `reverted` หรือ `failed` | มี | receipt status `0` เมื่อ reverted หรือเกิด definitive validation failure | แสดง error | NO | ไม่เปิด Evidence และไม่ blind retry |
+
+`tx_hash` หมายถึงมี identity ของ transaction ที่ส่ง ไม่ได้แปลว่า transaction confirmed แล้ว ส่วน receipt/confirmation timeout หมายถึงผลยังไม่ทราบ ไม่ใช่ definitive failure ระบบจึงต้องรักษา logical VIEW เดิม ได้แก่ `request_id`, AccessLog identity และ `access_session_ref` ตลอดการ polling, reconciliation และ guarded replacement ดูวิธีปฏิบัติที่ [Operations and Recovery](06-OPERATIONS-AND-RECOVERY.md) และการทดสอบจริงที่ [Real QBFT Chaos Acceptance Procedure](07-TESTING-AND-ACCEPTANCE.md#real-qbft-chaos-acceptance-procedure)
 
 ## 15. VIEW Idempotency
 

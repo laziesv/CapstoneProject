@@ -81,6 +81,32 @@ Contract address, deployment block, node identity, block history และ trans
 
 Integration baseline ที่ใช้เปรียบเทียบ Backend/Frontend คือ parent revision `0de174a7831fa15981aeecea93cdccb05dbc1e80` ซึ่งเป็น merge commit สุดท้ายก่อน commit `40fa19b` เพิ่ม Blockchain submodule
 
+## Documentation Freshness and Revision Drift Policy
+
+Header ของเอกสารแต่ละไฟล์ระบุ `Parent Revision`, `Blockchain Revision` และ `Last Verified Date` ซึ่งหมายถึง source snapshot ที่ใช้ตรวจข้อเท็จจริงในเอกสาร ไม่ได้หมายความว่าเอกสารยัง current โดยอัตโนมัติเมื่อ repository เดินต่อไป และ revision นี้อาจเก่ากว่า commit เอกสารล้วนได้หาก implementation ไม่เปลี่ยน
+
+Developer หรือ AI ต้องทำตามขั้นตอนนี้ก่อนใช้เอกสารเป็นฐานในการเปลี่ยน system behavior:
+
+1. ตรวจ worktree, Parent HEAD และ submodule revision ปัจจุบัน
+2. ถ้า Parent HEAD ต่างจาก header ให้ตรวจ diff จาก documented revision โดยเน้น `backend/`, `frontend/` และ `docs/block/`
+3. ถ้า Blockchain revision ต่าง ให้เข้าไปตรวจ diff ภายใน submodule ด้วย ไม่สรุปจาก parent gitlink เพียงอย่างเดียว
+4. ถ้า flow, API, schema, config หรือ contract behavior เปลี่ยน ให้อัปเดตเอกสารที่เกี่ยวข้องและรัน validation ตาม [Testing and Acceptance](07-TESTING-AND-ACCEPTANCE.md)
+5. ถ้าเอกสารขัดกับ source หรือ tests ให้ source และ tests เป็น source of truth และรายงาน documentation drift ก่อนอาศัยเอกสารตัดสิน behavior
+
+```powershell
+# Parent
+git status --short
+git rev-parse HEAD
+git submodule status
+git diff <DOCUMENTED_PARENT_REV>..HEAD -- backend frontend docs/block
+
+# Blockchain submodule
+git -C blockchain rev-parse HEAD
+git -C blockchain diff <DOCUMENTED_BLOCKCHAIN_REV>..HEAD
+```
+
+ห้ามเปลี่ยน `Last Verified Date` เพียงเพราะแก้ typo หรือ formatting หากยังไม่ได้ตรวจ source จริง วันที่นี้ต้องสื่อว่าข้อเท็จจริงในเอกสารถูก revalidate แล้ว ดู architecture ที่ [Architecture and Flows](02-ARCHITECTURE-AND-FLOWS.md) และขั้นตอน recovery ที่ [Operations and Recovery](06-OPERATIONS-AND-RECOVERY.md)
+
 ## Baseline การทดสอบล่าสุด
 
 ค่าต่อไปนี้เป็นผลที่รายงานและตรวจร่วมกับ checkpoint ปัจจุบัน ไม่ใช่ผลจากการรันใหม่ทุกครั้งที่เปิดเอกสาร
