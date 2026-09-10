@@ -39,7 +39,7 @@ export function formatForensicAction(value: string | null | undefined): string {
     REGISTER: "ลงทะเบียนหลักฐาน",
     VIEW: "ดูหลักฐาน",
     DOWNLOAD: "ดาวน์โหลดหลักฐาน",
-    QUERY: "ค้น",
+    QUERY: "ค้นหา",
   };
   return value ? labels[value.toUpperCase()] ?? value : "—";
 }

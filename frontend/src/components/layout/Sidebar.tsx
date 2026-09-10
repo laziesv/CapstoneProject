@@ -34,14 +34,14 @@ export default function Sidebar() {
   const displayName = user?.full_name || user?.username || "ผู้ใช้งาน";
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-[76px] flex-col items-center gap-2 bg-sidebar py-[18px]">
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-[76px] flex-col items-center gap-2 border-r border-ink-border bg-sidebar py-[18px] shadow-[8px_0_24px_rgba(15,23,42,0.08)]">
       {/* โลโก้ */}
       <Link
         href="/dashboard"
-        className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary"
+        className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white shadow-sm ring-1 ring-white/10"
         title="DEVA"
       >
-        <Fingerprint className="h-5 w-5 text-white" />
+        <Fingerprint className="h-5 w-5" />
       </Link>
 
       {/* รางไอคอน — ชื่อเมนูโผล่เป็น tooltip เมื่อชี้ */}
@@ -56,8 +56,8 @@ export default function Sidebar() {
               aria-label={item.label}
               className={`group relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
                 isActive
-                  ? "bg-sidebar-hover text-white"
-                  : "text-muted hover:bg-sidebar-hover hover:text-white"
+                  ? "bg-primary text-white shadow-sm"
+                  : "text-ink-muted hover:bg-sidebar-hover hover:text-white"
               }`}
             >
               <item.icon className="h-[19px] w-[19px]" />
@@ -75,7 +75,7 @@ export default function Sidebar() {
           onClick={signOut}
           title="ออกจากระบบ"
           aria-label="ออกจากระบบ"
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-muted transition-colors hover:bg-danger/20 hover:text-danger"
+          className="flex h-11 w-11 items-center justify-center rounded-xl text-ink-muted transition-colors hover:bg-danger/20 hover:text-danger"
         >
           <LogOut className="h-[19px] w-[19px]" />
         </button>
