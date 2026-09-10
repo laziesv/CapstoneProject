@@ -6,12 +6,14 @@ import Link from "next/link";
 import { ArrowLeft, Loader2, ShieldAlert, Plus, ImageOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
-import ProtectedImage from "@/components/ProtectedImage";
 import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import { canAccess } from "@/config/permissions";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
+import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
+import { useIntentionalEvidenceNavigation } from "@/hooks/useIntentionalEvidenceNavigation";
+import { IntentionalEvidenceProgress } from "@/components/feedback/IntentionalEvidenceProgress";
 
 type EvFilter = "all" | "verified" | "pending";
 
@@ -27,6 +29,8 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<Case | null | undefined>(undefined);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
   const [evFilter, setEvFilter] = useState<EvFilter>("all");
+  const { openEvidence, openingEvidenceId, openStatus, openDelayed, openError, dismissOpenError } =
+    useIntentionalEvidenceNavigation();
 
   useEffect(() => {
     (async () => {
@@ -160,14 +164,22 @@ export default function CaseDetailPage() {
 
           <div className="grid grid-cols-2 gap-3.5 p-5 sm:grid-cols-3 xl:grid-cols-4">
             {filteredEv.map((e) => (
-              <Link key={e.evidence_id} href={`/evidence/${e.evidence_number}`} className="group flex flex-col gap-2">
+              <button
+                key={e.evidence_id}
+                type="button"
+                onClick={() => void openEvidence(e.evidence_id, e.evidence_number)}
+                disabled={Boolean(openingEvidenceId)}
+                className="group flex flex-col gap-2 text-left disabled:cursor-wait disabled:opacity-70"
+              >
                 <div className="relative aspect-square overflow-hidden rounded-xl bg-surface-hover">
-                  {e.thumbnail_url ? (
-                    <ProtectedImage src={e.thumbnail_url} alt={e.description || e.evidence_number} className="h-full w-full object-cover transition-transform group-hover:scale-[1.04]" />
-                  ) : (
-                    // TODO(backend): แสดงรูปได้เมื่อ EvidenceResponse ส่ง file_id มาด้วย
-                    <div className="flex h-full w-full items-center justify-center"><ImageOff className="h-6 w-6 text-muted" /></div>
-                  )}
+                  <EvidencePreviewImage
+                    fileId={e.display_file_id}
+                    alt={e.description || e.evidence_number}
+                    className="h-full w-full object-cover transition-transform group-hover:scale-[1.04]"
+                    fallback={
+                      <div className="flex h-full w-full items-center justify-center"><ImageOff className="h-6 w-6 text-muted" /></div>
+                    }
+                  />
                   {/* จุดสถานะ: เขียว = บันทึกบล็อกเชนแล้ว, เหลือง = รอยืนยัน */}
                   <span
                     className={`absolute bottom-2 left-2 h-2 w-2 rounded-full ring-2 ring-white ${e.is_blockchain_verified ? "bg-success" : "bg-warning-dot"}`}
@@ -175,7 +187,7 @@ export default function CaseDetailPage() {
                   />
                 </div>
                 <span className="truncate font-mono text-[11px] text-primary">{e.evidence_number}</span>
-              </Link>
+              </button>
             ))}
 
             {/* ไทล์อัปโหลด (เฉพาะผู้มีสิทธิ์ + มุมมองทั้งหมด) */}
@@ -224,6 +236,13 @@ export default function CaseDetailPage() {
           </div>
         </div>
       </div>
+      <IntentionalEvidenceProgress
+        opening={Boolean(openingEvidenceId)}
+        status={openStatus}
+        delayed={openDelayed}
+        error={openError}
+        onDismissError={dismissOpenError}
+      />
     </div>
   );
 }

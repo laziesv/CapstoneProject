@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -14,21 +13,20 @@ class DashboardStats(BaseModel):
 
 class RecentEvidence(BaseModel):
     evidence_id: UUID
-    evidence_number: Optional[str] = None
-    description: Optional[str] = None
-    # id ของไฟล์ที่ให้แสดงผล (ตัวฝังลายน้ำก่อน) — frontend เอาไปต่อ URL เอง
-    display_file_id: Optional[UUID] = None
+    evidence_number: str | None = None
+    description: str | None = None
+    display_file_id: UUID | None = None
     is_watermarked: bool
     is_blockchain_verified: bool
 
 
 class RecentActivity(BaseModel):
     log_id: UUID
-    user_name: Optional[str] = None
-    action: Optional[str] = None
-    evidence_number: Optional[str] = None
+    user_name: str | None = None
+    action: str | None = None
+    evidence_number: str | None = None
     result: str
-    accessed_at: Optional[datetime] = None
+    accessed_at: datetime | None = None
 
 
 class DashboardResponse(BaseModel):

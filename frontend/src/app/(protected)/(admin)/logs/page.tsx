@@ -57,6 +57,7 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   // debounce ช่องค้นหา — กันยิง API ทุกตัวอักษร
   useEffect(() => {
@@ -128,6 +129,7 @@ export default function LogsPage() {
   // ── ส่งออก CSV (ทุกรายการที่ตรงตัวกรอง — ดึงแบบไม่จำกัดจำนวน) — BOM ให้ Excel อ่านไทยได้ ──
   const exportCsv = async () => {
     setExporting(true);
+    setExportError(null);
     try {
       const all = await accessLogService.list(filters); // ไม่ใส่ limit = ทุกรายการที่ตรงตัวกรอง
       const cell = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -146,10 +148,15 @@ export default function LogsPage() {
       const a = document.createElement("a");
       a.href = url;
       a.download = `access-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+      // ต้องอยู่ใน DOM ตอนคลิก และคืน object URL หลังเบราว์เซอร์เริ่มโหลดแล้ว
+      // ไม่งั้น Firefox ยกเลิกการดาวน์โหลดเงียบ ๆ
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch {
-      setError("ส่งออกไม่สำเร็จ");
+      // แยกจาก error ของตาราง — ส่งออกพลาดไม่ควรทำให้รายการที่โหลดมาแล้วหายทั้งหน้า
+      setExportError("ส่งออกไม่สำเร็จ");
     } finally {
       setExporting(false);
     }
@@ -178,6 +185,12 @@ export default function LogsPage() {
           {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} ส่งออก CSV
         </button>
       </div>
+
+      {exportError && (
+        <p className="rounded-2xl border border-danger/20 bg-danger-light px-4 py-2.5 text-sm text-danger" role="alert">
+          {exportError}
+        </p>
+      )}
 
       {/* Drill-down banner (มุมมองรายชิ้น) */}
       {selectedEvidenceNumber && (
@@ -264,6 +277,7 @@ export default function LogsPage() {
             <option key={e.id} value={e.id}>{e.number}</option>
           ))}
         </select>
+
       </div>
 
       {/* ตาราง */}
@@ -289,7 +303,9 @@ export default function LogsPage() {
                 <tr><td colSpan={6} className="px-5 py-6 text-center text-sm text-muted">ไม่พบบันทึกการเข้าถึง</td></tr>
               ) : (
                 logs.map((l) => {
-                  const fail = l.result !== "success";
+                  // pending = รอ Blockchain ยืนยัน ยังไม่ใช่ความล้มเหลว จึงไม่ทำเป็นแถวแดง
+                  const pending = l.result === "pending";
+                  const fail = !pending && l.result !== "success";
                   return (
                     <tr key={l.log_id} className={`transition-colors ${fail ? "bg-danger-light/40 hover:bg-danger-light/70" : "hover:bg-surface-hover"}`}>
                       <td className="px-5 py-3.5 font-mono text-xs text-text-secondary">
@@ -308,9 +324,11 @@ export default function LogsPage() {
                           <span className="text-muted">—</span>
                         )}
                       </td>
-                      <td className="px-5 py-3.5 font-mono text-xs text-muted">{l.ip_address}</td>
+                      <td className="px-5 py-3.5 font-mono text-xs text-muted">{l.ip_address ?? "—"}</td>
                       <td className="px-5 py-3.5 text-right">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${fail ? "bg-danger-light text-danger" : "bg-success-light text-success"}`}>
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          fail ? "bg-danger-light text-danger" : pending ? "bg-warning-light text-warning" : "bg-success-light text-success"
+                        }`}>
                           {labelForResult(l.result)}
                         </span>
                       </td>

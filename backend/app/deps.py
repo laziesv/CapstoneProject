@@ -8,10 +8,7 @@ from app.models.users import User
 from app.repositories.user_repository import UserRepository
 
 # ── Bearer token scheme ─────────────────────────────────
-security = HTTPBearer()
-# แบบไม่บังคับ — ไม่มี token ก็ไม่ error (ใช้กับ endpoint ที่เปิดสาธารณะได้ เช่นดูรูป
-# แต่ถ้ามี token จะรู้ว่าใครเข้าถึง เอาไปบันทึก log ได้)
-optional_security = HTTPBearer(auto_error=False)
+security = HTTPBearer(auto_error=False)
 
 _credentials_error = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -21,10 +18,12 @@ _credentials_error = HTTPException(
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     """ตรวจสอบ Bearer token แล้วคืน user ปัจจุบัน ใช้กับ route ที่ต้อง auth"""
+    if credentials is None:
+        raise _credentials_error
     payload = decode_access_token(credentials.credentials)
 
     if not payload:
@@ -49,30 +48,6 @@ def get_current_user(
     return user
 
 
-def get_current_user_optional(
-    credentials: HTTPAuthorizationCredentials | None = Depends(optional_security),
-    db: Session = Depends(get_db),
-) -> User | None:
-    """เหมือน get_current_user แต่คืน None แทนการ 401 เมื่อไม่มี/token ไม่ผ่าน
-    ใช้กับ endpoint สาธารณะที่อยากรู้ตัวตนถ้ามี (เช่นบันทึก log ตอนดาวน์โหลด)"""
-    if not credentials:
-        return None
-
-    payload = decode_access_token(credentials.credentials)
-    if not payload:
-        return None
-
-    user_id = payload.get("sub")
-    if not user_id:
-        return None
-
-    user = UserRepository.get_by_id(db, user_id)
-    if not user or not user.is_active:
-        return None
-
-    return user
-
-
 def get_admin_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
@@ -86,8 +61,7 @@ def get_admin_user(
 
 
 def require_roles(*roles: str):
-    """สร้าง dependency ที่อนุญาตเฉพาะ role ที่กำหนด (ต้องล็อกอินก่อน)
-    ใช้คุมสิทธิ์รายการที่ไม่ใช่แค่ admin เช่น สร้างคดี (investigator) / อัปโหลด (investigator, officer)"""
+    """Create an authenticated dependency limited to the supplied roles."""
     def dependency(
         current_user: User = Depends(get_current_user),
     ) -> User:

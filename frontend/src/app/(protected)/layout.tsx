@@ -3,6 +3,7 @@ import TopBar from "@/components/layout/TopBar";
 import AuthGuard from "@/components/AuthGuard";
 import RouteGuard from "@/components/RouteGuard";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CopySuccessFeedbackHost } from "@/components/feedback/CopySuccessFeedback";
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,6 +18,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
             <main className="flex-1 p-7">
               <RouteGuard>{children}</RouteGuard>
             </main>
+            <CopySuccessFeedbackHost />
           </div>
         </div>
       </AuthProvider>

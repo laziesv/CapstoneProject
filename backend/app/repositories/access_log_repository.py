@@ -1,97 +1,65 @@
-from uuid import UUID
+from __future__ import annotations
+
 from datetime import datetime
+from uuid import UUID, uuid4
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.access_logs import AccessLog
-from app.models.users import User
 from app.models.evidence_items import EvidenceItem
 from app.models.enums import AuditAction, AuditResult
+from app.models.users import User
 
 
 class AccessLogRepository:
-
     @staticmethod
-    def create(
-        db: Session,
-        access_log: AccessLog,
-    ) -> AccessLog:
+    def stage(db: Session, access_log: AccessLog) -> AccessLog:
         db.add(access_log)
         db.flush()
-        db.refresh(access_log)
-
         return access_log
 
     @staticmethod
-    def get_by_id(
-        db: Session,
-        log_id: UUID,
-    ) -> AccessLog | None:
+    def get_by_id(db: Session, log_id: UUID) -> AccessLog | None:
+        return db.query(AccessLog).filter(AccessLog.log_id == log_id).first()
+
+    @staticmethod
+    def get_by_id_for_update(db: Session, log_id: UUID) -> AccessLog | None:
         return (
             db.query(AccessLog)
-            .filter(
-                AccessLog.log_id == log_id
-            )
+            .filter(AccessLog.log_id == log_id)
+            .with_for_update()
             .first()
         )
 
     @staticmethod
-    def get_by_user(
+    def get_pending_view(
         db: Session,
+        *,
         user_id: UUID,
-    ) -> list[AccessLog]:
-        return (
-            db.query(AccessLog)
-            .filter(
-                AccessLog.user_id == user_id
-            )
-            .order_by(
-                AccessLog.accessed_at.desc()
-            )
-            .all()
-        )
-
-    @staticmethod
-    def get_by_case(
-        db: Session,
-        case_id: UUID,
-    ) -> list[AccessLog]:
-        return (
-            db.query(AccessLog)
-            .filter(
-                AccessLog.case_id == case_id
-            )
-            .order_by(
-                AccessLog.accessed_at.desc()
-            )
-            .all()
-        )
-
-    @staticmethod
-    def get_by_evidence(
-        db: Session,
         evidence_id: UUID,
-    ) -> list[AccessLog]:
+    ) -> AccessLog | None:
         return (
             db.query(AccessLog)
             .filter(
-                AccessLog.evidence_id == evidence_id
+                AccessLog.user_id == user_id,
+                AccessLog.evidence_id == evidence_id,
+                AccessLog.action == AuditAction.VIEW,
+                AccessLog.result == AuditResult.PENDING,
             )
-            .order_by(
-                AccessLog.accessed_at.desc()
-            )
-            .all()
+            .order_by(AccessLog.accessed_at.asc(), AccessLog.log_id.asc())
+            .first()
         )
 
     @staticmethod
     def list(
         db: Session,
         *,
+        case_id: UUID | None = None,
         evidence_id: UUID | None = None,
         user_id: UUID | None = None,
-        action=None,
-        result=None,
+        action: AuditAction | None = None,
+        result: AuditResult | None = None,
         q: str | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
@@ -100,32 +68,34 @@ class AccessLogRepository:
         limit: int | None = None,
         offset: int = 0,
     ) -> tuple[list[AccessLog], int]:
-        """คืน (รายการหน้านี้, จำนวนทั้งหมดที่ตรงตัวกรอง) — นับก่อนตัด offset/limit
-        limit=None = คืนทั้งหมด (ใช้กับ dashboard/chain-check ที่ต้องการทุกรายการ)"""
         query = db.query(AccessLog)
 
-        if evidence_id:
+        if case_id is not None:
+            query = query.filter(AccessLog.case_id == case_id)
+        if evidence_id is not None:
             query = query.filter(AccessLog.evidence_id == evidence_id)
-        if user_id:
+        if user_id is not None:
             query = query.filter(AccessLog.user_id == user_id)
-        if action:
+        if action is not None:
             query = query.filter(AccessLog.action == action)
-        if result:
+        if result is not None:
             query = query.filter(AccessLog.result == result)
         if only_anomaly:
             query = query.filter(AccessLog.result != AuditResult.SUCCESS)
         if exclude_query:
             query = query.filter(AccessLog.action != AuditAction.QUERY)
-        if date_from:
+        if date_from is not None:
             query = query.filter(AccessLog.accessed_at >= date_from)
-        if date_to:
+        if date_to is not None:
             query = query.filter(AccessLog.accessed_at <= date_to)
         if q:
             like = f"%{q}%"
-            # join ชื่อผู้ใช้ + เลขหลักฐาน เพื่อค้นได้ทั้งชื่อคน/เลขหลักฐาน/IP
             query = (
                 query.outerjoin(User, AccessLog.user_id == User.user_id)
-                .outerjoin(EvidenceItem, AccessLog.evidence_id == EvidenceItem.evidence_id)
+                .outerjoin(
+                    EvidenceItem,
+                    AccessLog.evidence_id == EvidenceItem.evidence_id,
+                )
                 .filter(
                     or_(
                         User.full_name.ilike(like),
@@ -137,11 +107,95 @@ class AccessLogRepository:
             )
 
         total = query.count()
-
         query = query.order_by(AccessLog.accessed_at.desc())
         if offset:
             query = query.offset(offset)
         if limit is not None:
             query = query.limit(limit)
-
         return query.all(), total
+
+    @staticmethod
+    def list_successful_downloads_by_evidence(
+        db: Session,
+        *,
+        evidence_id: UUID,
+    ) -> list[AccessLog]:
+        return (
+            db.query(AccessLog)
+            .filter(
+                AccessLog.evidence_id == evidence_id,
+                AccessLog.action == AuditAction.DOWNLOAD,
+                AccessLog.result == AuditResult.SUCCESS,
+            )
+            .order_by(AccessLog.accessed_at.asc(), AccessLog.log_id.asc())
+            .all()
+        )
+
+    @staticmethod
+    def list_successful_accesses_by_evidence(
+        db: Session,
+        *,
+        evidence_id: UUID,
+    ) -> list[AccessLog]:
+        return (
+            db.query(AccessLog)
+            .filter(
+                AccessLog.evidence_id == evidence_id,
+                AccessLog.action.in_((AuditAction.VIEW, AuditAction.DOWNLOAD)),
+                AccessLog.result == AuditResult.SUCCESS,
+            )
+            .order_by(AccessLog.accessed_at.asc(), AccessLog.log_id.asc())
+            .all()
+        )
+
+    @staticmethod
+    def stage_download(
+        db: Session,
+        *,
+        user_id: UUID,
+        evidence_id: UUID,
+        ip_address: str | None,
+        user_agent: str | None,
+        case_id: UUID | None = None,
+        accessed_at: datetime,
+    ) -> AccessLog:
+        access_log = AccessLog(
+            log_id=uuid4(),
+            user_id=user_id,
+            case_id=case_id,
+            evidence_id=evidence_id,
+            action=AuditAction.DOWNLOAD,
+            accessed_at=accessed_at,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            result=AuditResult.SUCCESS,
+        )
+        # การเชื่อมต่อ Blockchain: ต้องมี log_id ก่อนเขียนเชน แต่ให้ service เป็นผู้ commit ทั้งชุด
+        return AccessLogRepository.stage(db, access_log)
+
+    @staticmethod
+    def stage_view(
+        db: Session,
+        *,
+        log_id: UUID | None = None,
+        user_id: UUID,
+        evidence_id: UUID,
+        case_id: UUID,
+        accessed_at: datetime,
+        ip_address: str | None,
+        user_agent: str | None,
+    ) -> AccessLog:
+        access_log = AccessLog(
+            log_id=log_id or uuid4(),
+            user_id=user_id,
+            case_id=case_id,
+            evidence_id=evidence_id,
+            action=AuditAction.VIEW,
+            accessed_at=accessed_at,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            result=AuditResult.PENDING,
+        )
+        # การเชื่อมต่อ Blockchain: PENDING ต้องถูก commit ก่อนรอ receipt
+        # เพื่อไม่ให้ session identity หายเมื่อ consensus หยุดผลิต block
+        return AccessLogRepository.stage(db, access_log)

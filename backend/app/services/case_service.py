@@ -1,4 +1,5 @@
 import uuid
+from typing import Sequence
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
@@ -11,17 +12,16 @@ from app.utils.ref_lookup import resolve_by_ref
 
 
 class CaseService:
-
     @staticmethod
-    def generate_case_number():
+    def generate_case_number() -> str:
         return f"CASE-{uuid.uuid4().hex[:8].upper()}"
 
     @staticmethod
-    def get_all(db: Session):
+    def get_all(db: Session) -> Sequence[Case]:
         return CaseRepository.get_all(db)
 
     @staticmethod
-    def get_by_id(db: Session, case_id):
+    def get_by_id(db: Session, case_id: uuid.UUID) -> Case:
         case = CaseRepository.get_by_id(db, case_id)
 
         if not case:
@@ -33,7 +33,7 @@ class CaseService:
         return case
 
     @staticmethod
-    def get_by_ref(db: Session, ref):
+    def get_by_ref(db: Session, ref: str) -> Case:
         """หาคดีจาก UUID หรือเลขคดี (เช่น CASE-2026-0061) — ไม่เจอโยน 404"""
         case = resolve_by_ref(
             ref,
@@ -51,7 +51,7 @@ class CaseService:
         db: Session,
         data: CaseCreate,
         current_user: User,
-    ):
+    ) -> Case:
         case = Case(
             **data.model_dump(),
             case_number=CaseService.generate_case_number(),
@@ -63,9 +63,9 @@ class CaseService:
     @staticmethod
     def update(
         db: Session,
-        case_id,
+        case_id: uuid.UUID,
         data: CaseUpdate,
-    ):
+    ) -> Case:
         case = CaseService.get_by_id(db, case_id)
 
         for key, value in data.model_dump(exclude_unset=True).items():
@@ -76,8 +76,8 @@ class CaseService:
     @staticmethod
     def delete(
         db: Session,
-        case_id,
-    ):
+        case_id: uuid.UUID,
+    ) -> Case:
         case = CaseService.get_by_id(db, case_id)
 
         return CaseRepository.delete(db, case)

@@ -6,16 +6,16 @@ import { Plus, Search, Loader2, FolderOpen, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService } from "@/services";
-import ProtectedImage from "@/components/ProtectedImage";
 import { visibleCases, canCreateCase } from "@/utils/caseAccess";
 import type { Case, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
+import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 
 /** รูปหลักฐานที่อัพโหลดล่าสุดของคดี (ใช้เป็นภาพปกการ์ด) */
 const coverOf = (evidence: EvidenceItem[], caseId: string) =>
   evidence
-    .filter((e) => e.case_id === caseId && e.thumbnail_url)
-    .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))[0]?.thumbnail_url;
+    .filter((e) => e.case_id === caseId && e.display_file_id)
+    .sort((a, b) => b.uploaded_at.localeCompare(a.uploaded_at))[0]?.display_file_id;
 
 /** จำนวนหลักฐานจริงของคดี (คดีสร้างใหม่ยังไม่มีหลักฐาน) */
 const evidenceCountOf = (evidence: EvidenceItem[], caseId: string) =>
@@ -129,20 +129,19 @@ export default function CasesPage() {
               >
                 {/* ปก */}
                 <div className="relative flex aspect-video items-center justify-center overflow-hidden bg-surface-hover">
-                  {count === 0 ? (
-                    <div className="flex flex-col items-center gap-2 text-muted">
-                      <FolderOpen className="h-7 w-7 text-slate-400" />
-                      <span className="text-xs">ยังไม่มีหลักฐาน</span>
-                    </div>
-                  ) : cover ? (
-                    <ProtectedImage
-                      src={cover}
-                      alt={c.title}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                  ) : (
-                    <span className="text-xs text-muted">ภาพปกหลักฐาน</span>
-                  )}
+                  <EvidencePreviewImage
+                    fileId={cover}
+                    alt={c.title}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    fallback={
+                      <div className="flex flex-col items-center gap-2 text-muted">
+                        <FolderOpen className="h-7 w-7 text-slate-400" />
+                        <span className="text-xs">
+                          {count > 0 ? "ไม่พบไฟล์หลักฐานเดิม" : "ยังไม่มีหลักฐาน"}
+                        </span>
+                      </div>
+                    }
+                  />
                   {count > 0 && (
                     <span className="absolute left-3 top-3 rounded-full bg-black/75 px-2.5 py-1 text-[11px] font-semibold text-white">
                       {count} หลักฐาน

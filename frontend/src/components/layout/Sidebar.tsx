@@ -10,6 +10,7 @@ import {
   Users,
   LogOut,
   Fingerprint,
+  Blocks,
 } from "lucide-react";
 
 const navItems = [
@@ -19,6 +20,7 @@ const navItems = [
 
 const adminItems = [
   { href: "/verify", label: "ตรวจลายน้ำ", icon: ShieldCheck },
+  { href: "/blockchain", label: "สำรวจบล็อกเชน", icon: Blocks },
   { href: "/logs", label: "บันทึกการเข้าถึง", icon: ClipboardList },
   { href: "/users", label: "จัดการผู้ใช้", icon: Users },
 ];

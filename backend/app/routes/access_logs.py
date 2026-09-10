@@ -1,5 +1,5 @@
-from uuid import UUID
 from datetime import date
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -11,14 +11,12 @@ from app.schemas.access_log import AccessLogPage
 from app.services.access_log_service import AccessLogService
 
 
-router = APIRouter(
-    prefix="/access-logs",
-    tags=["Access Log"]
-)
+router = APIRouter(prefix="/access-logs", tags=["Access Log"])
 
 
 @router.get("", response_model=AccessLogPage)
 def list_logs(
+    case_id: UUID | None = None,
     evidence_id: UUID | None = None,
     user_id: UUID | None = None,
     action: str | None = None,
@@ -33,11 +31,10 @@ def list_logs(
     db: Session = Depends(get_db),
     _admin: User = Depends(get_admin_user),
 ):
-    """ดูบันทึกการเข้าถึงหลักฐาน (admin เท่านั้น) — กรอง + ค้นหา + แบ่งหน้าที่เซิร์ฟเวอร์
-    limit ว่าง = คืนทุกรายการ (dashboard/chain-check); ใส่ limit/offset = แบ่งหน้า (หน้า /logs)"""
     items, total = AccessLogService.list(
         db,
         {
+            "case_id": case_id,
             "evidence_id": evidence_id,
             "user_id": user_id,
             "action": action,

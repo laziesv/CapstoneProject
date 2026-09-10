@@ -2,16 +2,42 @@ import json
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, Request, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user, require_roles
+from app.deps import get_admin_user, get_current_user
 from app.models.users import User
-from app.models.enums import AuditAction
-from app.schemas.evidence import EvidenceCreate, EvidenceResponse
-from app.services.evidence_service import EvidenceService
-from app.services.access_log_service import AccessLogService, client_info
+from app.repositories.case_repository import CaseRepository
+from app.repositories.evidence_items_repository import EvidenceRepository
+from app.schemas.chain_of_custody import ChainOfCustodyResponse
+from app.schemas.evidence import (
+    EvidenceCreate,
+    EvidenceResponse,
+    EvidenceUploadResponse,
+    EvidenceViewSessionRequest,
+    EvidenceViewSessionResponse,
+)
+from app.services.case_authorization import can_access_case
+from app.services.chain_of_custody_service import (
+    ChainOfCustodyBlockchainReadError,
+    ChainOfCustodyEvidenceNotFoundError,
+    ChainOfCustodyMalformedChainDataError,
+    ChainOfCustodyService,
+)
+from app.services.evidence_service import EvidenceBlockchainWriteError, EvidenceService
+from app.services.evidence_access_service import EvidenceAccessService
+from app.services.evidence_view_service import (
+    EvidenceViewBlockchainWriteError,
+    EvidenceViewNotFoundError,
+    EvidenceViewPreparationService,
+    EvidenceViewSessionConflictError,
+    EvidenceViewState,
+)
+from app.services.access_log_service import AccessLogService
+from app.services.personalized_watermark_service import remove_personalized_copy
+from app.utils.request_context import get_client_info
 
 
 router = APIRouter(
@@ -21,27 +47,180 @@ router = APIRouter(
 
 
 @router.post(
+    "/{evidence_id}/view-session",
+    response_model=EvidenceViewSessionResponse,
+)
+def create_view_session(
+    evidence_id: UUID,
+    request: Request,
+    response: Response,
+    payload: EvidenceViewSessionRequest | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        result = EvidenceViewPreparationService.create_session(
+            db,
+            evidence_id=evidence_id,
+            current_user=current_user,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+            request_id=payload.request_id if payload else None,
+        )
+        if result.status != EvidenceViewState.CONFIRMED:
+            response.status_code = 202
+        return result
+    except EvidenceViewNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except EvidenceViewSessionConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "VIEW_SESSION_CONFLICT",
+                "message": "รหัสคำขอ VIEW นี้ถูกใช้กับรายการอื่นแล้ว",
+            },
+        ) from exc
+    except EvidenceViewBlockchainWriteError as exc:
+        messages = {
+            "BLOCKCHAIN_VIEW_REVERTED": "ธุรกรรมเข้าดูหลักฐานถูกปฏิเสธโดย Blockchain",
+            "BLOCKCHAIN_STALLED": "เครือข่าย Blockchain ยังไม่สามารถสร้าง Block ใหม่ได้",
+            "BLOCKCHAIN_UNAVAILABLE": "ไม่สามารถเชื่อมต่อเครือข่าย Blockchain ได้ในขณะนี้",
+        }
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": exc.code,
+                "message": messages.get(
+                    exc.code,
+                    "เครือข่าย Blockchain ยังไม่พร้อมบันทึกรายการเข้าดูหลักฐาน",
+                ),
+            },
+        ) from exc
+
+
+@router.get(
+    "/{evidence_id}/chain-of-custody",
+    response_model=ChainOfCustodyResponse,
+)
+def chain_of_custody(
+    evidence_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_admin_user),
+    # ประวัติการเข้าถึงอาจมีหลายพันรายการ — จำกัดขนาด response ได้
+    # limit ว่าง = คืนทั้งหมด (ค่าเดิม) · offset นับจากรายการล่าสุดย้อนขึ้นไป
+    # (วางไว้ท้ายสุดเพื่อไม่ให้ลำดับ argument เดิมของผู้เรียกเปลี่ยน)
+    limit: int | None = Query(None, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    evidence = EvidenceRepository.get_by_id(db, evidence_id)
+    case = CaseRepository.get_by_id(db, evidence.case_id) if evidence else None
+    if case is None or not can_access_case(db, current_user, case):
+        raise HTTPException(status_code=404, detail="Evidence not found")
+
+    try:
+        return ChainOfCustodyService().get_chain_of_custody(
+            db,
+            evidence_id,
+            access_history_limit=limit,
+            access_history_offset=offset,
+        )
+    except ChainOfCustodyEvidenceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Evidence not found") from exc
+    except (
+        ChainOfCustodyBlockchainReadError,
+        ChainOfCustodyMalformedChainDataError,
+    ) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Chain of Custody verification is unavailable",
+        ) from exc
+
+
+class _TemporaryFileResponse(FileResponse):
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            # ลบสำเนาเฉพาะบุคคลทั้งเมื่อส่งสำเร็จและเมื่อ streaming ล้มเหลว
+            remove_personalized_copy(self.path)
+
+
+@router.post("/{evidence_id}/download")
+def download(
+    evidence_id: UUID,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    download_file = EvidenceAccessService.prepare_download(
+        db,
+        evidence_id=evidence_id,
+        current_user=current_user,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    try:
+        metadata_headers = {
+            "X-Evidence-Id": str(download_file.evidence_id),
+            "X-Evidence-Ref": download_file.evidence_ref,
+            "X-Access-Session-Ref": download_file.access_session_ref,
+            "X-Blockchain-Action": download_file.action,
+            "X-Blockchain-Tx-Hash": download_file.tx_hash,
+            "X-Blockchain-Block-Number": str(download_file.block_number),
+            "X-Original-Evidence-Integrity": download_file.integrity_status,
+        }
+        # การเชื่อมต่อ Blockchain: เปิดเผยเฉพาะ header สรุปที่ปลอดภัยให้ frontend
+        # อ่านจาก response เดิม โดยไม่เรียก DOWNLOAD endpoint ซ้ำ
+        metadata_headers["Access-Control-Expose-Headers"] = ", ".join(
+            metadata_headers
+        )
+        return _TemporaryFileResponse(
+            path=download_file.file_path,
+            filename=download_file.filename,
+            media_type="application/octet-stream",
+            headers=metadata_headers,
+        )
+    except Exception:
+        remove_personalized_copy(download_file.file_path)
+        raise
+
+
+@router.post(
     "/upload",
-    response_model=EvidenceResponse
+    response_model=EvidenceUploadResponse,
 )
 def upload(
     evidence: str = Form(...),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    # อัปโหลดหลักฐานได้เฉพาะ investigator/officer (admin/viewer ไม่ได้)
-    current_user: User = Depends(require_roles("investigator", "officer")),
+    current_user: User = Depends(get_current_user),
 ):
     data = EvidenceCreate(
         **json.loads(evidence)
     )
 
     # uploaded_by มาจาก token เสมอ ไม่รับจาก body — กันปลอมเป็นคนอื่นอัพโหลด
-    return EvidenceService.upload(
-        db,
-        data,
-        file,
-        uploaded_by=current_user.user_id,
-    )
+    try:
+        result = EvidenceService.upload(
+            db,
+            data,
+            file,
+            uploaded_by=current_user.user_id,
+        )
+        evidence_data = EvidenceResponse.model_validate(result.evidence).model_dump()
+        return EvidenceUploadResponse(
+            **evidence_data,
+            evidence_ref=result.evidence_ref,
+            tx_hash=result.tx_hash,
+            block_number=result.block_number,
+            contract_address=result.contract_address,
+        )
+    except EvidenceBlockchainWriteError as exc:
+        # ตอบกลับแบบชัดเจนเมื่อบันทึก Blockchain ไม่สำเร็จ แทนข้อผิดพลาด 500
+        raise HTTPException(
+            status_code=503,
+            detail="Evidence upload could not be recorded",
+        ) from exc
 
 
 @router.get(
@@ -49,25 +228,43 @@ def upload(
     response_model=list[EvidenceResponse]
 )
 def list_all(
-    request: Request,
     case_id: UUID | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    request: Request = None,
 ):
+    if case_id is not None:
+        case = CaseRepository.get_by_id(db, case_id)
+        if case is None or not can_access_case(db, current_user, case):
+            raise HTTPException(status_code=404, detail="Case not found")
+
     items = EvidenceService.get_all(db, case_id)
+    if case_id is None:
+        access_by_case = {}
+        visible_items = []
+        for item in items:
+            case = item.case
+            if case is None or case.deleted_at is not None:
+                continue
+            allowed = access_by_case.get(case.case_id)
+            if allowed is None:
+                allowed = can_access_case(db, current_user, case)
+                access_by_case[case.case_id] = allowed
+            if allowed:
+                visible_items.append(item)
+        items = visible_items
+
     responses = [EvidenceResponse.model_validate(it) for it in items]
 
-    # ดูรายการหลักฐาน = บันทึก QUERY (evidence_id ว่าง เพราะเป็นการค้นเป็นชุด
-    # ไม่ใช่ชิ้นเดียว — case_id ติดไปถ้ากรองตามคดี)
-    ip, user_agent = client_info(request)
-    AccessLogService.record(
-        db,
-        user_id=current_user.user_id,
-        action=AuditAction.QUERY,
-        case_id=case_id,
-        ip=ip,
-        user_agent=user_agent,
-    )
+    if request is not None:
+        ip_address, user_agent = get_client_info(request)
+        AccessLogService.record_query(
+            db,
+            user_id=current_user.user_id,
+            case_id=case_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
 
     # SHA-256 hash เปิดเผยลายนิ้วมือของไฟล์ — เห็นได้เฉพาะ admin
     # (front กรองในหน้าเว็บแล้ว แต่ต้องกันที่นี่ด้วย ไม่งั้นเปิด DevTools ก็เห็น)
@@ -81,36 +278,28 @@ def list_all(
 
 @router.get(
     "/{evidence_ref}",
-    response_model=EvidenceResponse
+    response_model=EvidenceResponse,
 )
 def get_one(
     evidence_ref: str,
-    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # รับได้ทั้ง UUID (path เดิม) และเลขหลักฐาน (เช่น EV-20260829-A82EC1)
+    """หลักฐาน 1 ชิ้น — รับได้ทั้ง UUID และเลขหลักฐาน (เช่น EV-20260910-B7E872)
+
+    เป็นการอ่านอย่างเดียว **ไม่บันทึก VIEW** เพราะการเปิดดูหลักฐานมี
+    /{evidence_id}/view-session เป็นเจ้าของอยู่แล้ว ถ้าบันทึกที่นี่ด้วยจะได้ log ซ้ำสองแถว
+    """
     evidence = EvidenceService.get_by_ref(db, evidence_ref)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail="Evidence not found")
 
-    if not evidence:
-        raise HTTPException(status_code=404, detail="ไม่พบหลักฐาน")
-
-    # เปิดดูหลักฐาน 1 ชิ้น = บันทึก VIEW (จุดนี้คือ "เริ่มเก็บ" ฝั่ง server เลี่ยงไม่ได้)
-    ip, user_agent = client_info(request)
-    AccessLogService.record(
-        db,
-        user_id=current_user.user_id,
-        action=AuditAction.VIEW,
-        evidence_id=evidence.evidence_id,
-        case_id=evidence.case_id,
-        ip=ip,
-        user_agent=user_agent,
-    )
+    case = CaseRepository.get_by_id(db, evidence.case_id)
+    if case is None or not can_access_case(db, current_user, case):
+        raise HTTPException(status_code=404, detail="Evidence not found")
 
     response = EvidenceResponse.model_validate(evidence)
-
-    # SHA-256 hash เห็นได้เฉพาะ admin (เหมือน list_all)
+    # SHA-256 เปิดเผยลายนิ้วมือของไฟล์ — เห็นได้เฉพาะ admin (เหมือน list_all)
     if current_user.role != "admin":
         response.file_hash = None
-
     return response

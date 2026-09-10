@@ -20,7 +20,10 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 /** นับจำนวนต่อวัน ย้อนหลัง N วัน (เติมวันที่ไม่มีข้อมูล = 0) — คีย์ตามวันเวลาท้องถิ่น */
-function bucketByDay(isoDates: (string | null | undefined)[], days = 14): BarPoint[] {
+/** จำนวนวันของกราฟทั้งสองใบ — ใช้เป็นช่วงดึง access log ด้วย ให้ตรงกันเสมอ */
+const ACCESS_CHART_DAYS = 14;
+
+function bucketByDay(isoDates: (string | null | undefined)[], days = ACCESS_CHART_DAYS): BarPoint[] {
   const key = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
   const counts = new Map<string, number>();
   for (const iso of isoDates) {
@@ -71,7 +74,12 @@ export default function DashboardPage() {
   const [logs, setLogs] = useState<AccessLog[]>([]);
   useEffect(() => {
     if (!isAdmin) return;
-    accessLogService.list().then(setLogs).catch(() => {});
+    // กรองด้วยช่วงวันแทนการใส่ limit — backend จำกัด limit ไว้ที่ 200
+    // ถ้าใน 14 วันมีมากกว่านั้น กราฟจะขาดวันเก่าไปเงียบ ๆ
+    const since = new Date();
+    since.setDate(since.getDate() - (ACCESS_CHART_DAYS - 1));
+    const dateFrom = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, "0")}-${String(since.getDate()).padStart(2, "0")}`;
+    accessLogService.list({ date_from: dateFrom }).then(setLogs).catch(() => {});
   }, [isAdmin]);
 
   const uploadsSeries = useMemo(() => bucketByDay(evidences.map((e) => e.uploaded_at)), [evidences]);
@@ -91,7 +99,10 @@ export default function DashboardPage() {
     const total = logs.length;
     const users = new Set(logs.map((l) => l.user_id)).size;
     // QUERY = ดูรายการรวม ไม่ผูกกับหลักฐานชิ้นใด (evidence_id ว่าง) — ไม่นับในสถิติราย "ชิ้น"
-    const perEvidence = logs.filter((l) => l.evidence_id);
+    // evidence_id เป็น null ได้ (หลังรวมกับ feature/blockchain) — แคบชนิดให้เหลือเฉพาะรายการที่มีค่า
+    const perEvidence = logs.filter(
+      (l): l is AccessLog & { evidence_id: string } => Boolean(l.evidence_id),
+    );
     const evidence = new Set(perEvidence.map((l) => l.evidence_id)).size;
 
     const byEvidence = new Map<string, { label: string; count: number }>();
@@ -196,6 +207,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

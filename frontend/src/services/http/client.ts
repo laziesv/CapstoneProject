@@ -7,10 +7,20 @@ import { getToken, clearSession } from "@/utils/session";
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  code: string | null;
+  details: Record<string, unknown> | null;
+
+  constructor(
+    message: string,
+    status: number,
+    code: string | null = null,
+    details: Record<string, unknown> | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.code = code;
+    this.details = details;
   }
 }
 
@@ -43,9 +53,25 @@ async function authFetch(path: string, options: RequestInit = {}): Promise<Respo
 async function parse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
+    const detail = data?.detail;
+    const structuredDetail = (
+      detail !== null
+      && typeof detail === "object"
+      && !Array.isArray(detail)
+    ) ? detail as Record<string, unknown> : null;
+    const message = typeof detail === "string"
+      ? detail
+      : typeof structuredDetail?.message === "string"
+        ? structuredDetail.message
+        : "เกิดข้อผิดพลาด";
+    const code = typeof structuredDetail?.code === "string"
+      ? structuredDetail.code
+      : null;
     throw new ApiError(
-      data?.detail?.toString?.() ?? "เกิดข้อผิดพลาด",
-      res.status
+      message,
+      res.status,
+      code,
+      structuredDetail,
     );
   }
   if (res.status === 204) return undefined as T;
@@ -55,6 +81,23 @@ async function parse<T>(res: Response): Promise<T> {
 /** เรียก endpoint ที่ต้อง auth — แนบ token + logout อัตโนมัติเมื่อ token หมดอายุ */
 export async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return parse<T>(await authFetch(path, options));
+}
+
+/** เรียกไฟล์ผ่าน Bearer token เดียวกับ API ปกติ แล้วคืนข้อมูลแบบ Blob */
+export async function requestBlob(path: string, options?: RequestInit): Promise<Blob> {
+  const res = await authFetch(path, options);
+  if (!res.ok) await parse<never>(res);
+  return res.blob();
+}
+
+/** เรียกไฟล์และเก็บ response headers สำหรับ metadata ของ operation เดียวกัน */
+export async function requestBlobWithMetadata(
+  path: string,
+  options?: RequestInit,
+): Promise<{ blob: Blob; headers: Headers }> {
+  const res = await authFetch(path, options);
+  if (!res.ok) await parse<never>(res);
+  return { blob: await res.blob(), headers: res.headers };
 }
 
 /** เรียก endpoint สาธารณะ (เช่น login) — ไม่แนบ token และไม่ redirect เมื่อ 401 */
