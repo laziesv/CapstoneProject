@@ -17,6 +17,7 @@ export const dashboardService = {
         evidence_id: e.evidence_id,
         evidence_number: e.evidence_number,
         description: e.description,
+        display_file_id: e.display_file_id,
         is_watermarked: e.is_watermarked,
         is_blockchain_verified: e.is_blockchain_verified,
         thumbnail_url: e.display_file_id ? evidenceFileUrl(e.display_file_id) : null,

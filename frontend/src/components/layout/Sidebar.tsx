@@ -8,19 +8,22 @@ import {
   ShieldCheck,
   ClipboardList,
   Users,
+  User,
   LogOut,
   Fingerprint,
+  Blocks,
 } from "lucide-react";
 
 const navItems = [
-  { href: "/dashboard", label: "แดชบอร์ด", icon: LayoutDashboard },
-  { href: "/cases", label: "คดี", icon: FolderOpen },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/cases", label: "Cases", icon: FolderOpen },
 ];
 
 const adminItems = [
-  { href: "/verify", label: "ตรวจลายน้ำ", icon: ShieldCheck },
-  { href: "/logs", label: "บันทึกการเข้าถึง", icon: ClipboardList },
-  { href: "/users", label: "จัดการผู้ใช้", icon: Users },
+  { href: "/verify", label: "Watermark Verify", icon: ShieldCheck },
+  { href: "/blockchain", label: "Blockchain Explorer", icon: Blocks },
+  { href: "/logs", label: "Access Logs", icon: ClipboardList },
+  { href: "/users", label: "Manage Users", icon: Users },
 ];
 
 export default function Sidebar() {
@@ -29,61 +32,52 @@ export default function Sidebar() {
 
   const isAdmin = user?.role === "admin";
   const items = isAdmin ? [...navItems, ...adminItems] : navItems;
-  const displayName = user?.full_name || user?.username || "ผู้ใช้งาน";
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-[76px] flex-col items-center gap-2 bg-sidebar py-[18px]">
-      {/* โลโก้ */}
-      <Link
-        href="/dashboard"
-        className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary"
-        title="DEVA"
-      >
-        <Fingerprint className="h-5 w-5 text-white" />
-      </Link>
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-60 flex-col bg-sidebar text-white">
+      {/* Logo */}
+      <div className="flex items-center gap-2.5 px-5 py-5 border-b border-white/10">
+        <Fingerprint className="h-7 w-7 text-blue-400" />
+        <span className="text-lg font-bold tracking-tight">DEVA</span>
+      </div>
 
-      {/* รางไอคอน — ชื่อเมนูโผล่เป็น tooltip เมื่อชี้ */}
-      <nav className="flex flex-col items-center gap-2">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {items.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
-              title={item.label}
-              aria-label={item.label}
-              className={`group relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                 isActive
-                  ? "bg-sidebar-hover text-white"
-                  : "text-muted hover:bg-sidebar-hover hover:text-white"
+                  ? "bg-sidebar-active text-white"
+                  : "text-slate-300 hover:bg-sidebar-hover hover:text-white"
               }`}
             >
-              <item.icon className="h-[19px] w-[19px]" />
-              <span className="pointer-events-none absolute left-[54px] z-50 whitespace-nowrap rounded-lg bg-ink-raised px-3 py-1.5 text-xs font-medium text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
-                {item.label}
-              </span>
+              <item.icon className="h-[18px] w-[18px]" />
+              {item.label}
             </Link>
           );
         })}
       </nav>
 
-      {/* ล่าง: โปรไฟล์ + ออกจากระบบ */}
-      <div className="mt-auto flex flex-col items-center gap-3">
-        <button
-          onClick={signOut}
-          title="ออกจากระบบ"
-          aria-label="ออกจากระบบ"
-          className="flex h-11 w-11 items-center justify-center rounded-xl text-muted transition-colors hover:bg-danger/20 hover:text-danger"
-        >
-          <LogOut className="h-[19px] w-[19px]" />
-        </button>
+      {/* Bottom */}
+      <div className="border-t border-white/10 px-3 py-3 space-y-1">
         <Link
           href="/profile"
-          title="โปรไฟล์"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-sidebar-hover text-[13px] font-semibold text-white transition-colors hover:bg-primary"
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-sidebar-hover hover:text-white transition-colors"
         >
-          {displayName.charAt(0)}
+          <User className="h-[18px] w-[18px]" />
+          Profile
         </Link>
+        <button
+          onClick={signOut}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-slate-400 hover:bg-red-500/20 hover:text-red-300 transition-colors"
+        >
+          <LogOut className="h-[18px] w-[18px]" />
+          Logout
+        </button>
       </div>
     </aside>
   );

@@ -11,8 +11,10 @@ class EvidenceFileRepository:
         file: EvidenceFile,
     ) -> EvidenceFile:
         db.add(file)
-        db.commit()
-        db.refresh(file)
+        # Blockchain integration:
+        # Keep EvidenceFile creation inside the caller's transaction so evidence,
+        # files, and blockchain metadata can be committed together.
+        db.flush()
         return file
 
 

@@ -6,64 +6,34 @@
 // ├──────────────────────────────────────────────────────────────────────┤
 // │ GET  /api/evidences?case_id={uuid}  → EvidenceApiResponse[]          │
 // │      ต้อง auth · ไม่ส่ง case_id = คืนทั้งหมด                          │
-// │ POST /api/evidences/upload          → EvidenceApiResponse            │
+// │ POST /api/evidences/upload          → EvidenceUploadApiResponse      │
 // │      ต้อง auth · multipart: file (1 ไฟล์ต่อ 1 request)                │
 // │              + evidence = JSON string ของ                            │
 // │                { case_id, description?, captured_at? }               │
 // │      uploaded_by มาจาก token (ไม่ต้องส่ง) · server คำนวณ SHA-256 จริง  │
-// │ GET  /api/evidences/{ref}           → EvidenceApiResponse (+log VIEW) │
-// │      ref = UUID หรือเลขหลักฐาน (เช่น EV-20260829-A82EC1)              │
-// │ GET  /api/evidence-files/{file_id}?action=download → ไฟล์ (+log DL)   │
+// │ GET  /api/evidence-files/{file_id}  → ไฟล์รูป (FileResponse)          │
+// │ GET  /api/evidences/{id}/chain-of-custody → ChainOfCustodyResponse   │
 // └──────────────────────────────────────────────────────────────────────┘
 //
-// TODO(backend): ยังไม่มี endpoint blockchain — transactionsOf และ verifyOnChain ยัง mock
-
+// TODO(backend): ยังไม่มี GET /api/evidences/{id} — get() จึงดึงลิสต์มาหาเอง
 import type {
   EvidenceItem,
-  BlockchainTx,
-  BlockchainVerification,
-  AccessLog,
   UploadEvidenceInput,
   UploadedEvidenceRef,
   EvidenceApiResponse,
+  EvidenceUploadApiResponse,
+  EvidenceViewSessionResponse,
+  EvidenceDownloadResult,
+  ChainOfCustodyResponse,
 } from "@/interfaces";
-import { evidenceFileUrl } from "@/config";
-import { mockTx } from "@/utils/mockData";
-import { mockVerifyOnChain } from "./_mocks/blockchainVerify";
-import { request, ApiError } from "./client";
-
-// React Strict Mode เรียก effect ซ้ำใน development เพื่อช่วยตรวจหา side effect
-// ใช้ request ที่กำลังทำงานร่วมกัน เพื่อไม่ให้ GET ที่ backend นำไปบันทึก access log
-// สร้าง VIEW/QUERY ซ้ำสำหรับการเปิดหน้าครั้งเดียว
-const pendingReads = new Map<string, Promise<EvidenceApiResponse | EvidenceApiResponse[]>>();
-
-function sharedRead<T extends EvidenceApiResponse | EvidenceApiResponse[]>(
-  key: string,
-  load: () => Promise<T>,
-): Promise<T> {
-  const pending = pendingReads.get(key);
-  if (pending) return pending as Promise<T>;
-
-  const next = load().finally(() => {
-    if (pendingReads.get(key) === next) pendingReads.delete(key);
-  });
-  pendingReads.set(key, next);
-  return next;
-}
-
-/** สุ่ม hex — ใช้เฉพาะ tx/block ที่ยังไม่มี endpoint จริง
- *  TODO(backend): ลบทิ้งเมื่อมี blockchain endpoint */
-function randomHex(len: number): string {
-  const bytes = new Uint8Array(len / 2);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
+import { request, requestBlob, requestBlobWithMetadata } from "./client";
+import {
+  requestEvidenceDownloadOnce,
+  uploadResultFromResponse,
+} from "@/utils/evidenceOperationFeedback";
 
 /** แปลงรูปแบบของ backend → รูปแบบที่ frontend ใช้ทั้งระบบ */
 function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
-  // ไฟล์เสิร์ฟผ่าน endpoint แยก — ใช้ไฟล์ที่ฝังลายน้ำแล้ว (display_file_id)
-  // เพื่อให้ภาพที่โชว์และดาวน์โหลดมีลายน้ำติดไปด้วย (fallback file_id ถ้าไม่มี)
-  const fileId = dto.display_file_id ?? dto.file_id;
   return {
     evidence_id: dto.evidence_id,
     evidence_number: dto.evidence_number,
@@ -79,30 +49,76 @@ function toEvidence(dto: EvidenceApiResponse): EvidenceItem {
     captured_at: dto.captured_at ?? undefined,
     file_hash_sha256: dto.file_hash ?? undefined,
     file_size_bytes: dto.file_size_bytes ?? undefined,
-    thumbnail_url: fileId ? evidenceFileUrl(fileId) : undefined,
+    display_file_id: dto.display_file_id ?? undefined,
   };
 }
 
 export const evidenceService = {
+  /** บันทึก VIEW จากการกดเปิดหลักฐานโดยเจตนา ก่อนอนุญาตให้ UI แสดง preview */
+  createViewSession(
+    evidenceId: string,
+    requestId?: string,
+  ): Promise<EvidenceViewSessionResponse> {
+    return request<EvidenceViewSessionResponse>(
+      `/api/evidences/${encodeURIComponent(evidenceId)}/view-session`,
+      {
+        method: "POST",
+        body: JSON.stringify({ request_id: requestId ?? null }),
+      }
+    );
+  },
+
+  /** โหลด Chain of Custody ที่ backend ตรวจสอบกับ private Blockchain แล้ว */
+  getChainOfCustody(evidenceId: string): Promise<ChainOfCustodyResponse> {
+    return request<ChainOfCustodyResponse>(
+      `/api/evidences/${encodeURIComponent(evidenceId)}/chain-of-custody`
+    );
+  },
+
+  /** โหลดภาพตัวอย่างที่ฝังลายน้ำแล้วผ่าน Bearer token */
+  preview(fileId: string): Promise<Blob> {
+    return requestBlob(`/api/evidence-files/${encodeURIComponent(fileId)}`);
+  },
+
+  /** ดาวน์โหลดไฟล์ผ่าน POST เพื่อให้ backend บันทึกเหตุการณ์การเข้าถึงเพียงครั้งเดียว */
+  async download(evidenceId: string): Promise<EvidenceDownloadResult> {
+    const response = await requestEvidenceDownloadOnce(
+      evidenceId,
+      requestBlobWithMetadata,
+    );
+    const blockHeader = response.headers.get("X-Blockchain-Block-Number");
+    const parsedBlock = blockHeader === null ? null : Number(blockHeader);
+    const action = response.headers.get("X-Blockchain-Action");
+    return {
+      blob: response.blob,
+      metadata: {
+        evidenceId: response.headers.get("X-Evidence-Id"),
+        evidenceRef: response.headers.get("X-Evidence-Ref"),
+        accessSessionRef: response.headers.get("X-Access-Session-Ref"),
+        action: action === "DOWNLOAD" ? action : null,
+        transactionHash: response.headers.get("X-Blockchain-Tx-Hash"),
+        blockNumber: parsedBlock !== null
+          && Number.isSafeInteger(parsedBlock)
+          && parsedBlock >= 0
+          ? parsedBlock
+          : null,
+        integrityStatus: response.headers.get("X-Original-Evidence-Integrity"),
+      },
+    };
+  },
+
   /** รายการหลักฐาน (กรองตามคดีได้ — กรองฝั่ง server) */
   async list(filters: { case_id?: string } = {}): Promise<EvidenceItem[]> {
     const qs = filters.case_id ? `?case_id=${encodeURIComponent(filters.case_id)}` : "";
-    const path = `/api/evidences${qs}`;
-    const data = await sharedRead(path, () => request<EvidenceApiResponse[]>(path));
+    const data = await request<EvidenceApiResponse[]>(`/api/evidences${qs}`);
     return data.map(toEvidence);
   },
 
-  /** หลักฐานตาม UUID หรือเลขหลักฐาน (undefined ถ้าไม่พบ)
-   *  เปิดหน้านี้ = server บันทึก VIEW log ให้อัตโนมัติ (เลี่ยงไม่ได้) */
+  /** หลักฐานตาม id (undefined ถ้าไม่พบ)
+   *  TODO(backend): ยังไม่มี GET /api/evidences/{id} — ต้องดึงลิสต์มาหาเอง */
   async get(id: string): Promise<EvidenceItem | undefined> {
-    try {
-      const path = `/api/evidences/${encodeURIComponent(id)}`;
-      const dto = await sharedRead(path, () => request<EvidenceApiResponse>(path));
-      return toEvidence(dto);
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) return undefined;
-      throw e;
-    }
+    const all = await this.list();
+    return all.find((e) => e.evidence_id === id);
   },
 
   /** อัพโหลดหลักฐานใหม่ — ยิงทีละไฟล์เพราะ endpoint รับครั้งละ 1 ไฟล์ */
@@ -121,33 +137,15 @@ export const evidenceService = {
         })
       );
 
-      const dto = await request<EvidenceApiResponse>("/api/evidences/upload", {
+      const dto = await request<EvidenceUploadApiResponse>("/api/evidences/upload", {
         method: "POST",
         body: form,
       });
 
-      refs.push({
-        original_filename: dto.original_filename ?? item.file.name,
-        evidence_number: dto.evidence_number,
-        // SHA-256 จริงที่ server คำนวณจากไฟล์ที่บันทึกไว้
-        file_hash_sha256: dto.file_hash ?? "",
-        // TODO(backend): ใช้ค่าจริงเมื่อมี blockchain endpoint
-        tx_hash: `0x${randomHex(40)}`,
-        block_number: 18450 + Math.floor(Math.random() * 500),
-      });
+      refs.push(uploadResultFromResponse(dto, item.file.name));
     }
 
     return refs;
   },
 
-  /** ธุรกรรม blockchain ของหลักฐานชิ้นนั้น — ยัง mock (ไม่มี endpoint) */
-  async transactionsOf(evidenceId: string): Promise<BlockchainTx[]> {
-    return mockTx.filter((t) => t.evidence_id === evidenceId);
-  },
-
-  /** ตรวจสอบความสมบูรณ์กับบล็อกเชน — เทียบแฮชไฟล์ + access log ทีละรายการ (audit trail)
-   *  TODO(backend): ตอนนี้ยัง mock (ดู ./_mocks/blockchainVerify) — สลับเป็น endpoint จริงที่นี่ */
-  verifyOnChain(evidence: EvidenceItem, logs: AccessLog[]): Promise<BlockchainVerification> {
-    return mockVerifyOnChain(evidence, logs);
-  },
 };

@@ -1,243 +1,462 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { UploadCloud, ShieldCheck, ShieldAlert, CheckCircle2, XCircle, Loader2, QrCode, RefreshCw } from "lucide-react";
-import { watermarkService, ApiError } from "@/services";
-import type { VerifyResult } from "@/interfaces";
-import ProtectedImage from "@/components/ProtectedImage";
+import {
+  CheckCircle2,
+  ChevronDown,
+  Copy,
+  Clock3,
+  ExternalLink,
+  FileCheck2,
+  Fingerprint,
+  Loader2,
+  ShieldAlert,
+  ShieldCheck,
+  UploadCloud,
+  UserRound,
+  XCircle,
+} from "lucide-react";
 
-type HistoryItem = { name: string; found: boolean; time: string };
+import type { IntegrityMismatch, VerifyResult, WatermarkVerificationUser } from "@/interfaces";
+import { watermarkService } from "@/services";
+import {
+  forensicMismatchLabel,
+  formatForensicAction,
+  formatForensicDateTime,
+  formatForensicMismatchValue,
+  formatForensicUnixTime,
+  formatInclusionDelay,
+  formatIntegrityState,
+  shouldShowMatchedDownloadSession,
+} from "@/utils/forensics";
+import { userFacingApiError } from "@/utils/evidenceDownloadError";
+import { blockchainExplorerHref } from "@/utils/blockchainExplorer";
+import {
+  buildVerificationPresentation,
+  type VerificationCheckPresentation,
+} from "@/utils/verificationPresentation";
+import { OperationProgress } from "@/components/feedback/OperationProgress";
+import { copyTextWithFeedback } from "@/components/feedback/CopySuccessFeedback";
+import { WatermarkQrPresentation } from "@/components/evidence/WatermarkQrPresentation";
 
 export default function VerifyPage() {
-  const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [result, setResult] = useState<VerifyResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<HistoryItem[]>([]); // ประวัติเฉพาะเซสชันนี้
+  const verificationInProgress = useRef(false);
 
-  const runVerify = async (f: File) => {
+  const handleFile = async (file: File) => {
+    if (verificationInProgress.current) return;
+    verificationInProgress.current = true;
+    setPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
+    });
     setIsVerifying(true);
     setResult(null);
     setError(null);
     try {
-      const r = await watermarkService.verify(f);
-      setResult(r);
-      setHistory((h) => [{ name: f.name, found: r.found, time: new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) }, ...h].slice(0, 6));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : "ตรวจสอบไม่สำเร็จ");
+      setResult(await watermarkService.verify(file));
+    } catch (caught) {
+      const feedback = userFacingApiError(caught);
+      setError(`${feedback.title} ${feedback.message}`);
     } finally {
+      verificationInProgress.current = false;
       setIsVerifying(false);
     }
   };
 
-  const handleFile = (f: File) => {
-    setFile(f);
-    setPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(f);
-    });
-    runVerify(f);
-  };
-
-  const pick = () => document.getElementById("v-input")?.click();
-
   return (
-    <div className="space-y-5">
-      {/* หัวเรื่อง */}
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="text-xl font-semibold">ตรวจสอบลายน้ำ</h1>
-        <span className="text-sm text-muted">อัปโหลดภาพเพื่อตรวจว่ามาจากระบบ DEVA จริงหรือไม่ — ระบบจะถอดลายน้ำและ QR ที่ฝังไว้</span>
-      </div>
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-bold">ตรวจสอบลายน้ำดิจิทัล</h1>
+        <p className="mt-1 text-sm text-muted">ตรวจสอบข้อมูลหลักฐานและรายการดาวน์โหลดจากลายน้ำดิจิทัล</p>
+      </header>
 
-      <input type="file" id="v-input" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} className="hidden" />
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {/* ── ซ้าย: ภาพที่ต้องการตรวจ ── */}
-        <div className="flex flex-col gap-[18px] rounded-[20px] border border-border bg-surface p-6">
-          <span className="text-base font-semibold">ภาพที่ต้องการตรวจ</span>
-
-          {preview ? (
-            <>
-              <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-[14px] bg-slate-900">
-                <ProtectedImage src={preview} alt="ภาพที่อัปโหลดเพื่อตรวจสอบ" className="max-h-full w-full object-contain" />
+      <section className="grid gap-5 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)]">
+        <div className="rounded-lg border border-border bg-surface p-5">
+          <h2 className="font-semibold">ภาพที่ต้องการตรวจสอบ</h2>
+          <div
+            className={`mt-4 border-2 border-dashed border-border p-6 text-center transition-colors ${isVerifying ? "cursor-wait opacity-70" : "cursor-pointer hover:border-primary/50"}`}
+            aria-disabled={isVerifying}
+            onClick={() => !isVerifying && document.getElementById("verify-file")?.click()}
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const file = event.dataTransfer.files[0];
+              if (!isVerifying && file?.type.startsWith("image/")) void handleFile(file);
+            }}
+          >
+            <input
+              id="verify-file"
+              className="hidden"
+              type="file"
+              accept="image/*"
+              disabled={isVerifying}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void handleFile(file);
+              }}
+            />
+            {preview ? (
+              <div className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={preview} alt="ภาพสำหรับตรวจสอบ" className="mx-auto max-h-72 max-w-full object-contain" />
                 {isVerifying && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                    <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium">
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" /> กำลังถอดลายน้ำ...
-                    </div>
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/35">
+                    <Loader2 className="h-7 w-7 animate-spin text-white" />
                   </div>
                 )}
               </div>
-              {file && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-xs text-muted">
-                  <span className="truncate">{file.name}</span>
-                  <span>{(file.size / 1e6).toFixed(1)} MB</span>
-                </div>
-              )}
-              <div className="flex gap-2.5">
-                <button onClick={pick} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-border bg-surface text-[15px] font-semibold transition-colors hover:bg-surface-hover">
-                  เปลี่ยนภาพ
-                </button>
-                <button onClick={() => file && runVerify(file)} disabled={!file || isVerifying} className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-full bg-primary text-[15px] font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60">
-                  <RefreshCw className="h-4 w-4" /> ตรวจสอบอีกครั้ง
-                </button>
-              </div>
-            </>
-          ) : (
-            <div
-              className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-border text-center transition-colors hover:border-primary/40"
-              onClick={pick}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type.startsWith("image/")) handleFile(f); }}
-            >
-              <UploadCloud className="h-10 w-10 text-muted" />
-              <p className="text-sm">อัปโหลดภาพที่ต้องการตรวจสอบ</p>
-              <p className="text-xs text-muted">ลากไฟล์มาวาง หรือ คลิก</p>
-            </div>
-          )}
-        </div>
-
-        {/* ── ขวา: ผล + QR + ประวัติ ── */}
-        <div className="space-y-4">
-          {/* การ์ดผลสีดำ */}
-          <div className="rounded-[20px] bg-ink p-7 text-white">
-            {!result && !isVerifying && !error && (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <span className="flex items-center justify-center rounded-full bg-ink-raised" style={{ width: 52, height: 52 }}>
-                  <ShieldCheck className="h-6 w-6 text-ink-muted" />
-                </span>
-                <p className="text-[15px] font-semibold">อัปโหลดภาพเพื่อเริ่มตรวจสอบ</p>
-                <p className="max-w-xs text-xs text-ink-muted">ระบบจะเดาว่าเป็นหลักฐานชิ้นไหนและแสดง QR ที่ฝังไว้</p>
-              </div>
-            )}
-
-            {isVerifying && (
-              <div className="flex flex-col items-center gap-3 py-10 text-ink-muted">
-                <Loader2 className="h-8 w-8 animate-spin text-white" />
-                <p className="text-sm">กำลังเทียบกับหลักฐานในระบบ...</p>
-              </div>
-            )}
-
-            {error && !isVerifying && (
-              <div className="flex items-center gap-2 rounded-xl bg-danger/20 px-4 py-3 text-sm text-danger">
-                <XCircle className="h-4 w-4 flex-shrink-0" /> {error}
-              </div>
-            )}
-
-            {result && !result.found && !isVerifying && (
-              <div className="flex flex-col items-center gap-3 py-6 text-center">
-                <span className="flex items-center justify-center rounded-full bg-danger/20" style={{ width: 52, height: 52 }}>
-                  <ShieldAlert className="h-6 w-6 text-danger" />
-                </span>
-                <p className="text-[17px] font-semibold text-danger">ไม่พบลายน้ำของระบบ</p>
-                <p className="max-w-xs text-xs text-ink-muted">ภาพนี้อาจไม่ได้มาจากระบบ ถูกแก้ไขจนลายน้ำเสียหาย หรือไม่เคยฝังลายน้ำ</p>
-              </div>
-            )}
-
-            {result && result.found && !isVerifying && (
-              <div className="flex flex-col gap-5">
-                <div className="flex items-center gap-3.5">
-                  <span className="flex flex-shrink-0 items-center justify-center rounded-full bg-success/15" style={{ width: 52, height: 52 }}>
-                    <CheckCircle2 className="h-6 w-6 text-success" />
-                  </span>
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[22px] leading-tight">พบลายน้ำของระบบ</span>
-                    <span className="text-[13px] text-ink-muted">ความมั่นใจ {result.matchPercent}% · ภาพนี้มาจากระบบ DEVA</span>
-                  </div>
-                </div>
-
-                <div className="h-px bg-ink-border" />
-
-                <div className="flex flex-col gap-3.5">
-                  <DarkRow label="หมายเลขหลักฐาน">
-                    {result.evidenceNumber || result.evidenceId ? (
-                      <Link href={`/evidence/${result.evidenceNumber ?? result.evidenceId}`} className="font-mono font-semibold text-white underline decoration-ink-border underline-offset-2 hover:decoration-white">
-                        {result.evidenceNumber ?? result.evidenceId}
-                      </Link>
-                    ) : (
-                      <span className="font-mono font-semibold">—</span>
-                    )}
-                  </DarkRow>
-                  <DarkRow label="ผู้อัปโหลดต้นฉบับ"><span className="text-white">{result.officerName ?? "—"}</span></DarkRow>
-                  <DarkRow label="เวลาบันทึกต้นฉบับ">
-                    <span className="text-white">{result.uploadedAt ? new Date(result.uploadedAt).toLocaleString("th-TH") : "—"}</span>
-                  </DarkRow>
-                  <DarkRow label="Static Watermark (ตัวตน)"><WmFlag ok={result.staticOk} /></DarkRow>
-                  <DarkRow label="Dynamic Watermark (ผูกไฟล์)"><WmFlag ok={result.dynamicOk} /></DarkRow>
-                </div>
+            ) : (
+              <div className="py-8 text-muted">
+                <UploadCloud className="mx-auto h-10 w-10" />
+                <p className="mt-3 text-sm text-text">เลือกหรือลากภาพมาวาง</p>
+                <p className="mt-1 text-xs">รองรับไฟล์ภาพที่ระบบสามารถถอดลายน้ำได้</p>
               </div>
             )}
           </div>
+        </div>
+        <VerificationSummary result={result} loading={isVerifying} error={error} />
+      </section>
 
-          {/* QR 2 ชั้น (เมื่อพบ) */}
-          {result && result.found && !isVerifying && (
-            <div className="rounded-2xl border border-border bg-surface p-5">
-              <div className="mb-3 flex items-center gap-2">
-                <QrCode className="h-4 w-4 text-primary" />
-                <h3 className="text-sm font-semibold">QR ที่ฝังอยู่ในภาพ (2 ชั้น)</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <QrCard png={result.staticQrPng} title="Static — ตัวตน" caption="SHA-256 ของ evidence_id" value={result.staticDecoded} />
-                <QrCard png={result.dynamicQrPng} title="Dynamic — ผูกไฟล์" caption="SHA-256 ของไฟล์ (file_hash)" value={result.dynamicDecoded} />
-              </div>
+      {result?.found && !isVerifying && <VerificationReport result={result} />}
+    </div>
+  );
+}
+
+function VerificationSummary({ result, loading, error }: { result: VerifyResult | null; loading: boolean; error: string | null }) {
+  if (loading) {
+    return (
+      <section className="rounded-lg border border-border bg-surface p-5">
+        <OperationProgress
+          title="กำลังตรวจสอบลายน้ำดิจิทัล"
+          description="กรุณารอสักครู่"
+          steps={[{ label: "กำลังตรวจสอบข้อมูลทั้งหมด", state: "active" }]}
+          details={[
+            "อ่านข้อมูล Watermark",
+            "ระบุหลักฐาน",
+            "ตรวจสอบ Download Session",
+            "อ่านข้อมูล Blockchain",
+            "เปรียบเทียบ SHA-256",
+          ]}
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-border bg-surface p-5">
+      <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="font-semibold">สรุปผลการตรวจสอบ</h2></div>
+      {error && <EmptyState danger icon={<XCircle className="h-9 w-9" />} text={error} />}
+      {!result && !error && <EmptyState icon={<ShieldCheck className="h-10 w-10 opacity-35" />} text="ยังไม่มีผลการตรวจสอบ" />}
+      {result && !result.found && <EmptyState danger icon={<ShieldAlert className="h-10 w-10" />} text="ไม่พบลายน้ำที่ตรงกับหลักฐานในระบบ" />}
+      {result?.found && <VerifiedSummary result={result} />}
+    </section>
+  );
+}
+
+function VerifiedSummary({ result }: { result: VerifyResult }) {
+  const presentation = buildVerificationPresentation(result);
+  const titleColor = presentation.tone === "success"
+    ? "text-success"
+    : presentation.tone === "warning"
+      ? "text-warning"
+      : "text-danger";
+  return (
+    <div className="mt-5 space-y-4">
+      <div>
+        <p className={`text-lg font-semibold ${titleColor}`}>{presentation.title}</p>
+        <p className="mt-1 text-sm text-muted">{presentation.description}</p>
+        <p className="mt-1 text-xs text-muted">{verificationType(result.dynamicMode)}</p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {presentation.checks.map((check) => (
+          <VerificationCheckCard key={check.id} check={check} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function VerificationCheckCard({ check }: { check: VerificationCheckPresentation }) {
+  const Icon = check.tone === "success"
+    ? CheckCircle2
+    : check.tone === "warning"
+      ? ShieldAlert
+      : XCircle;
+  const color = check.tone === "success"
+    ? "text-success"
+    : check.tone === "warning"
+      ? "text-warning"
+      : "text-danger";
+  return (
+    <div className="flex items-start gap-3 border border-border bg-slate-50 px-3 py-3">
+      <Icon className={`mt-0.5 h-4 w-4 flex-shrink-0 ${color}`} aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="text-xs font-semibold">{check.title}</p>
+        <p className={`mt-1 text-xs font-medium ${color}`}>{check.result}</p>
+        <p className="mt-1 text-xs leading-5 text-muted">{check.explanation}</p>
+      </div>
+    </div>
+  );
+}
+
+function VerificationReport({ result }: { result: VerifyResult }) {
+  return (
+    <div className="grid gap-5 lg:grid-cols-2">
+      <ReportCard icon={<FileCheck2 className="h-5 w-5" />} title="ข้อมูลหลักฐาน">
+        <DataRow label="หมายเลขหลักฐาน" value={result.evidenceNumber} />
+        <DataRow label="Evidence ID" value={result.evidenceId} copy />
+        <DataRow label="ชื่อไฟล์ต้นฉบับ" value={result.originalFilename} />
+        <DataRow label="เวลาอัปโหลด" value={formatForensicDateTime(result.uploadedAt)} />
+        <DataRow label="สถานะ Blockchain" value={result.blockchainVerified ? "พบ EvidenceRecord บน Blockchain" : "ไม่พบรายการบน Blockchain"} />
+        <div className="mt-5 border-t border-border pt-4">
+          <WatermarkQrPresentation
+            title="ข้อมูล Watermark"
+            qrTitle="QR ที่ตรวจพบ"
+            staticValue={result.staticDecoded}
+            dynamicValue={result.dynamicDecoded}
+            dynamicMode={result.dynamicMode}
+            staticQrPng={result.staticQrPng}
+            dynamicQrPng={result.dynamicQrPng}
+          />
+        </div>
+        <div className="mt-4 grid gap-2">
+          {result.dynamicMode === "canonical" && (
+            <StatusText
+              label="ความถูกต้องของค่าแฮชจาก Watermark"
+              value={formatIntegrityState(result.watermarkHashIntegrityStatus)}
+              ok={result.watermarkHashIntegrityStatus === "VERIFIED"}
+            />
+          )}
+          <StatusText
+            label="ความถูกต้องของไฟล์ต้นฉบับ"
+            value={formatIntegrityState(result.originalFileIntegrityStatus)}
+            ok={result.originalFileIntegrityStatus === "VERIFIED"}
+          />
+          <StatusText
+            label="ความถูกต้องของค่าแฮชในฐานข้อมูล"
+            value={formatIntegrityState(result.databaseHashIntegrityStatus)}
+            ok={result.databaseHashIntegrityStatus === "VERIFIED"}
+          />
+        </div>
+        {result.evidenceIntegrityStatus !== "VERIFIED" && (
+          <p className="mt-4 flex items-start gap-2 text-sm text-warning">
+            <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            {formatIntegrityState(result.evidenceIntegrityStatus)}
+          </p>
+        )}
+        {result.originalIntegrityMismatches.length > 0 && (
+          <IntegrityMismatchTable mismatches={result.originalIntegrityMismatches} />
+        )}
+      </ReportCard>
+
+      <ReportCard icon={<UserRound className="h-5 w-5" />} title="ผู้อัปโหลดหลักฐาน">
+        <UserProfile profile={result.uploader} />
+      </ReportCard>
+
+      {shouldShowMatchedDownloadSession(result) && (
+        <section className="rounded-lg border border-border bg-surface p-5 lg:col-span-2">
+          <div className="flex items-center gap-2">
+            <Fingerprint className="h-5 w-5 text-primary" />
+            <div>
+              <h2 className="font-semibold">พบรายการดาวน์โหลดที่ตรงกับไฟล์นี้</h2>
+              <p className="text-xs text-muted">รหัสติดตามในภาพตรงกับรายการดาวน์โหลดบน Blockchain</p>
             </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <StatusText label="สถานะรายการบน Blockchain" value="ข้อมูลตรงกัน" ok />
+            <StatusText
+              label="ความถูกต้องของไฟล์ต้นฉบับ"
+              value={formatIntegrityState(result.originalFileIntegrityStatus)}
+              ok={result.originalFileIntegrityStatus === "VERIFIED"}
+            />
+            <StatusText
+              label="ความถูกต้องของค่าแฮชต้นฉบับในฐานข้อมูล"
+              value={formatIntegrityState(result.databaseHashIntegrityStatus)}
+              ok={result.databaseHashIntegrityStatus === "VERIFIED"}
+            />
+            <StatusText
+              label="ความถูกต้องของข้อมูล Download Session ในฐานข้อมูล"
+              value={formatIntegrityState(result.databaseIntegrityState)}
+              ok={result.databaseIntegrityState === "VERIFIED"}
+            />
+          </div>
+
+          {result.databaseIntegrityState === "INTEGRITY_MISMATCH" && (
+            <p className="mt-4 flex items-start gap-2 text-sm text-warning">
+              <ShieldAlert className="mt-0.5 h-4 w-4 flex-shrink-0" />
+              พบรายการบน Blockchain แต่ข้อมูลปัจจุบันในระบบไม่ตรงกับข้อมูลอ้างอิง
+            </p>
           )}
 
-          {/* ผลตรวจล่าสุด (เฉพาะเซสชันนี้) */}
-          {history.length > 0 && (
-            <div className="flex flex-col gap-3.5 rounded-2xl border border-border bg-surface p-5">
-              <span className="text-[15px] font-semibold">ผลตรวจล่าสุด (เซสชันนี้)</span>
-              <ul className="flex flex-col">
-                {history.map((h, i) => (
-                  <li key={i} className={`flex items-center gap-3 py-2.5 ${i < history.length - 1 ? "border-b border-border" : ""}`}>
-                    <span className={`h-2 w-2 flex-shrink-0 rounded-full ${h.found ? "bg-success" : "bg-danger"}`} />
-                    <span className="flex-1 truncate text-[13px]">{h.name}</span>
-                    <span className="text-xs text-muted">{h.time}</span>
-                  </li>
-                ))}
-              </ul>
+          <div className="mt-5 grid gap-6 lg:grid-cols-2">
+            <div>
+              <p className="mb-3 text-xs font-semibold text-muted">ผู้ใช้ที่อ้างอิงจาก Blockchain</p>
+              <UserProfile profile={result.matchedAccessUser} />
+              {!result.matchedAccessUser && (
+                <p className="mt-3 break-all font-mono text-xs text-muted">Blockchain User Reference: {result.blockchainOfficerRef || "—"}</p>
+              )}
+              <p className="mt-3 text-xs text-muted">
+                User Reference ยืนยันกับ Blockchain ส่วนชื่อ Badge Number Username และ Email แสดงจากข้อมูลผู้ใช้ปัจจุบันในระบบ
+              </p>
             </div>
-          )}
+            <div className="space-y-2">
+              <DataRow label="การกระทำ" value={formatForensicAction(result.matchedAccessAction)} />
+              <DataRow label="เวลาที่ดาวน์โหลด" value={formatForensicUnixTime(result.blockchainOccurredAt)} />
+              <DataRow label="เวลาที่ธุรกรรมถูกบันทึกลง Blockchain" value={formatForensicUnixTime(result.blockchainRecordedAt)} />
+              {formatInclusionDelay(result.blockchainOccurredAt, result.blockchainRecordedAt) && (
+                <DataRow label="หน่วงเวลา" value={formatInclusionDelay(result.blockchainOccurredAt, result.blockchainRecordedAt)} />
+              )}
+              <TechnicalDetails>
+                <DataRow label="รหัสอ้างอิงรอบการเข้าถึง" value={result.accessSessionRef} copy />
+                <DataRow label="Access Log ID" value={result.matchedAccessLogId} copy />
+                <DataRow label="Transaction Hash" value={result.accessTxHash} copy />
+                <DataRow label="Block Number" value={numberValue(result.accessBlockNumber)} />
+                <DataRow label="สถานะธุรกรรมในระบบ" value={result.accessTxStatus} />
+                <DataRow label="Evidence ID" value={result.matchedEvidenceId} copy />
+                <DataRow label="เวลาที่เกิดการเข้าถึงในระบบ" value={formatForensicDateTime(result.databaseAccessedAt)} />
+              </TechnicalDetails>
+              <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                {result.accessTxHash && (
+                  <Link href={blockchainExplorerHref("transaction", result.accessTxHash)} className="inline-flex items-center gap-1 text-primary hover:underline">
+                    ดู Transaction บน Blockchain <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+                {result.accessBlockNumber !== null && (
+                  <Link href={blockchainExplorerHref("block", String(result.accessBlockNumber))} className="inline-flex items-center gap-1 text-primary hover:underline">
+                    ดู Block <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <BlockchainAccessHistory result={result} />
+
+          {result.attributionMismatches.length > 0 && <IntegrityMismatchTable mismatches={result.attributionMismatches} />}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function BlockchainAccessHistory({ result }: { result: VerifyResult }) {
+  return (
+    <section className="mt-6 border-t border-border pt-5">
+      <div className="flex items-start gap-2">
+        <Clock3 className="mt-0.5 h-5 w-5 text-primary" />
+        <div>
+          <h3 className="font-semibold">ประวัติการเข้าถึงก่อนการดาวน์โหลดนี้</h3>
+          <p className="mt-1 text-xs text-muted">เฉพาะเหตุการณ์ของผู้ใช้ที่อ้างอิงจาก Blockchain และเรียงตามตำแหน่งบนเชน</p>
         </div>
       </div>
-    </div>
-  );
-}
-
-function DarkRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-[13px]">
-      <span className="text-ink-muted">{label}</span>
-      <span className="min-w-0 truncate text-right text-sm">{children}</span>
-    </div>
-  );
-}
-
-function WmFlag({ ok }: { ok: boolean }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 font-semibold ${ok ? "text-success" : "text-danger"}`}>
-      {ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-      {ok ? "ตรงกัน" : "ไม่ตรง"}
-    </span>
-  );
-}
-
-function QrCard({ png, title, caption, value }: { png: string | null; title: string; caption: string; value: string | null }) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-border bg-surface p-3 text-center">
-      {png ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={png} alt={title} width={96} height={96} className="rounded border border-border [image-rendering:pixelated]" />
+      {result.blockchainAccessHistory.length === 0 ? (
+        <p className="mt-4 border-y border-border py-4 text-sm text-muted">ไม่พบประวัติการเข้าถึงก่อนหน้า</p>
       ) : (
-        <div className="flex h-24 w-24 items-center justify-center rounded border border-border text-xs text-muted">—</div>
+        <div className="mt-4 divide-y divide-border border-y border-border">
+          {result.blockchainAccessHistory.map((event, index) => (
+            <div key={`${event.tx_hash}-${event.log_index}`} className={`grid gap-3 py-4 text-sm lg:grid-cols-[3rem_10rem_minmax(0,1fr)_8rem] ${event.matched ? "border-l-2 border-primary bg-blue-50/50 px-3" : "px-1"}`}>
+              <span className="text-muted">#{index + 1}</span>
+              <div>
+                <p className="font-semibold">{formatForensicAction(event.action)}</p>
+                {event.matched && <p className="mt-1 text-xs font-medium text-primary">รายการดาวน์โหลดที่ตรงกับ Watermark</p>}
+              </div>
+              <div>
+                <p>{formatForensicUnixTime(event.occurred_at)}</p>
+                <details className="mt-2 text-xs text-muted">
+                  <summary className="cursor-pointer">รายละเอียดทางเทคนิค</summary>
+                  <p className="mt-2 break-all font-mono">Transaction: {event.tx_hash}</p>
+                  <p className="mt-1 font-mono">Transaction Index: {event.transaction_index ?? "—"} · Log Index: {event.log_index ?? "—"}</p>
+                </details>
+              </div>
+              <Link href={blockchainExplorerHref("transaction", event.tx_hash)} className="inline-flex items-start gap-1 text-primary hover:underline">
+                Block {event.block_number} <ExternalLink className="mt-0.5 h-3.5 w-3.5" />
+              </Link>
+            </div>
+          ))}
+        </div>
       )}
-      <div className="min-w-0">
-        <p className="text-xs font-semibold">{title}</p>
-        <p className="text-[10px] text-muted">{caption}</p>
-        {value && <p className="mt-1 break-all font-mono text-[9px] leading-tight text-text-secondary">{value.slice(0, 24)}…</p>}
+    </section>
+  );
+}
+
+function IntegrityMismatchTable({ mismatches }: { mismatches: IntegrityMismatch[] }) {
+  return (
+    <div className="mt-5 overflow-hidden border border-warning/30 bg-warning-light/30">
+      <div className="flex items-center gap-2 border-b border-warning/20 px-3 py-2 text-sm font-semibold text-warning">
+        <ShieldAlert className="h-4 w-4" /> ข้อมูลที่ไม่ตรงกัน
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[38rem] text-left text-xs">
+          <thead className="text-muted"><tr><th className="px-3 py-2">รายการ</th><th className="px-3 py-2">ข้อมูลปัจจุบันในระบบ</th><th className="px-3 py-2">ข้อมูลอ้างอิงบน Blockchain</th></tr></thead>
+          <tbody className="divide-y divide-warning/15">
+            {mismatches.map((item) => (
+              <tr key={item.field}>
+                <td className="px-3 py-2 font-medium">{forensicMismatchLabel(item.field)}</td>
+                <td className="break-all px-3 py-2">{formatForensicMismatchValue(item.database_value, item.field)}</td>
+                <td className="break-all px-3 py-2">{formatForensicMismatchValue(item.blockchain_value, item.field)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
+}
+
+function ReportCard({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
+  return <section className="rounded-lg border border-border bg-surface p-5"><div className="mb-4 flex items-center gap-2 text-primary">{icon}<h2 className="font-semibold text-text">{title}</h2></div>{children}</section>;
+}
+
+function UserProfile({ profile }: { profile: WatermarkVerificationUser | null }) {
+  if (!profile) return <p className="text-sm text-muted">ไม่สามารถระบุโปรไฟล์ผู้ใช้ปัจจุบันได้</p>;
+  return (
+    <div>
+      <div className="mb-4 border-b border-border pb-4"><p className="text-lg font-semibold">{profile.full_name || profile.username || "—"}</p><p className="text-sm text-muted">{profile.rank || "—"}</p></div>
+      <DataRow label="Badge Number" value={profile.badge_number} />
+      <DataRow label="Username" value={profile.username} />
+      <DataRow label="Email" value={profile.email} />
+    </div>
+  );
+}
+
+function DataRow({ label, value, copy = false }: { label: string; value: string | null; copy?: boolean }) {
+  return <div className="grid grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)] gap-3 border-b border-border py-2.5 last:border-0"><span className="text-sm text-muted">{label}</span><span className="flex min-w-0 items-start justify-end gap-2 text-right text-sm"><span className="break-all">{value || "—"}</span>{copy && value && <CopyButton value={value} />}</span></div>;
+}
+
+function TechnicalDetails({ children }: { children: ReactNode }) {
+  return (
+    <details className="mt-4 border-t border-border pt-3">
+      <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-medium text-muted"><ChevronDown className="h-3.5 w-3.5" />รายละเอียดทางเทคนิค</summary>
+      <div className="mt-3">{children}</div>
+    </details>
+  );
+}
+
+function CopyButton({ value }: { value: string }) {
+  return <button type="button" title="คัดลอก" aria-label="คัดลอก" className="shrink-0 text-muted hover:text-primary" onClick={() => void copyTextWithFeedback(value)}><Copy className="h-3.5 w-3.5" /></button>;
+}
+
+function StatusText({ label, value, ok }: { label: string; value: string; ok: boolean }) {
+  return <div className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-2 text-xs"><span>{label}</span><span className={`font-medium ${ok ? "text-success" : "text-warning"}`}>{value}</span></div>;
+}
+
+function EmptyState({ icon, text, danger = false }: { icon: ReactNode; text: string; danger?: boolean }) {
+  return <div className={`flex min-h-44 flex-col items-center justify-center gap-3 text-center ${danger ? "text-danger" : "text-muted"}`}>{icon}<p className="text-sm">{text}</p></div>;
+}
+
+function verificationType(mode: VerifyResult["dynamicMode"]) {
+  if (mode === "personalized") return "รหัสติดตามรอบการดาวน์โหลด";
+  if (mode === "canonical") return "ค่าแฮชไฟล์ต้นฉบับ";
+  return "ไม่สามารถระบุข้อมูล Dynamic Watermark";
+}
+
+function numberValue(value: number | null): string | null {
+  return value === null ? null : String(value);
 }

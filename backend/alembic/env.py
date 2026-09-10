@@ -53,6 +53,45 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+_LEGACY_COLUMNS = {
+    ("cases", "status"),
+    ("cases", "legal_hold"),
+    ("cases", "retention_until"),
+    ("cases", "is_deleted"),
+    ("evidence_items", "category"),
+    ("evidence_items", "file_hash_sha256"),
+    ("evidence_items", "status"),
+    ("evidence_items", "legal_hold"),
+    ("evidence_items", "retention_until"),
+    ("evidence_items", "is_deleted"),
+    ("evidence_items", "deleted_at"),
+    ("evidence_files", "mime_type"),
+    ("evidence_files", "is_original"),
+    ("evidence_files", "version"),
+    ("access_logs", "action_type"),
+    ("access_logs", "reason"),
+    ("watermark_records", "algorithm"),
+    ("watermark_records", "verification_score"),
+}
+
+_LEGACY_INDEXES = {
+    "ix_cases_status",
+    "ix_cases_is_deleted",
+    "ix_evidence_items_file_hash_sha256",
+    "ix_evidence_items_status",
+    "ix_evidence_items_is_deleted",
+}
+
+
+def include_object(object_, name, type_, reflected, compare_to):
+    # รักษาคอลัมน์และดัชนีเดิมของทีมไว้ ไม่ให้ autogenerate เสนอการลบข้อมูล
+    if reflected and compare_to is None and type_ == "column":
+        return (object_.table.name, name) not in _LEGACY_COLUMNS
+    if reflected and compare_to is None and type_ == "index":
+        return name not in _LEGACY_INDEXES
+    return True
+
+
 
 # ─────────────────────────────────────
 # Offline migration
@@ -72,6 +111,7 @@ def run_migrations_offline() -> None:
         },
         compare_type=True,
         compare_server_default=True,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -103,6 +143,7 @@ def run_migrations_online() -> None:
             # สำคัญสำหรับ PostgreSQL
             compare_type=True,
             compare_server_default=True,
+            include_object=include_object,
         )
 
 

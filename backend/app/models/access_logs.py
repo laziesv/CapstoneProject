@@ -7,11 +7,13 @@ from sqlalchemy import (
     Enum,
     TIMESTAMP,
     Text,
+    Index,
     func,
+    text,
 )
 
-from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 from app.models.enums import AuditAction, AuditResult
@@ -19,38 +21,45 @@ from app.models.enums import AuditAction, AuditResult
 
 class AccessLog(Base):
     __tablename__ = "access_logs"
+    __table_args__ = (
+        Index(
+            "uq_access_logs_pending_view",
+            "user_id",
+            "evidence_id",
+            unique=True,
+            postgresql_where=text("action = 'VIEW' AND result = 'PENDING'"),
+        ),
+    )
 
-    log_id = Column(UUID(as_uuid=True),primary_key=True,default=uuid.uuid4,)
+    log_id = Column(UUID(as_uuid=True),primary_key=True,default=uuid.uuid4)
 
     user_id = Column(UUID(as_uuid=True),ForeignKey("users.user_id", ondelete="RESTRICT"),nullable=False,index=True,)
 
+    # การรวม migration: ให้ metadata ตรงกับ case_id แบบ nullable ใน schema ของ dev
     case_id = Column(UUID(as_uuid=True),ForeignKey("cases.case_id", ondelete="RESTRICT"),index=True,)
 
-    evidence_id = Column(UUID(as_uuid=True),ForeignKey("evidence_items.evidence_id",ondelete="RESTRICT",),index=True,)
+    evidence_id = Column(UUID(as_uuid=True),ForeignKey("evidence_items.evidence_id", ondelete="RESTRICT"),index=True,)
 
-    action = Column(Enum(AuditAction),nullable=False,)
+    action = Column(Enum(AuditAction), nullable=False)
 
     ip_address = Column(String(45))
 
     user_agent = Column(Text)
 
-    tx_internal_id = Column(UUID(as_uuid=True),ForeignKey("blockchain_transactions.tx_internal_id",ondelete="SET NULL",),)
+    tx_internal_id = Column(UUID(as_uuid=True),ForeignKey("blockchain_transactions.tx_internal_id", ondelete="SET NULL"),)
 
-    result = Column(Enum(AuditResult),nullable=False,server_default=AuditResult.SUCCESS.value,)
+    result = Column(Enum(AuditResult), nullable=False, server_default=AuditResult.SUCCESS.value)
 
-    accessed_at = Column(TIMESTAMP(timezone=True),nullable=False,server_default=func.now(),index=True,)
+    accessed_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now(), index=True)
 
-    # ผู้เข้าถึง + หลักฐานที่ถูกเข้าถึง — ใช้ดึงชื่อที่อ่านออกมาแสดงแทน UUID เปล่าๆ
     user = relationship("User", lazy="selectin")
     evidence = relationship("EvidenceItem", lazy="selectin")
 
-    # ── ค่าที่อ่านออก เปิดให้ schema อ่านผ่าน from_attributes ──
     @property
     def user_name(self):
-        u = self.user
-        if not u:
+        if not self.user:
             return None
-        return u.full_name or u.username
+        return self.user.full_name or self.user.username
 
     @property
     def evidence_number(self):

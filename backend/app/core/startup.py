@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timezone
 
 from sqlalchemy import text
@@ -10,10 +9,6 @@ from app.models import *
 from app.models.users import User
 from app.core.seed import seed_sample_data
 
-# backend/ (ที่อยู่ของ alembic.ini)
-_BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-
-
 def test_database_connection():
     try:
         with engine.connect() as conn:
@@ -24,17 +19,6 @@ def test_database_connection():
     except Exception as e:
         print("[ERROR] Database connection failed")
         print(e)
-
-
-def run_migrations():
-    """ปรับฐานข้อมูลให้เป็นเวอร์ชันล่าสุดด้วย Alembic (idempotent — no-op ถ้าอยู่ที่ head แล้ว)"""
-    from alembic.config import Config
-    from alembic import command
-
-    cfg = Config(os.path.join(_BACKEND_DIR, "alembic.ini"))
-    cfg.set_main_option("script_location", os.path.join(_BACKEND_DIR, "alembic"))
-    command.upgrade(cfg, "head")
-    print("[OK] Alembic migrations applied (head)")
 
 
 def seed_admin():
@@ -69,6 +53,6 @@ def seed_admin():
 
 def startup():
     test_database_connection()
-    run_migrations()
+    # ให้ผู้ดูแลรัน Alembic แยกต่างหาก เพื่อไม่ให้การ import แอปแก้ schema โดยไม่ตั้งใจ
     seed_admin()
     seed_sample_data()
