@@ -168,8 +168,20 @@ export default function CaseDetailPage() {
                 key={e.evidence_id}
                 type="button"
                 onClick={() => void openEvidence(e.evidence_id)}
-                disabled={openingEvidenceId === e.evidence_id}
-                className="group flex flex-col gap-2 text-left disabled:cursor-wait disabled:opacity-70"
+                onPointerUp={(event) => {
+                  if (event.button !== 0) return;
+                  void openEvidence(e.evidence_id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    void openEvidence(e.evidence_id);
+                  }
+                }}
+                aria-busy={openingEvidenceId === e.evidence_id}
+                className={`group flex flex-col gap-2 text-left ${
+                  openingEvidenceId === e.evidence_id ? "cursor-wait opacity-70" : "cursor-pointer"
+                }`}
               >
                 <div className="relative aspect-square overflow-hidden rounded-xl bg-surface-hover">
                   <EvidencePreviewImage
