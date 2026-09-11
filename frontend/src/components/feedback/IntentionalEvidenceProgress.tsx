@@ -18,25 +18,36 @@ export function IntentionalEvidenceProgress({
   error,
   onDismissError,
 }: IntentionalEvidenceProgressProps) {
+  const isWaitingForBlockchain =
+    status === "WAITING_FOR_BLOCKCHAIN" || status === "PENDING_BLOCKCHAIN_CONFIRMATION";
+
   return (
     <>
       {opening && (
         <OperationProgress
           overlay
-          title={status === "WAITING_FOR_BLOCKCHAIN"
-            ? "กำลังรอเครือข่าย Blockchain"
+          title={isWaitingForBlockchain
+            ? "กำลังรอ Blockchain ยืนยัน"
             : "กำลังเปิดหลักฐาน"}
           description={delayed
-            ? "Blockchain ใช้เวลายืนยันนานกว่าปกติ รายการเดิมยังอยู่ในสถานะ PENDING และระบบกำลังตรวจสอบต่อโดยไม่สร้างรายการใหม่"
-            : status === "WAITING_FOR_BLOCKCHAIN"
-            ? "เครือข่ายยังไม่สามารถสร้าง Block ใหม่ได้ ระบบจะตรวจสอบรายการเดิมให้อัตโนมัติ"
-            : status === "PENDING_BLOCKCHAIN_CONFIRMATION"
-              ? "รายการเข้าดูถูกส่งแล้วและกำลังรอ Blockchain ยืนยัน"
-              : "กรุณารอสักครู่"}
+            ? "ใช้เวลานานกว่าปกติ แต่ระบบยังตรวจสอบรายการเดิมต่ออยู่ ไม่สร้างรายการซ้ำ"
+            : isWaitingForBlockchain
+              ? "บันทึกรายการเข้าดูแล้ว กำลังรอให้เครือข่ายสร้างบล็อกและยืนยันธุรกรรมก่อนเปิดหลักฐาน"
+              : "กำลังส่งคำขอเข้าดูและเตรียมบันทึกธุรกรรม"}
           steps={[
-            { label: "ส่งคำขอเข้าถึงแล้ว", state: "completed" },
-            { label: "กำลังบันทึกการเข้าถึงและรอ Blockchain ยืนยัน", state: "active" },
-            { label: "กำลังเปิดหลักฐาน", state: "pending" },
+            {
+              label: "ส่งคำขอเข้าดูหลักฐาน",
+              state: status === "SUBMITTING" ? "active" : "completed",
+            },
+            {
+              label: "บันทึก View transaction ลง Blockchain",
+              state: isWaitingForBlockchain ? "active" : "pending",
+            },
+            { label: "เปิดหน้าหลักฐานหลังยืนยันสำเร็จ", state: "pending" },
+          ]}
+          details={[
+            "โดยปกติอาจใช้เวลาประมาณ 5-15 วินาทีตามรอบการสร้างบล็อก",
+            "ระบบยังคงโหมดเข้มงวด: ต้องยืนยันบน Blockchain ก่อนเปิด",
           ]}
         />
       )}

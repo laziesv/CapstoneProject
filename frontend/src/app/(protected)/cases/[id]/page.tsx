@@ -191,11 +191,20 @@ export default function CaseDetailPage() {
                     aria-busy={openingEvidenceId === e.evidence_id}
                     onClick={() => void openEvidence(e.evidence_id)}
                   />
+                  {openingEvidenceId === e.evidence_id && (
+                    <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-xl bg-ink/75 text-white">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="px-3 text-center text-xs font-semibold">
+                        รอ Blockchain ยืนยัน
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
-                  className="truncate text-left font-mono text-[11px] text-primary hover:underline"
+                  className="truncate text-left font-mono text-[11px] text-primary hover:underline disabled:cursor-wait disabled:opacity-70"
                   aria-label={`เปิดหลักฐาน ${e.evidence_number}`}
+                  disabled={openingEvidenceId === e.evidence_id}
                   onClick={() => void openEvidence(e.evidence_id)}
                 >
                   {e.evidence_number}
