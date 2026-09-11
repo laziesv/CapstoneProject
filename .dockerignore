@@ -1,0 +1,25 @@
+.git
+.pytest_cache
+venv
+backend/venv
+backend/.env
+frontend/node_modules
+frontend/.next
+frontend/out
+
+# Local deployment secrets
+deploy/.env.prod
+deploy/ansible/inventory.ini
+deploy/ansible/group_vars/deva_servers.yml
+
+# Blockchain heavy/generated local state
+blockchain/lib
+blockchain/out
+blockchain/cache
+blockchain/broadcast
+blockchain/network/besu/nodes/*/data/*
+!blockchain/network/besu/nodes/*/data/.gitkeep
+
+# OS/editor files
+.DS_Store
+Thumbs.db

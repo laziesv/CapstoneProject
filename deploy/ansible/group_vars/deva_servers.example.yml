@@ -1,0 +1,72 @@
+---
+# Copy this file to group_vars/deva_servers.yml and update the values.
+
+deva_project_name: deva
+deva_deploy_user: deva
+deva_deploy_group: deva
+deva_app_dir: /opt/deva
+
+# Repository
+deva_repo_url: "https://github.com/<owner>/<repo>.git"
+deva_repo_version: main
+
+# SSH public keys that can log in as the deploy user.
+# Use public keys only, never private keys.
+deva_authorized_keys:
+  - "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY deva-capstone"
+
+# Firewall
+deva_ssh_port: 22
+deva_open_http: true
+deva_open_https: true
+
+# Docker
+deva_install_docker: true
+deva_run_compose: false
+deva_compose_project_dir: "{{ deva_app_dir }}/deploy"
+deva_compose_env_file: "{{ deva_app_dir }}/deploy/.env.prod"
+deva_compose_file: "{{ deva_app_dir }}/deploy/docker-compose.prod.yml"
+
+# Nginx
+deva_install_nginx: true
+deva_domain_name: "_"
+deva_frontend_upstream: "http://127.0.0.1:3000"
+deva_backend_upstream: "http://127.0.0.1:8000"
+
+# Optional environment file content.
+# Keep real secrets in group_vars/deva_servers.yml, which is gitignored by default
+# if you add it to .gitignore or avoid committing it.
+deva_backend_env:
+  DB_HOST: "127.0.0.1"
+  DB_PORT: "5432"
+  DB_NAME: "capstone"
+  DB_USER: "deva_app"
+  DB_PASSWORD: "CHANGE_ME"
+  BLOCKCHAIN_ENABLED: "true"
+  BLOCKCHAIN_RPC_URL: "http://127.0.0.1:8545"
+  BLOCKCHAIN_CHAIN_ID: "20260720"
+  BLOCKCHAIN_CONTRACT_ADDRESS: ""
+  BLOCKCHAIN_ARTIFACT_PATH: "blockchain/artifacts/EvidenceRegistryV3.json"
+  BLOCKCHAIN_WRITER_PRIVATE_KEY: ""
+  BLOCKCHAIN_DEPLOYMENT_BLOCK: ""
+
+# Compose runtime env file. These values are written to deploy/.env.prod
+# when deva_run_compose is true.
+deva_compose_env:
+  POSTGRES_DB: "capstone"
+  POSTGRES_USER: "deva_app"
+  POSTGRES_PASSWORD: "CHANGE_ME"
+  NEXT_PUBLIC_API_BASE: ""
+  BLOCKCHAIN_ENABLED: "true"
+  BLOCKCHAIN_RPC_URL: "http://host.docker.internal:8545"
+  BLOCKCHAIN_CHAIN_ID: "20260720"
+  BLOCKCHAIN_CONTRACT_ADDRESS: ""
+  BLOCKCHAIN_ARTIFACT_PATH: "blockchain/artifacts/EvidenceRegistryV3.json"
+  BLOCKCHAIN_WRITER_PRIVATE_KEY: ""
+  BLOCKCHAIN_DEPLOYMENT_BLOCK: "12"
+  BLOCKCHAIN_CONFIRMATIONS: "0"
+  BLOCKCHAIN_REQUEST_TIMEOUT_SECONDS: "30"
+  BLOCKCHAIN_CONFIRMATION_TIMEOUT_SECONDS: "120"
+  BLOCKCHAIN_CONFIRMATION_POLL_INTERVAL_SECONDS: "1"
+  QBFT_BLOCK_PERIOD_SECONDS: "5"
+  BLOCKCHAIN_MAX_BLOCK_AGE_SECONDS: "30"

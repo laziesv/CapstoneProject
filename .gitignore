@@ -11,3 +11,8 @@ Thumbs.db
 
 # Misc
 *.pdf
+
+# Local Ansible deployment config / secrets
+deploy/ansible/inventory.ini
+deploy/ansible/group_vars/deva_servers.yml
+deploy/.env.prod

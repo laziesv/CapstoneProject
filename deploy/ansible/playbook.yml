@@ -1,0 +1,223 @@
+---
+- name: Prepare DEVA demo server
+  hosts: deva_servers
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Validate Ubuntu target
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_major_version | int >= 22
+        fail_msg: "This playbook is intended for Ubuntu 22.04+ servers."
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+  tasks:
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - git
+          - gnupg
+          - python3
+          - python3-venv
+          - python3-pip
+          - ufw
+          - unzip
+        state: present
+
+    - name: Install Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+      when: deva_install_nginx | bool
+
+    - name: Ensure deploy group exists
+      ansible.builtin.group:
+        name: "{{ deva_deploy_group }}"
+        state: present
+
+    - name: Ensure deploy user exists
+      ansible.builtin.user:
+        name: "{{ deva_deploy_user }}"
+        group: "{{ deva_deploy_group }}"
+        shell: /bin/bash
+        create_home: true
+        groups: sudo
+        append: true
+
+    - name: Add authorized SSH keys for deploy user
+      ansible.posix.authorized_key:
+        user: "{{ deva_deploy_user }}"
+        key: "{{ item }}"
+        state: present
+      loop: "{{ deva_authorized_keys }}"
+
+    - name: Allow deploy user to run sudo without password
+      ansible.builtin.copy:
+        dest: "/etc/sudoers.d/{{ deva_deploy_user }}"
+        content: "{{ deva_deploy_user }} ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    - name: Create Docker apt keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+      when: deva_install_docker | bool
+
+    - name: Download Docker apt key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        owner: root
+        group: root
+        mode: "0644"
+      when: deva_install_docker | bool
+
+    - name: Add Docker apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [arch={{ ansible_architecture | replace('x86_64', 'amd64') }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        filename: docker
+        state: present
+      when: deva_install_docker | bool
+
+    - name: Install Docker packages
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: true
+      when: deva_install_docker | bool
+
+    - name: Ensure Docker service is enabled
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+      when: deva_install_docker | bool
+
+    - name: Add deploy user to docker group
+      ansible.builtin.user:
+        name: "{{ deva_deploy_user }}"
+        groups: docker
+        append: true
+      when: deva_install_docker | bool
+
+    - name: Create app directory
+      ansible.builtin.file:
+        path: "{{ deva_app_dir }}"
+        state: directory
+        owner: "{{ deva_deploy_user }}"
+        group: "{{ deva_deploy_group }}"
+        mode: "0755"
+
+    - name: Checkout project repository
+      ansible.builtin.git:
+        repo: "{{ deva_repo_url }}"
+        dest: "{{ deva_app_dir }}"
+        version: "{{ deva_repo_version }}"
+        update: true
+        recursive: true
+        accept_hostkey: true
+      become_user: "{{ deva_deploy_user }}"
+
+    - name: Render backend environment file
+      ansible.builtin.template:
+        src: backend.env.j2
+        dest: "{{ deva_app_dir }}/backend/.env"
+        owner: "{{ deva_deploy_user }}"
+        group: "{{ deva_deploy_group }}"
+        mode: "0600"
+
+    - name: Render Docker Compose runtime environment file
+      ansible.builtin.template:
+        src: compose.env.j2
+        dest: "{{ deva_compose_env_file }}"
+        owner: "{{ deva_deploy_user }}"
+        group: "{{ deva_deploy_group }}"
+        mode: "0600"
+      when: deva_run_compose | bool
+
+    - name: Start DEVA application containers
+      ansible.builtin.command:
+        cmd: "docker compose --env-file {{ deva_compose_env_file }} -f {{ deva_compose_file }} up -d --build"
+        chdir: "{{ deva_compose_project_dir }}"
+      changed_when: true
+      when: deva_run_compose | bool
+
+    - name: Render Nginx site
+      ansible.builtin.template:
+        src: nginx-deva.conf.j2
+        dest: /etc/nginx/sites-available/deva.conf
+        owner: root
+        group: root
+        mode: "0644"
+      when: deva_install_nginx | bool
+      notify: Reload nginx
+
+    - name: Enable Nginx site
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/deva.conf
+        dest: /etc/nginx/sites-enabled/deva.conf
+        state: link
+      when: deva_install_nginx | bool
+      notify: Reload nginx
+
+    - name: Remove default Nginx site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      when: deva_install_nginx | bool
+      notify: Reload nginx
+
+    - name: Validate Nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+      when: deva_install_nginx | bool
+
+    - name: Allow SSH through UFW
+      community.general.ufw:
+        rule: allow
+        port: "{{ deva_ssh_port }}"
+        proto: tcp
+
+    - name: Allow HTTP through UFW
+      community.general.ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+      when: deva_open_http | bool
+
+    - name: Allow HTTPS through UFW
+      community.general.ufw:
+        rule: allow
+        port: "443"
+        proto: tcp
+      when: deva_open_https | bool
+
+    - name: Enable UFW
+      community.general.ufw:
+        state: enabled
+        policy: deny
+
+  handlers:
+    - name: Reload nginx
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
