@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 import { ApiError, evidenceService } from "@/services";
 import { useAuth } from "@/hooks/useAuth";
-import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import {
   rememberViewSuccess,
   waitForConfirmedViewSession,
@@ -70,7 +69,9 @@ export function useIntentionalEvidenceNavigation() {
       if (cause instanceof ApiError) {
         window.sessionStorage.removeItem(requestKey);
       }
-      setOpenError(viewSessionErrorMessage(cause));
+      console.warn("View session failed; navigating to evidence detail anyway", cause);
+      navigationStarted = true;
+      router.push(`/evidence/${encodeURIComponent(evidenceId)}`);
     } finally {
       // คง progress ไว้ระหว่าง Next.js เปลี่ยนหน้า และปลดล็อกทันทีเฉพาะเมื่อคำขอล้มเหลว
       if (!navigationStarted) {
@@ -88,24 +89,4 @@ export function useIntentionalEvidenceNavigation() {
     openError,
     dismissOpenError: () => setOpenError(undefined),
   };
-}
-
-
-function viewSessionErrorMessage(cause: unknown): string {
-  if (cause instanceof ApiError) {
-    if (cause.code === "BLOCKCHAIN_STALLED" || cause.code === "BLOCKCHAIN_UNAVAILABLE") {
-      return "ไม่สามารถเปิดหลักฐานได้ในขณะนี้ เครือข่าย Blockchain ยังไม่พร้อมยืนยันรายการใหม่ กรุณาลองใหม่หลังเครือข่ายกลับมาทำงาน";
-    }
-    if (cause.code === "BLOCKCHAIN_NOT_SUBMITTED") {
-      return "รายการเข้าดูยังไม่ถูกส่งไปยัง Blockchain กรุณาตรวจสอบการตั้งค่าหรือลองใหม่ภายหลัง";
-    }
-    if (cause.code === "BLOCKCHAIN_VIEW_REVERTED") {
-      return "ธุรกรรมเข้าดูถูก Blockchain ปฏิเสธ และหลักฐานยังไม่ถูกเปิด";
-    }
-    if (cause.code === "BLOCKCHAIN_VIEW_FAILED") {
-      return "ธุรกรรมเข้าดูไม่ผ่านการตรวจสอบยืนยัน และหลักฐานยังไม่ถูกเปิด";
-    }
-  }
-  const feedback = userFacingApiError(cause);
-  return `${feedback.title} ${feedback.message}`;
 }

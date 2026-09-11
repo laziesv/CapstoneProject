@@ -167,7 +167,7 @@ export default function CaseDetailPage() {
               <button
                 key={e.evidence_id}
                 type="button"
-                onClick={() => void openEvidence(e.evidence_id, e.evidence_number)}
+                onClick={() => void openEvidence(e.evidence_id)}
                 disabled={Boolean(openingEvidenceId)}
                 className="group flex flex-col gap-2 text-left disabled:cursor-wait disabled:opacity-70"
               >
