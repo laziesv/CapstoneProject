@@ -164,21 +164,8 @@ export default function CaseDetailPage() {
 
           <div className="grid grid-cols-2 gap-3.5 p-5 sm:grid-cols-3 xl:grid-cols-4">
             {filteredEv.map((e) => (
-              <button
+              <div
                 key={e.evidence_id}
-                type="button"
-                onClick={() => void openEvidence(e.evidence_id)}
-                onPointerUp={(event) => {
-                  if (event.button !== 0) return;
-                  void openEvidence(e.evidence_id);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    void openEvidence(e.evidence_id);
-                  }
-                }}
-                aria-busy={openingEvidenceId === e.evidence_id}
                 className={`group flex flex-col gap-2 text-left ${
                   openingEvidenceId === e.evidence_id ? "cursor-wait opacity-70" : "cursor-pointer"
                 }`}
@@ -197,9 +184,23 @@ export default function CaseDetailPage() {
                     className={`absolute bottom-2 left-2 h-2 w-2 rounded-full ring-2 ring-white ${e.is_blockchain_verified ? "bg-success" : "bg-warning-dot"}`}
                     title={e.is_blockchain_verified ? "บันทึกบล็อกเชนแล้ว" : "รอยืนยัน"}
                   />
+                  <button
+                    type="button"
+                    className="absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent"
+                    aria-label={`เปิดหลักฐาน ${e.evidence_number}`}
+                    aria-busy={openingEvidenceId === e.evidence_id}
+                    onClick={() => void openEvidence(e.evidence_id)}
+                  />
                 </div>
-                <span className="truncate font-mono text-[11px] text-primary">{e.evidence_number}</span>
-              </button>
+                <button
+                  type="button"
+                  className="truncate text-left font-mono text-[11px] text-primary hover:underline"
+                  aria-label={`เปิดหลักฐาน ${e.evidence_number}`}
+                  onClick={() => void openEvidence(e.evidence_id)}
+                >
+                  {e.evidence_number}
+                </button>
+              </div>
             ))}
 
             {/* ไทล์อัปโหลด (เฉพาะผู้มีสิทธิ์ + มุมมองทั้งหมด) */}
