@@ -62,13 +62,14 @@ def create_view_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    ip_address, user_agent = get_client_info(request)
     try:
         result = EvidenceViewPreparationService.create_session(
             db,
             evidence_id=evidence_id,
             current_user=current_user,
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
+            ip_address=ip_address,
+            user_agent=user_agent,
             request_id=payload.request_id if payload else None,
         )
         if result.status != EvidenceViewState.CONFIRMED:
@@ -156,12 +157,13 @@ def download(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    ip_address, user_agent = get_client_info(request)
     download_file = EvidenceAccessService.prepare_download(
         db,
         evidence_id=evidence_id,
         current_user=current_user,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
+        ip_address=ip_address,
+        user_agent=user_agent,
     )
     try:
         metadata_headers = {
