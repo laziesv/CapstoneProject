@@ -20,6 +20,7 @@ export function useIntentionalEvidenceNavigation() {
   const router = useRouter();
   const { user } = useAuth();
   const inProgress = useRef(false);
+  const unlockTimer = useRef<number | undefined>(undefined);
   const [openingEvidenceId, setOpeningEvidenceId] = useState<string>();
   const [openError, setOpenError] = useState<string>();
   const [openDelayed, setOpenDelayed] = useState(false);
@@ -41,6 +42,15 @@ export function useIntentionalEvidenceNavigation() {
     setOpenDelayed(false);
     setOpenError(undefined);
     let navigationStarted = false;
+    if (unlockTimer.current) {
+      window.clearTimeout(unlockTimer.current);
+    }
+    unlockTimer.current = window.setTimeout(() => {
+      inProgress.current = false;
+      setOpeningEvidenceId(undefined);
+      setOpenDelayed(false);
+      setOpenError("การเปิดหลักฐานใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง");
+    }, 150_000);
     synchronizeViewRequestUser(user.user_id);
     const requestKey = viewRequestStorageKey(user.user_id, evidenceId);
     try {
@@ -65,6 +75,10 @@ export function useIntentionalEvidenceNavigation() {
       rememberViewSuccess(session);
       window.sessionStorage.removeItem(requestKey);
       navigationStarted = true;
+      if (unlockTimer.current) {
+        window.clearTimeout(unlockTimer.current);
+        unlockTimer.current = undefined;
+      }
       router.push(`/evidence/${encodeURIComponent(displayRef || evidenceId)}`);
     } catch (cause) {
       if (cause instanceof ApiError) {
@@ -76,6 +90,10 @@ export function useIntentionalEvidenceNavigation() {
       if (!navigationStarted) {
         inProgress.current = false;
         setOpeningEvidenceId(undefined);
+        if (unlockTimer.current) {
+          window.clearTimeout(unlockTimer.current);
+          unlockTimer.current = undefined;
+        }
       }
     }
   };

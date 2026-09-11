@@ -168,7 +168,7 @@ export default function CaseDetailPage() {
                 key={e.evidence_id}
                 type="button"
                 onClick={() => void openEvidence(e.evidence_id)}
-                disabled={Boolean(openingEvidenceId)}
+                disabled={openingEvidenceId === e.evidence_id}
                 className="group flex flex-col gap-2 text-left disabled:cursor-wait disabled:opacity-70"
               >
                 <div className="relative aspect-square overflow-hidden rounded-xl bg-surface-hover">
