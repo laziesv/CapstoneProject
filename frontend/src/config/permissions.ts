@@ -2,7 +2,7 @@
 // จุดเดียวที่นิยามว่า role ไหนเข้า path ไหนได้ — ใช้ทั้ง RouteGuard และซ่อนปุ่ม
 // ต้องตรงกับสิทธิ์ฝั่ง backend (deps.require_roles) เสมอ
 
-export type Role = "admin" | "investigator" | "officer" | "viewer";
+export type Role = "admin" | "investigator" | "officer";
 
 // path prefix → role ที่เข้าได้
 // ไม่ตรง rule ไหน = ทุก role ที่ล็อกอินเข้าได้ (dashboard, cases ดู, evidence ดู, profile)

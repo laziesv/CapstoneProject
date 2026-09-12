@@ -7,7 +7,7 @@ import type { AuthUser } from "@/interfaces";
 import { POLICE_RANKS, canCreateByRank } from "@/utils/caseAccess";
 import { roleLabel, labelForRole } from "@/utils/labels";
 
-const ROLES = ["admin", "investigator", "officer", "viewer"];
+const ROLES = ["admin", "investigator", "officer"];
 
 const emptyForm = {
   username: "",

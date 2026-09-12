@@ -30,6 +30,5 @@ export const roleLabel: Record<string, string> = {
   admin: "ผู้ดูแลระบบ",
   investigator: "พนักงานสืบสวน",
   officer: "เจ้าหน้าที่",
-  viewer: "ผู้ชม",
 };
 export const labelForRole = (r?: string | null) => (r ? roleLabel[r] ?? r : "—");

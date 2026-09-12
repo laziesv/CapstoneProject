@@ -9,7 +9,7 @@ from app.models.users import User
 from app.schemas.user import UserCreate, UserUpdate
 from app.repositories.user_repository import UserRepository
 
-ALLOWED_ROLES = {"admin", "investigator", "officer", "viewer"}
+ALLOWED_ROLES = {"admin", "investigator", "officer"}
 
 
 def _validate_supervisor(db: Session, user_id: UUID | None, supervisor_id: UUID | None) -> None:

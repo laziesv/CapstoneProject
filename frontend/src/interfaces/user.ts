@@ -1,6 +1,6 @@
 // ── User interfaces ─────────────────────────────────────
 
-export type Role = "admin" | "investigator" | "officer" | "viewer";
+export type Role = "admin" | "investigator" | "officer";
 
 export interface User {
   user_id: string;

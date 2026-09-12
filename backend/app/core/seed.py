@@ -84,23 +84,10 @@ def seed_demo_users():
         role="officer",
         is_active=True,
     )
-    mali = _get_or_create_user(
-        db,
-        username="mali.v",
-        email="mali@police.go.th",
-        password="password123",
-        full_name="ส.ต.ต.มะลิ วิริยะ",
-        rank="สิบตำรวจตรี",
-        department="งานตรวจสอบหลักฐาน",
-        badge_number="OFF-4588",
-        role="viewer",
-        is_active=True,
-    )
-
     db.flush()
 
-    # สายบังคับบัญชา demo: เจ้าหน้าที่/ผู้ตรวจสอบอยู่ใต้ investigator
-    for subordinate in (wichai, niran, mali):
+    # สายบังคับบัญชา demo: เจ้าหน้าที่อยู่ใต้ investigator
+    for subordinate in (wichai, niran):
         subordinate.supervisor_id = somsak.user_id
 
     db.commit()
