@@ -49,6 +49,7 @@ function toCase(dto: CaseApiResponse): Case {
     title: dto.title,
     description: dto.description ?? "",
     created_by: dto.created_by,
+    creator: dto.creator ?? null,
     // ผู้รับผิดชอบหลายคน มาจากตาราง case_assignees
     // dto.assigned_officer คือ "ผู้รับผิดชอบหลัก" ซึ่งอยู่ในรายชื่อนี้อยู่แล้ว
     // (?? สำหรับข้อมูลจาก backend รุ่นเก่าที่ยังไม่มี field นี้)

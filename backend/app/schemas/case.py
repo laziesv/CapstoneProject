@@ -4,9 +4,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-class CaseAssigneeInfo(BaseModel):
-    """ผู้รับผิดชอบคดีพร้อมชื่อสำหรับแสดงผล — ไม่มี email/role/สถานะบัญชี
-    เพราะ endpoint คดีเปิดให้ทุก role เรียก"""
+class CaseUserInfo(BaseModel):
+    """ผู้ใช้ที่เกี่ยวข้องกับคดี พร้อมชื่อสำหรับแสดงผล
+
+    ไม่มี email/role/สถานะบัญชี เพราะ endpoint คดีเปิดให้ทุก role เรียก
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -14,6 +16,9 @@ class CaseAssigneeInfo(BaseModel):
     username: str
     full_name: Optional[str] = None
     rank: Optional[str] = None
+
+
+class CaseAssigneeInfo(CaseUserInfo):
     assigned_at: Optional[datetime] = None
 
 
@@ -48,6 +53,8 @@ class CaseResponse(BaseModel):
     title: str
     description: Optional[str]
     created_by: UUID
+    # หัวหน้าที่ดูแลคดีนี้ (ผู้สร้าง) — ส่งชื่อมาด้วยเพื่อให้หน้าเว็บแสดงได้เลย
+    creator: Optional[CaseUserInfo] = None
     assigned_officer: Optional[UUID]
     assigned_officers: List[UUID] = []
     assignees: List[CaseAssigneeInfo] = []

@@ -44,6 +44,9 @@ class Case(Base):
 
     closed_at = Column(TIMESTAMP(timezone=True))
 
+    # ผู้สร้างคดี = หัวหน้าที่ดูแลคดีนี้ (ต้องเป็น role investigator ถึงสร้างได้)
+    creator = relationship("User", foreign_keys=[created_by], lazy="selectin")
+
     # ผู้รับผิดชอบทั้งหมด (สิทธิ์ถาวร ไม่ขึ้นกับสายบังคับบัญชา)
     # assigned_officer ด้านบนยังอยู่ในฐานะ "ผู้รับผิดชอบหลัก" สำหรับแสดงผล
     assignee_links = relationship(

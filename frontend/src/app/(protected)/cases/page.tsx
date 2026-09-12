@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Loader2, FolderOpen, X } from "lucide-react";
+import { Plus, Search, Loader2, FolderOpen, UserRound, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService } from "@/services";
@@ -156,6 +156,14 @@ export default function CasesPage() {
                   <div className="flex items-center gap-3.5 pt-0.5 text-xs text-muted">
                     <span className="truncate">{c.location}</span>
                     <span className="flex-shrink-0">{formatIncident(c.incident_date)}</span>
+                  </div>
+                  {/* หัวหน้าที่ดูแลคดี — ช่วยให้แยกออกว่าคดีไหนของสายงานใคร
+                      โดยไม่ต้องเปิดเข้าไปดูทีละคดี */}
+                  <div className="flex items-center gap-1.5 border-t border-border pt-2 text-xs text-muted">
+                    <UserRound className="h-3.5 w-3.5 flex-shrink-0" />
+                    <span className="truncate">
+                      {c.creator ? (c.creator.full_name || c.creator.username) : "—"}
+                    </span>
                   </div>
                 </div>
               </Link>

@@ -10,12 +10,16 @@ export type TxStatus = "pending" | "confirmed" | "failed";
 export type AccessAction = "create" | "update" | "delete" | "view" | "download" | "query";
 export type AccessResult = "pending" | "success" | "failed";
 
-/** ผู้รับผิดชอบคดีพร้อมชื่อสำหรับแสดงผล */
-export interface CaseAssignee {
+/** ผู้ใช้ที่เกี่ยวข้องกับคดี พร้อมชื่อสำหรับแสดงผล */
+export interface CaseUser {
   user_id: string;
   username: string;
   full_name?: string | null;
   rank?: string | null;
+}
+
+/** ผู้รับผิดชอบคดี — CaseUser พร้อมวันที่ได้รับมอบหมาย */
+export interface CaseAssignee extends CaseUser {
   assigned_at?: string | null;
 }
 
@@ -25,6 +29,8 @@ export interface Case {
   title: string;
   description: string;
   created_by: string;
+  /** หัวหน้าที่ดูแลคดี (ผู้สร้าง) — null ถ้า backend ยังไม่ส่งมา */
+  creator: CaseUser | null;
   assigned_officers: string[];
   assignees: CaseAssignee[];
   incident_date: string;
@@ -42,6 +48,7 @@ export interface CaseApiResponse {
   title: string;
   description: string | null;
   created_by: string;              // UUID ของผู้ใช้
+  creator?: CaseUser | null;       // หัวหน้าที่ดูแลคดี พร้อมชื่อ
   assigned_officer: string | null; // UUID ของผู้รับผิดชอบหลัก (แสดงผล)
   assigned_officers?: string[];    // ผู้รับผิดชอบทั้งหมด (สิทธิ์ถาวร)
   assignees?: CaseAssignee[];      // เหมือนด้านบนแต่มีชื่อมาด้วย

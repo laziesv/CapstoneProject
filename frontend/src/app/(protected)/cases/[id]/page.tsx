@@ -227,6 +227,10 @@ export default function CaseDetailPage() {
             <InfoRow label="วันเกิดเหตุ" value={formatIncident(caseData.incident_date)} />
             <InfoRow label="จำนวนหลักฐาน" value={`${evidenceList.length} ชิ้น`} />
             <InfoRow label="สร้างเมื่อ" value={fmtDate(caseData.created_at)} />
+            <InfoRow
+              label="หัวหน้า"
+              value={caseData.creator ? (caseData.creator.full_name || caseData.creator.username) : null}
+            />
             <AssigneeRow assignees={caseData.assignees} />
           </div>
 
