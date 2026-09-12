@@ -143,6 +143,7 @@
         dest: "{{ deva_app_dir }}"
         version: "{{ deva_repo_version }}"
         update: true
+        force: true
         recursive: true
         accept_hostkey: true
       become_user: "{{ deva_deploy_user }}"
@@ -178,6 +179,8 @@
         owner: root
         group: root
         mode: "0644"
+      vars:
+        deva_nginx_https_enabled: false
       when: deva_install_nginx | bool
       notify: Reload nginx
 
@@ -212,6 +215,29 @@
           {{ '--redirect' if deva_certbot_redirect | default(true) | bool else '' }}
       args:
         creates: "/etc/letsencrypt/live/{{ deva_domain_name }}/fullchain.pem"
+      when:
+        - deva_install_nginx | bool
+        - deva_enable_https | default(false) | bool
+        - deva_domain_name != "_"
+
+    - name: Render Nginx site with HTTPS enabled
+      ansible.builtin.template:
+        src: nginx-deva.conf.j2
+        dest: /etc/nginx/sites-available/deva.conf
+        owner: root
+        group: root
+        mode: "0644"
+      vars:
+        deva_nginx_https_enabled: true
+      when:
+        - deva_install_nginx | bool
+        - deva_enable_https | default(false) | bool
+        - deva_domain_name != "_"
+      notify: Reload nginx
+
+    - name: Validate Nginx HTTPS configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
       when:
         - deva_install_nginx | bool
         - deva_enable_https | default(false) | bool

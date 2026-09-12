@@ -1,6 +1,25 @@
+{% set https_enabled = deva_nginx_https_enabled | default(false) | bool %}
+{% if https_enabled %}
 server {
     listen 80;
     server_name {{ deva_domain_name }};
+
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name {{ deva_domain_name }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ deva_domain_name }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ deva_domain_name }}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+{% else %}
+server {
+    listen 80;
+    server_name {{ deva_domain_name }};
+{% endif %}
 
     client_max_body_size 100m;
 
