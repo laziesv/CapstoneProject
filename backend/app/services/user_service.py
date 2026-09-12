@@ -137,6 +137,22 @@ def update_user(db: Session, user_id: UUID, data: UserUpdate, actor: User) -> Us
                 detail="ถอดสิทธิ์ admin ของตัวเองไม่ได้",
             )
 
+    # ถอด role investigator ของคนที่ยังเป็นหัวหน้าใครอยู่ไม่ได้
+    # เพราะ _validate_supervisor บังคับว่าหัวหน้าต้องเป็น investigator เท่านั้น
+    # ถ้าปล่อยผ่าน ลูกน้องจะเหลือ supervisor_id ที่ชี้ไปยังคนที่ไม่มีสิทธิ์เป็นหัวหน้า
+    # ซึ่งเป็นสถานะที่สร้างใหม่ผ่าน API ไม่ได้เลย และทำให้สิทธิ์เห็นคดีเพี้ยน
+    if "role" in changes and changes["role"] != "investigator":
+        subordinates = [u.username for u in user.subordinates]
+        if subordinates:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "เปลี่ยนสิทธิ์ไม่ได้ เพราะยังเป็นหัวหน้าของ "
+                    f"{', '.join(sorted(subordinates))} "
+                    "กรุณาย้ายผู้ใต้บังคับบัญชาไปหัวหน้าคนอื่นก่อน"
+                ),
+            )
+
     if "supervisor_id" in changes:
         _validate_supervisor(db, user.user_id, changes["supervisor_id"])
 

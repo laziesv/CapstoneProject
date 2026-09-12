@@ -6,6 +6,7 @@ import { userService, ApiError } from "@/services";
 import type { AuthUser } from "@/interfaces";
 import { POLICE_RANKS } from "@/utils/caseAccess";
 import { roleLabel, labelForRole } from "@/utils/labels";
+import { useAuth } from "@/hooks/useAuth";
 
 const ROLES = ["admin", "investigator", "officer"];
 
@@ -22,6 +23,8 @@ const emptyForm = {
 };
 
 export default function UsersPage() {
+  // ใช้ระบุบัญชีตัวเอง — สิทธิ์ของตัวเองแก้ไม่ได้ (backend ก็ปฏิเสธ)
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AuthUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(emptyForm);
@@ -257,9 +260,30 @@ export default function UsersPage() {
                       </td>
                       <td className="px-5 py-3.5 font-mono text-xs text-text-secondary">{u.badge_number || "—"}</td>
                       <td className="px-5 py-3.5">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${u.role === "admin" ? "bg-primary-light text-primary" : "bg-surface-hover text-text-secondary"}`}>
-                          {labelForRole(u.role)}
-                        </span>
+                        {u.user_id === currentUser?.user_id ? (
+                          // บัญชีตัวเอง: backend ปฏิเสธการถอดสิทธิ์ admin ของตัวเองอยู่แล้ว
+                          // แสดงเป็นป้ายแทน dropdown เพื่อไม่ให้กดแล้วเจอ error โดยไม่จำเป็น
+                          <span
+                            title="เปลี่ยนสิทธิ์ของบัญชีตัวเองไม่ได้"
+                            className="inline-block rounded-full bg-primary-light px-2.5 py-1 text-xs font-semibold text-primary"
+                          >
+                            {labelForRole(u.role)}
+                          </span>
+                        ) : (
+                          <select
+                            value={u.role}
+                            aria-label={`สิทธิ์ของ ${u.username}`}
+                            disabled={savingId === u.user_id}
+                            onChange={(e) =>
+                              patchUser(u.user_id, { role: e.target.value }, `เปลี่ยนสิทธิ์ของ "${u.username}" เป็น ${labelForRole(e.target.value)} แล้ว`)
+                            }
+                            className="h-8 rounded-lg border border-border bg-surface px-2 text-xs font-semibold text-text-secondary outline-none focus:border-primary disabled:opacity-50"
+                          >
+                            {ROLES.map((r) => (
+                              <option key={r} value={r}>{roleLabel[r]}</option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-text-secondary">{u.department || "—"}</td>
                       <td className="px-5 py-3.5">
