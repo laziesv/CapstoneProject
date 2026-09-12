@@ -1,9 +1,9 @@
 # Setup Guide
 
 > **วัตถุประสงค์:** พา Developer ตั้งแต่ clone repository จนถึง network, contract, Backend และ Frontend ที่พร้อมใช้งาน
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Team Member, Developer, Operator
@@ -155,12 +155,10 @@ cd ..
 cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install -e ..\blockchain
 cd ..
 ```
 
-> [!WARNING]
-> `backend/requirements.txt` ณ revision นี้ยังไม่ประกาศ packages ที่ Watermark imports โดยตรง ได้แก่ NumPy, OpenCV, scikit-image, PyWavelets, qrcode/Pillow และ pyzbar และไม่ได้ประกาศ editable submodule package นี่เป็น dependency-manifest gap ที่ควรแก้เป็นงานแยก อย่าตีความว่าติดตั้ง `requirements.txt` อย่างเดียวแล้ว runtime สมบูรณ์ หาก import ล้ม ให้ติดตั้งเฉพาะ dependency ที่ error ยืนยันและบันทึกการแก้ manifest ภายหลัง
+`backend/requirements.txt` ประกาศ Watermark runtime packages (NumPy, OpenCV, scikit-image, PyWavelets, qrcode/Pillow และ pyzbar), Web3 dependencies และ editable Blockchain submodule package แล้ว จึงต้อง init submodule ก่อนติดตั้ง Backend บน Linux ต้องติดตั้ง native `libzbar0` เพิ่มเพื่อให้ `pyzbar` โหลดได้
 
 ### Frontend
 
