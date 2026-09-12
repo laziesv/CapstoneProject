@@ -45,9 +45,22 @@ pipeline {
     stage('Health check') {
       steps {
         sh '''
-          curl -fsS ${HEALTH_URL} >/dev/null
-          status="$(curl -sS -o /dev/null -w "%{http_code}" ${HEALTH_URL}/api/auth/me)"
-          test "$status" = "401"
+          for attempt in $(seq 1 24); do
+            if curl -fsS ${HEALTH_URL} >/dev/null; then
+              status="$(curl -sS -o /dev/null -w "%{http_code}" ${HEALTH_URL}/api/auth/me)"
+              if [ "$status" = "401" ]; then
+                echo "Health check passed on attempt ${attempt}."
+                exit 0
+              fi
+              echo "Frontend is up but API returned HTTP ${status}; retrying..."
+            else
+              echo "Application is not ready yet; retrying..."
+            fi
+            sleep 5
+          done
+
+          echo "Health check failed after waiting for the application to become ready."
+          exit 1
         '''
       }
     }
