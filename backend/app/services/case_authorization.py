@@ -2,6 +2,7 @@
 
 from uuid import UUID
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.case_assignees import CaseAssignee
@@ -85,3 +86,21 @@ def can_access_case(
 
     allowed = _allowed_user_scope(db, current_user)
     return case.created_by in allowed or case.assigned_officer in allowed
+
+
+def accessible_case_ids(db: Session, current_user: User) -> set[UUID] | None:
+    """case_id ทั้งหมดที่ผู้ใช้คนนี้เห็นได้ — None = เห็นทุกคดี (admin)
+
+    ใช้กรองข้อมูลรวม เช่น dashboard ที่ต้องนับ/แสดงเฉพาะสิ่งที่อยู่ในสิทธิ์
+    ใช้กฎเดียวกับ can_access_case ทุกประการ: คดีของตัวเองหรือของผู้ใต้บังคับบัญชา
+    บวกกับคดีที่ถูกมอบหมายให้โดยตรง (สิทธิ์ถาวร)
+    """
+    if current_user.role == "admin":
+        return None
+
+    scope = _allowed_user_scope(db, current_user)
+    rows = db.query(Case.case_id).filter(
+        Case.deleted_at.is_(None),
+        or_(Case.created_by.in_(scope), Case.assigned_officer.in_(scope)),
+    )
+    return {case_id for (case_id,) in rows} | _assigned_case_ids(db, current_user)

@@ -1,6 +1,8 @@
 from sqlalchemy.orm import Session
 
+from app.models.users import User
 from app.repositories.dashboard_repository import DashboardRepository
+from app.services.case_authorization import accessible_case_ids
 from app.schemas.dashboard import (
     DashboardResponse,
     DashboardStats,
@@ -9,10 +11,19 @@ from app.schemas.dashboard import (
 )
 
 
-def get_dashboard(db: Session) -> DashboardResponse:
-    stats = DashboardRepository.get_dashboard_stats(db)
-    evidence_rows = DashboardRepository.get_recent_evidence(db)
-    log_rows = DashboardRepository.get_recent_activity(db)
+def get_dashboard(db: Session, current_user: User) -> DashboardResponse:
+    """สรุปภาพรวมเฉพาะสิ่งที่ผู้ใช้คนนี้มีสิทธิ์เห็น
+
+    เดิมคืนข้อมูลทั้งระบบให้ทุกคนที่ล็อกอิน ทำให้คนที่ไม่มีสิทธิ์คดีไหนเลยยังรู้ว่า
+    ระบบมีหลักฐานเลขอะไรบ้าง และใครเข้าถึงหลักฐานชิ้นไหน
+    """
+    case_ids = accessible_case_ids(db, current_user)
+    # admin เห็นความเคลื่อนไหวของทุกคน คนอื่นเห็นเฉพาะของตัวเอง
+    viewer_user_id = None if current_user.role == "admin" else current_user.user_id
+
+    stats = DashboardRepository.get_dashboard_stats(db, case_ids)
+    evidence_rows = DashboardRepository.get_recent_evidence(db, case_ids)
+    log_rows = DashboardRepository.get_recent_activity(db, viewer_user_id)
 
     return DashboardResponse(
         stats=DashboardStats(**stats),
