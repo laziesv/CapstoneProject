@@ -1,9 +1,9 @@
 # Troubleshooting
 
 > **วัตถุประสงค์:** วินิจฉัยปัญหา Integration ด้วยอาการ, สาเหตุ, คำสั่งตรวจ, ผลคาดหมาย และวิธีแก้ที่ไม่ทำลายข้อมูล
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Developer, Operator, Support, AI
@@ -129,7 +129,7 @@ npm run dev
 
 **อาการ:** `ModuleNotFoundError` เช่น `numpy`, `cv2`, `skimage`, `pywt`, `qrcode`, `pyzbar`
 
-**สาเหตุ:** `backend/requirements.txt` ยังไม่ประกาศ Watermark runtime dependencies ครบ
+**สาเหตุที่เป็นไปได้:** environment ยังไม่ได้ติดตั้ง `backend/requirements.txt`, submodule ยังไม่ได้ init, native ZBar ขาดบน Linux หรือใช้ interpreter คนละตัว แม้ manifest ปัจจุบันประกาศ Python runtime dependencies ครบแล้ว
 
 **วินิจฉัย:** ใช้ venv interpreter โดยตรงและ import module ที่ error ระบุ
 
@@ -138,7 +138,7 @@ cd backend
 .\.venv\Scripts\python.exe -c "from app.main import app; print('FastAPI app import OK')"
 ```
 
-คำสั่งนี้อาจเชื่อม DB/seed จึงต้องชี้ DB ที่ได้รับอนุญาตก่อน ติดตั้งเฉพาะ confirmed missing package และหยุดเมื่อเจอ blocker ถัดไป สำหรับ `pyzbar` ต้องตรวจ native ZBar load ด้วย
+คำสั่งนี้อาจเชื่อม DB/seed จึงต้องชี้ DB ที่ได้รับอนุญาตก่อน ติดตั้งจาก `requirements.txt` ด้วย venv interpreter เดียวกันและยืนยันว่า submodule ถูก init สำหรับ `pyzbar` ต้องตรวจ native ZBar load ด้วย; Linux ต้องมี `libzbar0`
 
 ## 7. Writer Private Key Malformed
 

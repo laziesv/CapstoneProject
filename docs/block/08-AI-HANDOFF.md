@@ -1,9 +1,9 @@
 # AI Handoff
 
 > **วัตถุประสงค์:** ให้ AI เข้าใจสถานะระบบ, boundaries และ invariants ปัจจุบันโดยไม่ต้องใช้ chat history
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** AI Coding Agent, Developer supervising AI
@@ -14,16 +14,16 @@
 
 ## Current System
 
-- Parent branch ณ verification: `feature/blockchain-dev-integration`
-- Parent revision: `de54028...`
-- Blockchain submodule revision: `1fdfe5a...`, branch `feature/evidence-registry-v3`
+- Parent branch ณ verification: `update-blockchain-submodule`
+- Parent revision: `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+- Blockchain submodule revision: `3a92ec3f2096d812c588d8bf8eea209e60a27717` (detached submodule checkout)
 - Integration baseline: `0de174a7831fa15981aeecea93cdccb05dbc1e80`
 - Runtime contract: `EvidenceRegistryV3` only
 - Network: Besu 26.7.0, QBFT, 4 validators + 1 RPC
 - Reference Chain ID: `20260720`
 - Reference deployment: contract `0xf9e0Ca8d6cFa419bd79276775F441816c2cb2403`, block `12`
 - Current Alembic head: `a6c8e1f4b2d9`
-- Backend/Blockchain/Frontend/Foundry baseline: 220/185/63/19 passed
+- Validation snapshot: Backend 230 passed; Blockchain Python 185 and Foundry 19 passed in current-revision CI; Frontend 63 passed and 1 failed of 64
 
 Reference deployment เป็นตัวอย่าง local environment ไม่ใช่ universal constant ทุกเครื่อง
 
@@ -91,6 +91,8 @@ Reference deployment เป็นตัวอย่าง local environment ไ�
 - repository create/stage methods should flush, caller owns commit
 - filesystem cleanup tracks only files created by current invocation
 - Download/Verify live rehash ORIGINAL; CoC currently metadata/chain-oriented
+- Download serializes per evidence, verifies stored WATERMARKED bytes, overwrites its Dynamic band and persists that latest WATERMARKED state with rollback backup
+- CoC paginates latest-first by request while preserving chain order in each page; verification uses full history
 - no distributed atomic transaction exists across DB/files/chain
 
 ## Current Flow Summary

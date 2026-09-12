@@ -1,9 +1,9 @@
 # Architecture and Flows
 
 > **วัตถุประสงค์:** อธิบายสถาปัตยกรรมและลำดับทำงานจริงของ Blockchain Integration แบบ end-to-end
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Developer, Architect, Operator, Security Reviewer, AI
@@ -202,12 +202,12 @@ Cleanup failure ไม่แทนที่ upload error เดิม และ�
 
 ```mermaid
 flowchart TD
-  IMG[Original image Y channel/grayscale] --> RESIZE[Resize 1024x1024]
+  IMG[Original image Y channel/grayscale] --> ROI[Centered square ROI; no whole-image resize]
   UUID[Evidence UUID] --> HS[SHA-256 hex] --> QRS[Static QR]
   HASH[Original SHA-256 64 hex] --> QRD[Dynamic QR]
   QRS --> AS[Arnold scramble k=15]
   QRD --> AD[Arnold scramble k=15]
-  RESIZE --> DWT[3-level Haar DWT]
+  ROI --> DWT[3-level Haar DWT]
   AS --> LH[QIM alpha=80 into centered LH patch]
   AD --> HL[QIM alpha=80 into centered HL patch]
   DWT --> LH & HL
@@ -216,13 +216,14 @@ flowchart TD
 
 `np.random.seed(SHA256(dynamic))` ถูกเรียกตอน embed แต่ไม่มี random operation หลังจากนั้นที่มีผลต่อ selection/location ทั้งตำแหน่ง, QIM และ Arnold transform เป็น deterministic จึงไม่ต้องรู้ Dynamic ล่วงหน้าเพื่อ extract
 
+ROI ถูกปัดลงให้ขนาดหารด้วย `2**level` ลงตัว และ QR ถูกจำกัดตามขนาด subband ภาพอัปโหลดต้องมีด้านสั้นอย่างน้อย 640 px (`MIN_BAND_PX=80`, DWT level 3) มิฉะนั้น Backend ปฏิเสธด้วย `IMAGE_TOO_SMALL_FOR_WATERMARK` ก่อนฝัง เพื่อไม่สร้างไฟล์ที่ถอด Watermark กลับไม่ได้
+
 ## 11. Watermark Extract
 
 ```mermaid
 flowchart LR
-  SUS[Suspected image] --> R1[Resize 1024]
-  REF[Reference original] --> R2[Resize 1024]
-  R1 & R2 --> ALIGN[SIFT/homography alignment]
+  SUS[Suspected image] --> ALIGN[SIFT/homography alignment]
+  REF[Reference original] --> ALIGN
   ALIGN --> DWT[3-level DWT]
   DWT --> LH[center LH patch]
   DWT --> HL[center HL patch]
@@ -231,7 +232,7 @@ flowchart LR
   SQR & DQR --> DECODE[pyzbar/OpenCV decode fallbacks]
 ```
 
-Signature รองรับ `dynamic_hash=None` เพื่อ backward compatibility แต่ extraction ไม่ใช้ค่าดังกล่าว QR decode คืน arbitrary UTF-8 string แล้ว service เป็นผู้ validate รูปแบบ
+Signature ปัจจุบันคือ `extract(suspected_image, reference_image)` ไม่มี `dynamic_hash` เพราะ extraction ไม่ต้องรู้ Dynamic ล่วงหน้า QR decode คืน arbitrary UTF-8 string แล้ว service เป็นผู้ validate รูปแบบ
 
 ## 12. QUERY Audit Flow
 
@@ -450,8 +451,10 @@ Route ไม่ยอมคืน ORIGINAL และใช้ generic 404 สำ
 ```mermaid
 flowchart TD
   REQ[POST download] --> AUTH[Auth + case authorization]
-  AUTH --> FILES[Require ORIGINAL and WATERMARKED metadata/files]
-  FILES --> HASH[Streaming SHA-256 current ORIGINAL]
+  AUTH --> LOCK[Lock evidence row to serialize rolling watermark updates]
+  LOCK --> FILES[Require ORIGINAL and WATERMARKED metadata/files]
+  FILES --> WHASH[Verify stored WATERMARKED bytes vs DB hash]
+  WHASH --> HASH[Streaming SHA-256 current ORIGINAL]
   HASH --> READ[getEvidence from V3]
   READ --> CMP{current == chain AND DB == chain?}
   CMP -->|No| BLOCK[409 EVIDENCE_INTEGRITY_MISMATCH]
@@ -477,17 +480,19 @@ sequenceDiagram
   I-->>A: VERIFIED
   A->>D: stage DOWNLOAD AccessLog
   A->>A: derive access_session_ref(log UUID)
-  A->>W: embed(original, static evidence ID, dynamic session ref)
+  A->>W: overwrite Dynamic on current WATERMARKED with session ref
   W->>F: temporary personalized image
   A->>B: recordAccess(..., DOWNLOAD, occurredAt)
   B-->>A: confirmed tx/block
   A->>D: stage confirmed ACCESS tx + link log
+  A->>F: atomically replace stored WATERMARKED; retain rollback backup
+  A->>D: update WATERMARKED hash/size
   A->>D: commit
   A-->>U: stream file + safe metadata headers
   A->>F: delete temp after response
 ```
 
-Personalized copy สร้างจาก ORIGINAL ไม่ใช่ WATERMARKED ซ้ำ การ hash ของ temp personalized file เป็น derivative metadata ไม่ใช่ original evidence hash
+Personalized copy สร้างจาก WATERMARKED state ล่าสุด โดยเขียน Dynamic band ทับค่าก่อนหน้าและรักษา Static band เดิม เมื่อ chain write ยืนยันแล้วจึงแทนที่ stored WATERMARKED แบบ atomic พร้อม backup จน DB commit สำเร็จ การ hash ของไฟล์ personalized เป็น derivative metadata ไม่ใช่ original evidence hash
 
 > [!NOTE]
 > DOWNLOAD ปัจจุบันรอ Blockchain receipt ใน orchestration ที่ยังถือ DB transaction ของรายการนี้ ต่างจาก VIEW ที่ persist pending lifecycle แยกก่อนรอ นี่เป็นข้อจำกัดด้าน latency/availability ที่ต้องทราบ ไม่ควรแก้เพียงเพิ่ม timeout โดยไม่ออกแบบ reconciliation
@@ -497,7 +502,8 @@ Personalized copy สร้างจาก ORIGINAL ไม่ใช่ WATERMARK
 ```mermaid
 flowchart LR
   FAIL[Personalize/chain/DB exception] --> RB[DB rollback]
-  RB --> DEL[Best-effort delete temp personalized file]
+  RB --> RESTORE[Restore previous stored WATERMARKED from backup if replaced]
+  RESTORE --> DEL[Best-effort delete temp personalized file]
   DEL --> RESP[Preserve controlled 503/original HTTP error]
   RESP --> NR[No automatic write retry]
 ```
@@ -588,8 +594,11 @@ sequenceDiagram
   API->>DB: batch transaction/access/user enrichment
   API->>API: compare hashes/refs/action/time/tx metadata
   API->>API: order by block, tx index, log index
-  API-->>AD: chain-first timeline + mismatch details
+  API->>API: calculate verification from full history
+  API-->>AD: latest-page chain-first timeline + totals/mismatch details
 ```
+
+API รองรับ `limit` 1-200 และ `offset` ตั้งแต่ 0 โดยนับหน้าจากรายการล่าสุด แต่คืน event ในหน้านั้นตามลำดับเวลาเดิม ฟิลด์ `access_history_total`, `access_history_limit` และ `access_history_offset` ใช้ควบคุม pagination ขณะที่ verification คำนวณจากประวัติทั้งหมดก่อนตัดหน้า
 
 CoC ใช้ Blockchain order ไม่ใช้ DB timestamp เป็นลำดับหลัก หาก AccessLog/user/transaction row ถูกลบ event ยังอยู่และสามารถแสดง ref ได้ `QUERY` ไม่อยู่ใน chain timeline
 
@@ -734,7 +743,6 @@ flowchart TD
 
 - ไม่มี distributed transaction ระหว่าง Blockchain, PostgreSQL และ filesystem
 - Upload และ Download บางช่วงยังรอ chain receipt ภายใต้ request orchestration; VIEW มี durable pending/reconciliation ที่สมบูรณ์กว่า
-- Backend dependency manifest ยังไม่ครอบคลุม Watermark runtime package ทั้งหมด
 - App import มี DB connection/seed side effect
 - CoC ไม่ live hash ORIGINAL เพื่อเลี่ยง repeated file I/O
 - Grafana ไม่มี writer nonce, per-transaction receipt หรือ DB pending panels ใน dashboard ปัจจุบัน

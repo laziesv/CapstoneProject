@@ -1,9 +1,9 @@
 # Testing and Acceptance
 
 > **วัตถุประสงค์:** กำหนด test layers, คำสั่ง, cardinality และ acceptance criteria ของ Blockchain Integration
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Developer, QA, Reviewer, AI
@@ -25,12 +25,12 @@ Unit tests ต้องไม่ต้องมี Besu จริง Controlled 
 
 | Layer | Reported/verified baseline | Tool |
 |---|---:|---|
-| Backend | 220 passed | `unittest discover` |
-| Blockchain Python | 185 passed | pytest |
-| Frontend | 63 passed | Node test runner |
-| Foundry | 19 passed | forge test |
+| Backend | 230 passed | `unittest discover` |
+| Blockchain Python | 185 passed (current-revision CI) | pytest |
+| Frontend | 63 passed, 1 failed (64 total; local) | Node test runner |
+| Foundry | 19 passed (current-revision CI) | forge test |
 
-ผลนี้ผูกกับ revisions ใน header หาก HEAD เปลี่ยนต้องรันใหม่ก่อนอ้างว่า current
+Backend และ Frontend เป็นผลที่รันใน documentation audit นี้ ส่วน Blockchain Python/Foundry อ้างผล CI ของ revision ใน header หาก HEAD เปลี่ยนต้องรันใหม่ก่อนอ้างว่า current
 
 ## Backend Tests
 
@@ -48,8 +48,8 @@ Focused inventory:
 | `test_blockchain_integration.py` | 28 | config/provider/refs/V3 reads-writes/scans/health |
 | `test_evidence_upload_transaction.py` | 11 | flush/final commit/files cleanup/registration metadata |
 | `test_evidence_view_preparation.py` | 29 | PENDING/idempotency/reconciliation/recovery/nonce incidents |
-| `test_evidence_download_access.py` | 12 | integrity gate, one download write, rollback |
-| `test_personalized_evidence_download.py` | 10 | personalized codec/temp file/session metadata |
+| `test_evidence_download_access.py` | 14 | integrity gates, rolling WATERMARKED state, one download write, rollback |
+| `test_personalized_evidence_download.py` | 11 | personalized codec/temp file/session metadata |
 | `test_original_evidence_integrity.py` | 7 | current/DB/chain hash states |
 | `test_watermark_verification_modes.py` | 16 | canonical/personalized/unresolved/503/fail closed |
 | `test_personalized_watermark_extraction.py` | 6 | extract unknown session ref without hint |
@@ -59,9 +59,10 @@ Focused inventory:
 | `test_access_log_business_core.py` | 7 | QUERY DB-only/filter/preview behavior |
 | `test_evidence_preview_authorization.py` | 10 | WATERMARKED-only/auth/no audit side effect |
 | `test_case_authorization.py` | 14 | hierarchy/admin/generic not-found |
+| `test_watermark_minimum_size.py` | 7 | 640 px minimum, upload rejection, codec constraint alignment |
 | migrations/model/startup/dashboard | 12 | schema compatibility, head safety, route behavior |
 
-รวม 220 test methods
+รวม 230 test methods
 
 ### Test isolation
 
@@ -116,7 +117,7 @@ npx tsc --noEmit
 npx eslint "src/app/(protected)/(admin)/blockchain/page.tsx" "src/app/(protected)/(admin)/verify/page.tsx" "src/app/(protected)/evidence/[id]/page.tsx" "src/app/(protected)/evidence/upload/page.tsx" "src/components/evidence/*.tsx" "src/hooks/useIntentionalEvidenceNavigation.ts" "src/utils/*.ts"
 ```
 
-Test files 9 modules รวม 63 tests ครอบคลุม Explorer, Download errors, integrity, operation feedback, forensic formatting, progress, Verify, request identity และ QR presentation
+Test files 9 modules รวม 64 tests ครอบคลุม Explorer, Download errors, integrity, operation feedback, forensic formatting, progress, Verify, request identity และ QR presentation การรันล่าสุดผ่าน 63 และล้ม 1 ใน `operationProgress.test.mjs` จาก assertion ที่คาดว่า dashboard source ยัง render `IntentionalEvidenceProgress`; นี่เป็น regression/test drift ที่ต้องแยกแก้ก่อน merge ไม่ใช่ warning ที่ละเว้นได้
 
 `MODULE_TYPELESS_PACKAGE_JSON`, LF/CRLF warning หรือ existing unrelated `<img>` warning อาจพบได้ แต่ต้องแยก warning จาก test/type error และไม่แก้ package เพียงเพื่อซ่อน warning โดยไม่มี scope
 
@@ -150,6 +151,7 @@ Network validation ต้องแยก container status, RPC health และ 
 Expected 1 HTTP upload = 1 `recordEvidence`
 
 - ORIGINAL/WATERMARKED rows และ files ถูกต้อง
+- ภาพที่ด้านสั้นต่ำกว่า 640 px ถูกปฏิเสธก่อนสร้าง Watermark
 - original DB hash = hash bytes = chain evidenceHash
 - registration tx/block/address จาก receipt เดียวกัน
 - canonical Static/Dynamic semantics ถูกต้อง
@@ -173,7 +175,9 @@ Expected intentional click = 1 AccessLog/session = at most 1 effective on-chain 
 Expected 1 HTTP download = at most 1 `recordAccess(DOWNLOAD)`
 
 - live ORIGINAL and DB hash match Blockchain before write
+- stored WATERMARKED bytes match DB hash before personalization
 - personalized Dynamic = derived session ref
+- personalized copy ใช้ WATERMARKED state ล่าสุดและ persist hash/size ใหม่หลัง chain confirm
 - returned file hash matches generated bytes/metadata
 - AccessLog + BlockchainTransaction + event link กัน
 - temp file deleted after response
