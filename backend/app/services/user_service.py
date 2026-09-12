@@ -33,6 +33,11 @@ def _validate_supervisor(db: Session, user_id: UUID | None, supervisor_id: UUID 
             status_code=status.HTTP_404_NOT_FOUND,
             detail="ไม่พบผู้ใช้ที่จะตั้งเป็นหัวหน้า",
         )
+    if supervisor.role != "investigator":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="หัวหน้าต้องเป็นผู้ใช้ role investigator เท่านั้น",
+        )
 
     # ไต่สายบังคับบัญชาขึ้นไปจากหัวหน้าคนใหม่ ถ้าเจอตัวเอง = ปิดวงจร
     seen: set[UUID] = set()

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { UserPlus, Loader2, CheckCircle2, AlertCircle, Search, X } from "lucide-react";
 import { userService, ApiError } from "@/services";
 import type { AuthUser } from "@/interfaces";
-import { POLICE_RANKS, canCreateByRank } from "@/utils/caseAccess";
+import { POLICE_RANKS } from "@/utils/caseAccess";
 import { roleLabel, labelForRole } from "@/utils/labels";
 
 const ROLES = ["admin", "investigator", "officer"];
@@ -35,8 +35,8 @@ export default function UsersPage() {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
-  // หัวหน้าที่เลือกได้ = ผู้มียศชั้นสัญญาบัตร (คนที่สร้างคดีได้)
-  const supervisorOptions = useMemo(() => users.filter((u) => canCreateByRank(u.rank)), [users]);
+  // หัวหน้าตาม use case = investigator เท่านั้น
+  const supervisorOptions = useMemo(() => users.filter((u) => u.role === "investigator"), [users]);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -194,7 +194,7 @@ export default function UsersPage() {
               </select>
             </Field>
           </div>
-          <p className="mt-2 text-xs text-muted">* หัวหน้าเลือกได้เฉพาะผู้มียศชั้นสัญญาบัตร (ระดับที่สร้างคดีได้)</p>
+          <p className="mt-2 text-xs text-muted">* หัวหน้าเลือกได้เฉพาะผู้ใช้ role investigator เท่านั้น</p>
 
           <button type="submit" disabled={submitting} className="mt-5 flex h-11 items-center gap-2 rounded-full bg-primary px-6 text-sm font-semibold text-white transition-colors hover:bg-primary-hover disabled:opacity-60">
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
