@@ -55,8 +55,8 @@ Backend (FastAPI)
 | Frontend | Next.js, React, TypeScript, Tailwind CSS |
 | Backend | FastAPI, SQLAlchemy, Pydantic |
 | Database | PostgreSQL |
-| Blockchain | Hyperledger Besu, QBFT, Solidity, Foundry |
-| Smart Contract | EvidenceRegistryV3 |
+| Blockchain | Hyperledger Besu, QBFT, Private EVM |
+| Smart Contract | Solidity, Foundry |
 | Watermark | OpenCV, DWT/QR-based watermark pipeline |
 | Testing | Pytest, ESLint, Foundry tests |
 
