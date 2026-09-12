@@ -4,11 +4,13 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.models.case_assignees import CaseAssignee
 from app.models.cases import Case
 from app.models.users import User
 
 
 _SCOPE_CACHE_KEY = "case_authorization_scopes"
+_ASSIGNED_CACHE_KEY = "case_authorization_assigned_cases"
 
 
 def _allowed_user_scope(db: Session, current_user: User) -> set[UUID]:
@@ -36,6 +38,34 @@ def _allowed_user_scope(db: Session, current_user: User) -> set[UUID]:
     return allowed
 
 
+def subordinate_ids(db: Session, user: User) -> set[UUID]:
+    """user_id ของผู้ใต้บังคับบัญชาทุกชั้น (ไม่รวมตัวเอง)
+
+    ใช้ตอนมอบหมายคดี เพื่อบังคับว่าติ๊กได้เฉพาะลูกน้องของตัวเอง ณ ขณะนั้น
+    """
+    return _allowed_user_scope(db, user) - {user.user_id}
+
+
+def _assigned_case_ids(db: Session, current_user: User) -> set[UUID]:
+    """คดีที่ผู้ใช้คนนี้ถูกมอบหมายให้รับผิดชอบ
+
+    เป็นสิทธิ์ถาวร ไม่ขึ้นกับสายบังคับบัญชาปัจจุบัน — ย้ายหัวหน้าแล้วยังเห็นคดีเดิม
+    """
+    cache = db.info.setdefault(_ASSIGNED_CACHE_KEY, {})
+    cached = cache.get(current_user.user_id)
+    if cached is not None:
+        return cached
+
+    assigned = {
+        case_id
+        for (case_id,) in db.query(CaseAssignee.case_id).filter(
+            CaseAssignee.user_id == current_user.user_id
+        )
+    }
+    cache[current_user.user_id] = assigned
+    return assigned
+
+
 def can_access_case(
     db: Session,
     current_user: User,
@@ -46,6 +76,11 @@ def can_access_case(
     # การตรวจสอบสิทธิ์ฝั่งเซิร์ฟเวอร์:
     # ใช้กฎเดียวกับหน้าเว็บ เพื่อไม่ให้การเข้าถึงหลักฐานพึ่งการตรวจฝั่งผู้ใช้เท่านั้น
     if current_user.role == "admin":
+        return True
+
+    # ถูกมอบหมายให้รับผิดชอบคดีนี้โดยตรง = เห็นได้ถาวร
+    # ตรวจก่อนสายบังคับบัญชา เพราะเป็นสิทธิ์ที่ไม่มีวันหลุด
+    if case.case_id in _assigned_case_ids(db, current_user):
         return True
 
     allowed = _allowed_user_scope(db, current_user)

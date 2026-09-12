@@ -9,7 +9,7 @@ import { useSupervisorMap } from "@/hooks/useSupervisorMap";
 import { caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import { canAccess } from "@/config/permissions";
-import type { Case, EvidenceItem } from "@/interfaces";
+import type { Case, CaseAssignee, EvidenceItem } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { useIntentionalEvidenceNavigation } from "@/hooks/useIntentionalEvidenceNavigation";
@@ -226,7 +226,8 @@ export default function CaseDetailPage() {
             <InfoRow label="สถานที่" value={caseData.location} />
             <InfoRow label="วันเกิดเหตุ" value={formatIncident(caseData.incident_date)} />
             <InfoRow label="จำนวนหลักฐาน" value={`${evidenceList.length} ชิ้น`} />
-            <InfoRow label="สร้างเมื่อ" value={fmtDate(caseData.created_at)} last />
+            <InfoRow label="สร้างเมื่อ" value={fmtDate(caseData.created_at)} />
+            <AssigneeRow assignees={caseData.assignees} />
           </div>
 
           <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface p-5">
@@ -265,6 +266,32 @@ function HeroStat({ label, value, valueClass = "text-white" }: { label: string; 
     <div className="flex flex-col gap-1.5">
       <span className="text-xs text-ink-muted">{label}</span>
       <span className={`font-mono text-[28px] leading-none ${valueClass}`}>{value}</span>
+    </div>
+  );
+}
+
+/** ผู้รับผิดชอบคดี — สิทธิ์ถาวรที่ไม่หลุดแม้ภายหลังจะย้ายหัวหน้า
+ *  แสดงเป็นรายการแนวตั้งเพราะมีได้หลายคน ต่างจาก InfoRow ที่เป็นค่าบรรทัดเดียว */
+function AssigneeRow({ assignees }: { assignees: CaseAssignee[] }) {
+  return (
+    <div className="px-5 py-3.5">
+      <span className="text-[13px] text-text-secondary">ผู้รับผิดชอบ</span>
+      {assignees.length === 0 ? (
+        <p className="mt-1.5 text-[13px] font-semibold">—</p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {assignees.map((a) => (
+            <li key={a.user_id} className="flex items-center gap-2">
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-surface-hover text-[11px] font-semibold">
+                {(a.full_name || a.username).trim().charAt(0)}
+              </span>
+              <span className="min-w-0 truncate text-[13px] font-semibold">
+                {a.full_name || a.username}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

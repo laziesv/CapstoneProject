@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 from app.database import Base
 
@@ -42,3 +43,33 @@ class Case(Base):
     updated_at = Column(TIMESTAMP(timezone=True), onupdate=func.now())
 
     closed_at = Column(TIMESTAMP(timezone=True))
+
+    # ผู้รับผิดชอบทั้งหมด (สิทธิ์ถาวร ไม่ขึ้นกับสายบังคับบัญชา)
+    # assigned_officer ด้านบนยังอยู่ในฐานะ "ผู้รับผิดชอบหลัก" สำหรับแสดงผล
+    assignee_links = relationship(
+        "CaseAssignee",
+        back_populates="case",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    @property
+    def assigned_officers(self):
+        """user_id ของผู้รับผิดชอบทั้งหมด — ให้ schema อ่านตรงได้"""
+        return [link.user_id for link in self.assignee_links]
+
+    @property
+    def assignees(self):
+        """ผู้รับผิดชอบพร้อมชื่อ เพื่อให้หน้าเว็บแสดงได้โดยไม่ต้องดึงรายชื่อ
+        ผู้ใช้ทั้งระบบมาจับคู่เอง (ซึ่งเปิดข้อมูลมากเกินจำเป็นให้ทุก role)"""
+        return [
+            {
+                "user_id": link.user_id,
+                "username": link.user.username,
+                "full_name": link.user.full_name,
+                "rank": link.user.rank,
+                "assigned_at": link.assigned_at,
+            }
+            for link in self.assignee_links
+            if link.user is not None
+        ]

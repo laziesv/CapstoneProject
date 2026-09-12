@@ -77,8 +77,11 @@ class CaseAuthorizationTests(unittest.TestCase):
         ])
         target = case(created_by=other_id)
         self.assertTrue(can_access_case(db, actor, target))
+        queries_after_first = db.query.call_count
         self.assertTrue(can_access_case(db, actor, target))
-        db.query.assert_called_once()
+        # เจตนาของเทสต์คือ "เรียกซ้ำต้องใช้ค่าที่ cache ไว้" ไม่ใช่จำนวน query ที่แน่นอน
+        # (การตรวจสิทธิ์ครั้งแรกยิงสองคำถาม: สายบังคับบัญชา และคดีที่ถูกมอบหมาย)
+        self.assertEqual(db.query.call_count, queries_after_first)
 
 
 class EvidenceMetadataAuthorizationTests(unittest.TestCase):

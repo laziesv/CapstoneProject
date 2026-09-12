@@ -35,10 +35,10 @@ export const mockUsers: MockUser[] = [
 // created_by / assigned_officer อ้างด้วย username (ตรงกับ mockUsers/seed)
 // somsak.p (หัวหน้า) เป็นผู้สร้างทุกคดี, assign สลับให้ตัวเอง/ลูกน้อง wichai.s
 export const mockCases: Case[] = [
-  { case_id: "c-001", case_number: "CASE-2026-0042", title: "คดีลักทรัพย์ ซ.สุขุมวิท 23", description: "เหตุลักทรัพย์ภายในอาคารพาณิชย์", created_by: "somsak.p", assigned_officers: ["somsak.p"], incident_date: "2026-04-10T14:23", location: "ซ.สุขุมวิท 23 กรุงเทพฯ", created_at: "2026-04-11T08:00:00Z", evidence_count: 8 },
-  { case_id: "c-002", case_number: "CASE-2026-0058", title: "คดีทำร้ายร่างกาย ตลาดนัด", description: "เหตุทำร้ายร่างกายบริเวณตลาดนัด", created_by: "somsak.p", assigned_officers: ["wichai.s"], incident_date: "2026-04-22T14:23", location: "ตลาดนัดจตุจักร กรุงเทพฯ", created_at: "2026-04-22T14:30:00Z", evidence_count: 3 },
-  { case_id: "c-003", case_number: "CASE-2026-0061", title: "คดีวิ่งราวทรัพย์ สยามสแควร์", description: "เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์", created_by: "somsak.p", assigned_officers: ["wichai.s"], incident_date: "2026-04-28T14:23", location: "สยามสแควร์ กรุงเทพฯ", created_at: "2026-04-28T10:15:00Z", evidence_count: 5 },
-  { case_id: "c-004", case_number: "CASE-2025-0189", title: "คดียาเสพติด ลาดพร้าว", description: "จับกุมยาเสพติดย่านลาดพร้าว",  created_by: "somsak.p", assigned_officers: ["somsak.p"], incident_date: "2025-12-05T14:23", location: "ลาดพร้าว กรุงเทพฯ", created_at: "2025-12-05T09:00:00Z", evidence_count: 12 },
+  { case_id: "c-001", case_number: "CASE-2026-0042", title: "คดีลักทรัพย์ ซ.สุขุมวิท 23", description: "เหตุลักทรัพย์ภายในอาคารพาณิชย์", created_by: "somsak.p", assigned_officers: ["somsak.p"], assignees: [], incident_date: "2026-04-10T14:23", location: "ซ.สุขุมวิท 23 กรุงเทพฯ", created_at: "2026-04-11T08:00:00Z", evidence_count: 8 },
+  { case_id: "c-002", case_number: "CASE-2026-0058", title: "คดีทำร้ายร่างกาย ตลาดนัด", description: "เหตุทำร้ายร่างกายบริเวณตลาดนัด", created_by: "somsak.p", assigned_officers: ["wichai.s"], assignees: [], incident_date: "2026-04-22T14:23", location: "ตลาดนัดจตุจักร กรุงเทพฯ", created_at: "2026-04-22T14:30:00Z", evidence_count: 3 },
+  { case_id: "c-003", case_number: "CASE-2026-0061", title: "คดีวิ่งราวทรัพย์ สยามสแควร์", description: "เหตุวิ่งราวทรัพย์บริเวณทางเดินสยามสแควร์", created_by: "somsak.p", assigned_officers: ["wichai.s"], assignees: [], incident_date: "2026-04-28T14:23", location: "สยามสแควร์ กรุงเทพฯ", created_at: "2026-04-28T10:15:00Z", evidence_count: 5 },
+  { case_id: "c-004", case_number: "CASE-2025-0189", title: "คดียาเสพติด ลาดพร้าว", description: "จับกุมยาเสพติดย่านลาดพร้าว",  created_by: "somsak.p", assigned_officers: ["somsak.p"], assignees: [], incident_date: "2025-12-05T14:23", location: "ลาดพร้าว กรุงเทพฯ", created_at: "2025-12-05T09:00:00Z", evidence_count: 12 },
 ]
 
 export const mockEvidence: EvidenceItem[] = [

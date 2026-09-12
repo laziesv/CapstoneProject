@@ -84,6 +84,7 @@ def update_case(
         db=db,
         case_id=case_id,
         data=data,
+        current_user=current_user,
     )
 
 

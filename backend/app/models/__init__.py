@@ -3,6 +3,7 @@
 
 from app.models.users import User
 from app.models.cases import Case
+from app.models.case_assignees import CaseAssignee
 from app.models.evidence_items import EvidenceItem
 from app.models.evidence_files import EvidenceFile
 from app.models.watermark_records import WatermarkRecord
@@ -12,6 +13,7 @@ from app.models.access_logs import AccessLog
 __all__ = [
     "User",
     "Case",
+    "CaseAssignee",
     "EvidenceItem",
     "EvidenceFile",
     "WatermarkRecord",
