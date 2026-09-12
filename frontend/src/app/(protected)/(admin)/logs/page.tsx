@@ -167,14 +167,14 @@ export default function LogsPage() {
       {/* หัวเรื่อง + ค้นหา + ส่งออก */}
       <div className="flex flex-wrap items-center gap-4">
         <h1 className="text-xl font-semibold">บันทึกการเข้าถึง</h1>
-        <div className="relative min-w-[220px] flex-1 md:max-w-sm">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+        <div className="relative min-w-[260px] flex-1 md:max-w-md">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-primary" />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="ค้นหาเจ้าหน้าที่ / หลักฐาน / IP…"
-            className="h-10 w-full rounded-full bg-surface-hover pl-11 pr-4 text-sm outline-none transition focus:ring-2 focus:ring-primary/25"
+            className="h-11 w-full rounded-full border border-primary/20 bg-white pl-11 pr-4 text-sm font-medium text-foreground shadow-sm outline-none transition placeholder:text-slate-400 hover:border-primary/40 hover:shadow-md focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/15"
           />
         </div>
         <button
