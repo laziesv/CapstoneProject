@@ -33,6 +33,11 @@ deva_domain_name: "_"
 deva_frontend_upstream: "http://127.0.0.1:3000"
 deva_backend_upstream: "http://127.0.0.1:8000"
 
+# HTTPS via Let's Encrypt. Keep false when using plain IP or before DNS is ready.
+deva_enable_https: false
+deva_certbot_email: "admin@example.com"
+deva_certbot_redirect: true
+
 # Optional environment file content.
 # Keep real secrets in group_vars/deva_servers.yml, which is gitignored by default
 # if you add it to .gitignore or avoid committing it.

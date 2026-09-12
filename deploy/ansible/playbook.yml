@@ -38,6 +38,16 @@
         state: present
       when: deva_install_nginx | bool
 
+    - name: Install Certbot for HTTPS
+      ansible.builtin.apt:
+        name:
+          - certbot
+          - python3-certbot-nginx
+        state: present
+      when:
+        - deva_install_nginx | bool
+        - deva_enable_https | default(false) | bool
+
     - name: Ensure deploy group exists
       ansible.builtin.group:
         name: "{{ deva_deploy_group }}"
@@ -190,6 +200,22 @@
       ansible.builtin.command: nginx -t
       changed_when: false
       when: deva_install_nginx | bool
+
+    - name: Enable HTTPS certificate with Certbot
+      ansible.builtin.command:
+        cmd: >-
+          certbot --nginx
+          -d {{ deva_domain_name }}
+          --non-interactive
+          --agree-tos
+          -m {{ deva_certbot_email }}
+          {{ '--redirect' if deva_certbot_redirect | default(true) | bool else '' }}
+      args:
+        creates: "/etc/letsencrypt/live/{{ deva_domain_name }}/fullchain.pem"
+      when:
+        - deva_install_nginx | bool
+        - deva_enable_https | default(false) | bool
+        - deva_domain_name != "_"
 
     - name: Allow SSH through UFW
       community.general.ufw:

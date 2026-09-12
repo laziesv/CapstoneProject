@@ -12,6 +12,7 @@
 - clone repository ไปที่ `/opt/deva`
 - สร้างไฟล์ `backend/.env`
 - ตั้งค่า Nginx reverse proxy
+- เปิด HTTPS ด้วย Let's Encrypt ได้เมื่อกำหนด domain แล้ว
 - เปิด UFW เฉพาะ SSH, HTTP และ HTTPS
 - ถ้าเปิด `deva_run_compose: true` จะ build และ start Docker Compose production ให้ด้วย
 
@@ -57,12 +58,22 @@ cp group_vars/deva_servers.example.yml group_vars/deva_servers.yml
 deva_repo_url: "https://github.com/<owner>/<repo>.git"
 deva_repo_version: main
 deva_domain_name: "_"
+deva_enable_https: false
 deva_run_compose: false
 deva_authorized_keys:
   - "ssh-ed25519 AAAA... deva-capstone"
 ```
 
 ถ้ายังไม่มี domain ให้ใช้ `_` ไปก่อน แล้วเข้าเว็บด้วย IP ได้
+
+ถ้ามี domain แล้ว เช่น DuckDNS:
+
+```yaml
+deva_domain_name: "deva-demo.duckdns.org"
+deva_enable_https: true
+deva_certbot_email: "you@example.com"
+deva_certbot_redirect: true
+```
 
 ## 4. ทดสอบว่า Ansible ต่อ server ได้
 
@@ -119,7 +130,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 
 ## 7. สิ่งที่ต้องทำต่อ
 
-ก่อน start application ควรเปิด Besu network ให้ RPC อยู่ที่ `127.0.0.1:8545` บน host ก่อน:
+ก่อน start application ควรเปิด Besu network ให้ RPC ไม่เปิด public และ backend container ยังเข้าถึงได้
+เช่น bind RPC ที่ Docker host gateway แล้วให้ backend ใช้ `host.docker.internal:8545`:
 
 ```bash
 cd /opt/deva/blockchain
@@ -128,6 +140,20 @@ docker compose \
   --env-file network/besu/.env \
   -f network/besu/docker-compose.yml \
   up -d
+```
+
+เช็กจากข้างนอกว่า RPC ไม่เปิด public:
+
+```bash
+curl http://<SERVER_IP>:8545
+```
+
+ควรเชื่อมต่อไม่ได้ แต่ backend container ต้องเรียกได้:
+
+```bash
+docker exec deva-backend-1 curl -s -X POST http://host.docker.internal:8545 \
+  -H "Content-Type: application/json" \
+  --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}'
 ```
 
 runtime หลักของแอปอยู่ที่:
