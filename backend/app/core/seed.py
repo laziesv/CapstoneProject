@@ -34,31 +34,48 @@ def seed_sample_data():
         return
 
     # ── เจ้าหน้าที่เพิ่มเติม (นอกเหนือจาก admin) ──────────
-    somsak = User(
-        username="somsak.p",
-        email="somsak@police.go.th",
-        password_hash=hash_password("password123"),
-        full_name="พ.ต.ท.สมศักดิ์ ภักดี",
-        rank="พันตำรวจโท",
-        department="กองพิสูจน์หลักฐาน",
-        badge_number="OFF-1820",
-        role="investigator",
-        is_active=True,
-        created_at=datetime.now(timezone.utc),
+    # อาจมี user demo ค้างอยู่หลังล้างเฉพาะ case/evidence จึงต้อง seed แบบ idempotent
+    # ไม่ insert ซ้ำให้ชน unique email/username ตอน backend restart
+    somsak = (
+        db.query(User)
+        .filter((User.username == "somsak.p") | (User.email == "somsak@police.go.th"))
+        .first()
     )
-    wichai = User(
-        username="wichai.s",
-        email="wichai@police.go.th",
-        password_hash=hash_password("password123"),
-        full_name="ด.ต.วิชัย สมบูรณ์",
-        rank="ดาบตำรวจ",
-        department="งานสืบสวน",
-        badge_number="OFF-3344",
-        role="officer",
-        is_active=True,
-        created_at=datetime.now(timezone.utc),
+    if somsak is None:
+        somsak = User(
+            username="somsak.p",
+            email="somsak@police.go.th",
+            password_hash=hash_password("password123"),
+            full_name="พ.ต.ท.สมศักดิ์ ภักดี",
+            rank="พันตำรวจโท",
+            department="กองพิสูจน์หลักฐาน",
+            badge_number="OFF-1820",
+            role="investigator",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(somsak)
+
+    wichai = (
+        db.query(User)
+        .filter((User.username == "wichai.s") | (User.email == "wichai@police.go.th"))
+        .first()
     )
-    db.add_all([somsak, wichai])
+    if wichai is None:
+        wichai = User(
+            username="wichai.s",
+            email="wichai@police.go.th",
+            password_hash=hash_password("password123"),
+            full_name="ด.ต.วิชัย สมบูรณ์",
+            rank="ดาบตำรวจ",
+            department="งานสืบสวน",
+            badge_number="OFF-3344",
+            role="officer",
+            is_active=True,
+            created_at=datetime.now(timezone.utc),
+        )
+        db.add(wichai)
+
     db.flush()  # ให้ somsak มี user_id ก่อน ถึงจะอ้างเป็นหัวหน้าได้
 
     # สายบังคับบัญชา: วิชัย (ดาบตำรวจ) อยู่ใต้ สมศักดิ์ (พันตำรวจโท)
