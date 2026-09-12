@@ -1,163 +1,43 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { ApiError, evidenceService } from "@/services";
-import { useAuth } from "@/hooks/useAuth";
-import { userFacingApiError } from "@/utils/evidenceDownloadError";
-import {
-  rememberViewSuccess,
-  waitForConfirmedViewSession,
-} from "@/utils/evidenceOperationFeedback";
-import {
-  synchronizeViewRequestUser,
-  viewRequestStorageKey,
-} from "@/utils/viewRequestIdentity";
+import { useEvidenceViewSession } from "@/hooks/useEvidenceViewSession";
 
-
+/** เปิดหลักฐานจากการกดโดยเจตนา — บันทึก VIEW ให้เสร็จก่อนค่อยเปลี่ยนหน้า
+ *
+ *  ตรรกะการบันทึกอยู่ใน useEvidenceViewSession ที่เดียว หน้า /evidence/[id]
+ *  ใช้ตัวเดียวกันเป็นด่านสุดท้าย จึงไม่มีทางเข้าไหนที่เปิดหลักฐานได้โดยไม่บันทึก
+ */
 export function useIntentionalEvidenceNavigation() {
   const router = useRouter();
-  const { user } = useAuth();
-  const inProgress = useRef(false);
-  const unlockTimer = useRef<number | undefined>(undefined);
-  const [openingEvidenceId, setOpeningEvidenceId] = useState<string>();
-  const [openError, setOpenError] = useState<string>();
-  const [openDelayed, setOpenDelayed] = useState(false);
-  const [openStatus, setOpenStatus] = useState<
-    "SUBMITTING" | "WAITING_FOR_BLOCKCHAIN" | "PENDING_BLOCKCHAIN_CONFIRMATION"
-  >("SUBMITTING");
+  const {
+    recordView,
+    rememberViewSuccess,
+    pendingEvidenceId,
+    status,
+    delayed,
+    error,
+    dismissError,
+  } = useEvidenceViewSession();
 
   /** evidenceId ใช้เรียก API (ต้องเป็น UUID) ส่วน displayRef ใช้ทำ URL ให้อ่านออก
    *  เช่น EV-20260910-B7E872 — ถ้าไม่ส่งมาจะกลับไปใช้ UUID */
   const openEvidence = async (evidenceId: string, displayRef?: string | null) => {
-    if (inProgress.current) return;
-    if (!user?.user_id) {
-      setOpenError("ไม่พบผู้ใช้ที่เข้าสู่ระบบ กรุณาเข้าสู่ระบบใหม่");
-      return;
-    }
-    inProgress.current = true;
-    setOpeningEvidenceId(evidenceId);
-    setOpenStatus("SUBMITTING");
-    setOpenDelayed(false);
-    setOpenError(undefined);
-    let navigationStarted = false;
-    if (unlockTimer.current) {
-      window.clearTimeout(unlockTimer.current);
-    }
-    unlockTimer.current = window.setTimeout(() => {
-      inProgress.current = false;
-      setOpeningEvidenceId(undefined);
-      setOpenDelayed(false);
-      setOpenError("การเปิดหลักฐานใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง");
-    }, 150_000);
-    synchronizeViewRequestUser(user.user_id);
-    const requestKey = viewRequestStorageKey(user.user_id, evidenceId);
-    try {
-      let requestId = window.sessionStorage.getItem(requestKey) ?? createClientRequestId();
-      window.sessionStorage.setItem(requestKey, requestId);
-      // การเชื่อมต่อ Blockchain: poll ด้วย session เดิมเพื่อไม่ broadcast VIEW ซ้ำ
-      // และเปิดหน้าหลักฐานเฉพาะหลัง receipt ได้รับการยืนยันแล้ว
-      const session = await waitForConfirmedViewSession(
-        evidenceId,
-        requestId,
-        evidenceService.createViewSession,
-        (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds)),
-        (pendingSession) => {
-          requestId = pendingSession.access_log_id;
-          window.sessionStorage.setItem(requestKey, requestId);
-          if (pendingSession.status !== "CONFIRMED") {
-            setOpenStatus(pendingSession.status);
-          }
-        },
-        () => setOpenDelayed(true),
-      );
-      rememberViewSuccess(session);
-      window.sessionStorage.removeItem(requestKey);
-      navigationStarted = true;
-      if (unlockTimer.current) {
-        window.clearTimeout(unlockTimer.current);
-        unlockTimer.current = undefined;
-      }
-      router.push(`/evidence/${encodeURIComponent(displayRef || evidenceId)}`);
-    } catch (cause) {
-      if (cause instanceof ApiError) {
-        window.sessionStorage.removeItem(requestKey);
-      }
-      setOpenError(viewSessionErrorMessage(cause));
-    } finally {
-      // คง progress ไว้ระหว่าง Next.js เปลี่ยนหน้า และปลดล็อกทันทีเฉพาะเมื่อคำขอล้มเหลว
-      if (!navigationStarted) {
-        inProgress.current = false;
-        setOpeningEvidenceId(undefined);
-        if (unlockTimer.current) {
-          window.clearTimeout(unlockTimer.current);
-          unlockTimer.current = undefined;
-        }
-      }
-    }
+    // คง overlay ไว้ระหว่าง Next.js เปลี่ยนหน้า ไม่ให้กระพริบกลับมาที่รายการเดิม
+    const session = await recordView(evidenceId, { keepBusyAfterSuccess: true });
+    if (!session) return;
+    // ฝากผลไว้ให้หน้าปลายทางรู้ว่าบันทึกแล้ว จะได้ไม่บันทึกซ้ำอีกรอบ
+    rememberViewSuccess(session);
+    router.push(`/evidence/${encodeURIComponent(displayRef || evidenceId)}`);
   };
 
   return {
     openEvidence,
-    openingEvidenceId,
-    openStatus,
-    openDelayed,
-    openError,
-    dismissOpenError: () => setOpenError(undefined),
+    openingEvidenceId: pendingEvidenceId,
+    openStatus: status,
+    openDelayed: delayed,
+    openError: error,
+    dismissOpenError: dismissError,
   };
-}
-
-
-function createClientRequestId(): string {
-  if (
-    typeof crypto !== "undefined"
-    && typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  const randomValues = new Uint8Array(16);
-  if (
-    typeof crypto !== "undefined"
-    && typeof crypto.getRandomValues === "function"
-  ) {
-    crypto.getRandomValues(randomValues);
-  } else {
-    for (let index = 0; index < randomValues.length; index += 1) {
-      randomValues[index] = Math.floor(Math.random() * 256);
-    }
-  }
-
-  randomValues[6] = (randomValues[6] & 0x0f) | 0x40;
-  randomValues[8] = (randomValues[8] & 0x3f) | 0x80;
-
-  const hex = Array.from(randomValues, (value) => value.toString(16).padStart(2, "0"));
-  return [
-    hex.slice(0, 4).join(""),
-    hex.slice(4, 6).join(""),
-    hex.slice(6, 8).join(""),
-    hex.slice(8, 10).join(""),
-    hex.slice(10, 16).join(""),
-  ].join("-");
-}
-
-
-function viewSessionErrorMessage(cause: unknown): string {
-  if (cause instanceof ApiError) {
-    if (cause.code === "BLOCKCHAIN_STALLED" || cause.code === "BLOCKCHAIN_UNAVAILABLE") {
-      return "ไม่สามารถเปิดหลักฐานได้ในขณะนี้ เครือข่าย Blockchain ยังไม่พร้อมยืนยันรายการใหม่ กรุณาลองใหม่หลังเครือข่ายกลับมาทำงาน";
-    }
-    if (cause.code === "BLOCKCHAIN_NOT_SUBMITTED") {
-      return "รายการเข้าดูยังไม่ถูกส่งไปยัง Blockchain กรุณาตรวจสอบการตั้งค่าหรือลองใหม่ภายหลัง";
-    }
-    if (cause.code === "BLOCKCHAIN_VIEW_REVERTED") {
-      return "ธุรกรรมเข้าดูถูก Blockchain ปฏิเสธ และหลักฐานยังไม่ถูกเปิด";
-    }
-    if (cause.code === "BLOCKCHAIN_VIEW_FAILED") {
-      return "ธุรกรรมเข้าดูไม่ผ่านการตรวจสอบยืนยัน และหลักฐานยังไม่ถูกเปิด";
-    }
-  }
-  const feedback = userFacingApiError(cause);
-  return `${feedback.title} ${feedback.message}`;
 }

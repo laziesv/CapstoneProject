@@ -105,9 +105,15 @@ export default function DashboardPage() {
     );
     const evidence = new Set(perEvidence.map((l) => l.evidence_id)).size;
 
-    const byEvidence = new Map<string, { label: string; count: number }>();
+    // แต่ละแถวลิงก์ไปหลักฐานของตัวเอง — หน้า /evidence/[id] เป็นด่านที่บันทึก VIEW
+    // ให้เอง จึงใช้ Link ธรรมดาได้ ไม่ต้องให้ทุกหน้าจำว่าต้องบันทึกก่อน
+    const byEvidence = new Map<string, { label: string; count: number; href: string }>();
     for (const l of perEvidence) {
-      const cur = byEvidence.get(l.evidence_id) ?? { label: l.evidence_number ?? l.evidence_id, count: 0 };
+      const cur = byEvidence.get(l.evidence_id) ?? {
+        label: l.evidence_number ?? l.evidence_id,
+        count: 0,
+        href: `/evidence/${encodeURIComponent(l.evidence_number ?? l.evidence_id)}`,
+      };
       cur.count += 1;
       byEvidence.set(l.evidence_id, cur);
     }
@@ -202,7 +208,7 @@ export default function DashboardPage() {
 
           {/* อันดับ Top */}
           <div className="grid grid-cols-2 gap-4">
-            <RankCard title="หลักฐานที่ถูกเข้าถึงบ่อยสุด" rows={access.topEvidence} href="/logs" mono />
+            <RankCard title="หลักฐานที่ถูกเข้าถึงบ่อยสุด" rows={access.topEvidence} mono />
             <RankCard title="ผู้ใช้ที่เข้าถึงมากสุด" rows={access.topUsers} />
           </div>
         </div>
@@ -266,7 +272,8 @@ function RankCard({
   mono,
 }: {
   title: string;
-  rows: { label: string; count: number }[];
+  rows: { label: string; count: number; href?: string }[];
+  /** ลิงก์รวมของทั้งการ์ด ใช้เมื่อแถวไม่ได้ระบุลิงก์ของตัวเอง */
   href?: string;
   mono?: boolean;
 }) {
@@ -285,13 +292,14 @@ function RankCard({
             const label = (
               <span className={`truncate ${mono ? "font-mono text-primary" : "font-medium"}`}>{r.label}</span>
             );
+            const rowHref = r.href ?? href;
             return (
               <div key={r.label} className="text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className="text-muted">{i + 1}.</span>
-                    {href ? (
-                      <Link href={href} className="truncate hover:underline">{label}</Link>
+                    {rowHref ? (
+                      <Link href={rowHref} className="truncate hover:underline" title="เปิดดูหลักฐาน">{label}</Link>
                     ) : (
                       label
                     )}

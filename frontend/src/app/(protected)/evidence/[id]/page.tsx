@@ -11,6 +11,8 @@ import { ApiError, caseService, evidenceService } from "@/services";
 import { canSeeCase } from "@/utils/caseAccess";
 import type { Case, EvidenceDownloadMetadata, EvidenceItem } from "@/interfaces";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
+import { useEvidenceViewSession } from "@/hooks/useEvidenceViewSession";
+import { IntentionalEvidenceProgress } from "@/components/feedback/IntentionalEvidenceProgress";
 import { ChainOfCustodyPanel } from "@/components/evidence/ChainOfCustodyPanel";
 import { OperationToast } from "@/components/feedback/OperationToast";
 import { WatermarkQrPresentation } from "@/components/evidence/WatermarkQrPresentation";
@@ -38,15 +40,20 @@ export default function EvidenceDetailPage() {
   const [downloadSuccess, setDownloadSuccess] = useState<EvidenceDownloadMetadata | null>(null);
   const [showViewSuccess, setShowViewSuccess] = useState(false);
   const downloadInProgress = useRef(false);
+  // ด่านสุดท้ายก่อนแสดงหลักฐาน — ทุกทางเข้าต้องผ่านตรงนี้
+  const {
+    recordView,
+    pendingEvidenceId,
+    status: viewStatus,
+    delayed: viewDelayed,
+    error: viewError,
+    dismissError: dismissViewError,
+  } = useEvidenceViewSession();
+  const [viewRecorded, setViewRecorded] = useState(false);
+  const viewGateStarted = useRef<string | undefined>(undefined);
 
   const dismissViewSuccess = useCallback(() => setShowViewSuccess(false), []);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setShowViewSuccess(consumeViewSuccess(id) !== null);
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [id]);
 
   useEffect(() => {
     (async () => {
@@ -61,6 +68,30 @@ export default function EvidenceDetailPage() {
     })();
   }, [id]);
 
+  // บันทึก VIEW ทุกครั้งที่หน้านี้ถูกเปิด ไม่ว่ามาจากทางไหน — กดจากรายการหลักฐาน,
+  // กดจากหน้าบันทึกการเข้าถึง, พิมพ์ URL เอง, bookmark หรือ refresh
+  //
+  // ถ้าเพิ่งบันทึกไปแล้วก่อนเปลี่ยนหน้า (openEvidence) จะข้าม เพื่อไม่ให้การกดครั้งเดียว
+  // เกิดสองรายการ — เทียบด้วย evidence_id จริง ไม่ใช่ค่าใน URL ซึ่งอาจเป็นเลขหลักฐาน
+  useEffect(() => {
+    if (!evidence) return;
+    if (viewGateStarted.current === evidence.evidence_id) return;
+    viewGateStarted.current = evidence.evidence_id;
+
+    const remembered = consumeViewSuccess(evidence.evidence_id);
+    if (remembered) {
+      // เลื่อนออกจากรอบ effect เพื่อไม่ตั้ง state ระหว่าง render (react-hooks)
+      const timeout = window.setTimeout(() => {
+        setShowViewSuccess(true);
+        setViewRecorded(true);
+      }, 0);
+      return () => window.clearTimeout(timeout);
+    }
+    void recordView(evidence.evidence_id).then((session) => {
+      if (session) setViewRecorded(true);
+    });
+  }, [evidence, recordView]);
+
   if (!user || evidence === undefined || supervisorMap === null) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -70,6 +101,24 @@ export default function EvidenceDetailPage() {
   }
 
   if (evidence === null) return <p className="p-6">Evidence not found</p>;
+
+  // ยังบันทึก VIEW ไม่สำเร็จ = ยังไม่แสดงหลักฐาน
+  // ถ้าปล่อยให้เห็นก่อน จะมีการเข้าถึงที่ไม่มีร่องรอยใน access log และบนเชน
+  // ซึ่งทำให้ตามหาต้นตอตอนหลักฐานรั่วไม่ได้
+  if (!viewRecorded) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        {!viewError && <Loader2 className="h-6 w-6 animate-spin text-primary" />}
+        <IntentionalEvidenceProgress
+          opening={pendingEvidenceId !== undefined}
+          status={viewStatus}
+          delayed={viewDelayed}
+          error={viewError}
+          onDismissError={dismissViewError}
+        />
+      </div>
+    );
+  }
 
   const isAdmin = user.role === "admin";
   // ข้อมูลเชิงลึก (hash/blockchain/logs/watermark) เปิดเผยกลไกภายใน — เฉพาะ admin
