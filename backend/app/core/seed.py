@@ -24,6 +24,90 @@ def _dt(s: str) -> datetime:
     return datetime.fromisoformat(s).replace(tzinfo=timezone.utc)
 
 
+def _get_or_create_user(db: Session, *, username: str, email: str, **values) -> User:
+    user = (
+        db.query(User)
+        .filter((User.username == username) | (User.email == email))
+        .first()
+    )
+    if user is not None:
+        return user
+
+    user = User(
+        username=username,
+        email=email,
+        password_hash=hash_password(values.pop("password")),
+        created_at=datetime.now(timezone.utc),
+        **values,
+    )
+    db.add(user)
+    return user
+
+
+def seed_demo_users():
+    """Seed เฉพาะ user demo สำหรับระบบจริง/เดโม หลังล้างข้อมูลจะไม่สร้างคดีตัวอย่าง."""
+    db = Session(bind=engine)
+
+    somsak = _get_or_create_user(
+        db,
+        username="somsak.p",
+        email="somsak@police.go.th",
+        password="password123",
+        full_name="พ.ต.ท.สมศักดิ์ ภักดี",
+        rank="พันตำรวจโท",
+        department="กองพิสูจน์หลักฐาน",
+        badge_number="OFF-1820",
+        role="investigator",
+        is_active=True,
+    )
+    wichai = _get_or_create_user(
+        db,
+        username="wichai.s",
+        email="wichai@police.go.th",
+        password="password123",
+        full_name="ด.ต.วิชัย สมบูรณ์",
+        rank="ดาบตำรวจ",
+        department="งานสืบสวน",
+        badge_number="OFF-3344",
+        role="officer",
+        is_active=True,
+    )
+    niran = _get_or_create_user(
+        db,
+        username="niran.k",
+        email="niran@police.go.th",
+        password="password123",
+        full_name="ร.ต.อ.นิรันดร์ กุลทรัพย์",
+        rank="ร้อยตำรวจเอก",
+        department="งานพิสูจน์หลักฐาน",
+        badge_number="OFF-2711",
+        role="officer",
+        is_active=True,
+    )
+    mali = _get_or_create_user(
+        db,
+        username="mali.v",
+        email="mali@police.go.th",
+        password="password123",
+        full_name="ส.ต.ต.มะลิ วิริยะ",
+        rank="สิบตำรวจตรี",
+        department="งานตรวจสอบหลักฐาน",
+        badge_number="OFF-4588",
+        role="viewer",
+        is_active=True,
+    )
+
+    db.flush()
+
+    # สายบังคับบัญชา demo: เจ้าหน้าที่/ผู้ตรวจสอบอยู่ใต้ investigator
+    for subordinate in (wichai, niran, mali):
+        subordinate.supervisor_id = somsak.user_id
+
+    db.commit()
+    db.close()
+    print("[OK] Demo users seeded")
+
+
 def seed_sample_data():
     db = Session(bind=engine)
 

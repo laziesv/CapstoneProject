@@ -7,7 +7,7 @@ from app.core.auth import hash_password
 from app.database import engine
 from app.models import *
 from app.models.users import User
-from app.core.seed import seed_sample_data
+from app.core.seed import seed_demo_users
 
 def test_database_connection():
     try:
@@ -55,4 +55,4 @@ def startup():
     test_database_connection()
     # ให้ผู้ดูแลรัน Alembic แยกต่างหาก เพื่อไม่ให้การ import แอปแก้ schema โดยไม่ตั้งใจ
     seed_admin()
-    seed_sample_data()
+    seed_demo_users()
