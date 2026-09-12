@@ -41,6 +41,17 @@ export default function UsersPage() {
   // หัวหน้าตาม use case = investigator เท่านั้น
   const supervisorOptions = useMemo(() => users.filter((u) => u.role === "investigator"), [users]);
 
+  /** หัวหน้าที่ผูกอยู่จริงแต่ไม่ได้เป็น investigator แล้ว (ข้อมูลค้างจากการถอดสิทธิ์)
+   *  คืน undefined เมื่อไม่มีหัวหน้า หรือหัวหน้ายังเป็น investigator ตามปกติ */
+  const staleSupervisorOf = useCallback(
+    (u: AuthUser) => {
+      if (!u.supervisor_id) return undefined;
+      if (supervisorOptions.some((s) => s.user_id === u.supervisor_id)) return undefined;
+      return users.find((candidate) => candidate.user_id === u.supervisor_id);
+    },
+    [users, supervisorOptions],
+  );
+
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
@@ -296,6 +307,15 @@ export default function UsersPage() {
                           className="h-8 max-w-[160px] rounded-lg border border-border bg-surface px-2 text-xs text-text-secondary outline-none focus:border-primary disabled:opacity-50"
                         >
                           <option value="">— ไม่มี —</option>
+                          {/* หัวหน้าที่ไม่ใช่ investigator แล้ว จะไม่อยู่ใน supervisorOptions
+                              ถ้าไม่ใส่ option ให้ที่นี่ select จะหา value ไม่เจอแล้วเด้งไป
+                              "— ไม่มี —" เอง ทำให้หน้าเว็บบอกว่าไม่มีหัวหน้าทั้งที่มี
+                              และถ้าผู้ใช้เผลอบันทึกแถวนี้ หัวหน้าจริงจะถูกล้างทิ้ง */}
+                          {staleSupervisorOf(u) && (
+                            <option value={staleSupervisorOf(u)!.user_id}>
+                              {staleSupervisorOf(u)!.full_name || staleSupervisorOf(u)!.username} (ไม่ใช่พนักงานสืบสวนแล้ว)
+                            </option>
+                          )}
                           {supervisorOptions
                             .filter((s) => s.user_id !== u.user_id)
                             .map((s) => (
