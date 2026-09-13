@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.deps import get_current_user
+from app.deps import get_authenticated_user
 from app.models.users import User
 
 from app.schemas.auth import (
@@ -51,7 +51,7 @@ def login(
     response_model=UserResponse
 )
 def me(
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_authenticated_user)
 ):
     return UserResponse.model_validate(current_user)
 
@@ -63,7 +63,7 @@ def me(
 def change_password_route(
     body: ChangePasswordRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     change_password(
         db=db,

@@ -87,6 +87,9 @@ def change_password(
         new_password,
     )
 
+    # ตั้งรหัสของตัวเองแล้ว รหัสชั่วคราวที่ admin รู้จึงหมดความหมาย
+    user.must_change_password = False
+
     user.updated_at = datetime.now(
         timezone.utc,
     )

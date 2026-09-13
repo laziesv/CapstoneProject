@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { authService, evidenceService, ApiError } from "@/services";
 import type { EvidenceItem } from "@/interfaces";
 import { labelForRole } from "@/utils/labels";
+import { validateNewPassword } from "@/utils/passwordForm";
 
 export default function ProfilePage() {
   const { user: u, signOut } = useAuth();
@@ -113,12 +114,9 @@ function ChangePasswordCard() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMsg(null);
-    if (next.length < 8) {
-      setMsg({ type: "err", text: "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร" });
-      return;
-    }
-    if (next !== confirm) {
-      setMsg({ type: "err", text: "รหัสผ่านใหม่และยืนยันไม่ตรงกัน" });
+    const invalid = validateNewPassword(next, confirm);
+    if (invalid) {
+      setMsg({ type: "err", text: invalid });
       return;
     }
     setLoading(true);

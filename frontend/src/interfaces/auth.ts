@@ -12,6 +12,8 @@ export interface AuthUser {
   profile_image_url?: string | null;
   role?: string;
   is_active: boolean;
+  // admin รีเซ็ตรหัสให้แล้ว ต้องตั้งรหัสใหม่ก่อนใช้งานส่วนอื่น
+  must_change_password?: boolean;
   // สายบังคับบัญชา — supervisor_username backend คำนวณให้ ไม่ต้อง join เอง
   supervisor_id?: string | null;
   supervisor_username?: string | null;

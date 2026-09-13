@@ -48,6 +48,9 @@ class User(Base):
 
     is_active = Column(Boolean, nullable=False, server_default="true")
 
+    # admin รีเซ็ตรหัสให้แล้ว — ต้องตั้งรหัสใหม่ก่อนใช้งานส่วนอื่นได้
+    must_change_password = Column(Boolean, nullable=False, server_default="false")
+
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
     updated_at = Column(TIMESTAMP(timezone=True), onupdate=func.now())

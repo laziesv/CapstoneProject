@@ -67,6 +67,15 @@ async function parse<T>(res: Response): Promise<T> {
     const code = typeof structuredDetail?.code === "string"
       ? structuredDetail.code
       : null;
+    // admin รีเซ็ตรหัสให้แล้ว — API อื่นใช้ไม่ได้จนกว่าจะตั้งรหัสใหม่ (เหมือน 401 ที่พาไป /login)
+    if (
+      res.status === 403
+      && code === "PASSWORD_CHANGE_REQUIRED"
+      && typeof window !== "undefined"
+      && window.location.pathname !== "/change-password"
+    ) {
+      window.location.href = "/change-password";
+    }
     throw new ApiError(
       message,
       res.status,

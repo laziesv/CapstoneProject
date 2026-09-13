@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { UserPlus, Loader2, CheckCircle2, AlertCircle, Search, X } from "lucide-react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { UserPlus, Loader2, CheckCircle2, AlertCircle, Search, X, KeyRound, Copy } from "lucide-react";
+import { copyTextWithFeedback } from "@/components/feedback/CopySuccessFeedback";
 import { userService, ApiError } from "@/services";
 import type { AuthUser } from "@/interfaces";
 import { POLICE_RANKS } from "@/utils/caseAccess";
@@ -33,6 +34,8 @@ export default function UsersPage() {
   const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   // แถวที่กำลังบันทึกอยู่ — กันกดซ้ำระหว่างรอ API
   const [savingId, setSavingId] = useState<string | null>(null);
+  // ผู้ใช้ที่กำลังจะรีเซ็ตรหัส — null = ปิด dialog
+  const [resetTarget, setResetTarget] = useState<AuthUser | null>(null);
 
   // ตัวกรอง
   const [query, setQuery] = useState("");
@@ -324,6 +327,20 @@ export default function UsersPage() {
                         </select>
                       </td>
                       <td className="px-5 py-3.5 text-right">
+                        <div className="inline-flex items-center gap-3">
+                        {/* รหัสของตัวเองเปลี่ยนที่หน้าโปรไฟล์ (backend ก็ปฏิเสธการรีเซ็ตตัวเอง) */}
+                        {u.user_id !== currentUser?.user_id && (
+                          <button
+                            type="button"
+                            disabled={savingId === u.user_id}
+                            onClick={() => { setMsg(null); setResetTarget(u); }}
+                            title={`รีเซ็ตรหัสผ่านของ ${u.username}`}
+                            aria-label={`รีเซ็ตรหัสผ่านของ ${u.username}`}
+                            className="rounded-full p-1.5 text-muted transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-50"
+                          >
+                            <KeyRound className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={savingId === u.user_id}
@@ -336,6 +353,7 @@ export default function UsersPage() {
                           <span className={`h-1.5 w-1.5 rounded-full ${u.is_active ? "bg-success" : "bg-danger"}`} />
                           <span className={u.is_active ? "text-success" : "text-danger"}>{u.is_active ? "ใช้งาน" : "ระงับ"}</span>
                         </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -345,6 +363,132 @@ export default function UsersPage() {
           </div>
         )}
       </div>
+
+      {resetTarget && (
+        <ResetPasswordDialog user={resetTarget} onClose={() => setResetTarget(null)} />
+      )}
+    </div>
+  );
+}
+
+/** ยืนยัน → รีเซ็ต → แสดงรหัสชั่วคราวครั้งเดียว
+ *  รหัสอยู่แค่ใน state ของ dialog นี้ ปิดแล้ว component ถูกถอด รหัสหายไปด้วย */
+function ResetPasswordDialog({ user, onClose }: { user: AuthUser; onClose: () => void }) {
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState("");
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    cancelRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !working) onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, working]);
+
+  const confirm = async () => {
+    setWorking(true);
+    setError("");
+    try {
+      setTemporaryPassword(await userService.resetPassword(user.user_id));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const name = user.full_name || user.username;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reset-password-title"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-lg border border-border bg-surface p-5 shadow-xl"
+      >
+        <div className="flex items-start gap-3">
+          <KeyRound aria-hidden="true" className={`mt-0.5 h-5 w-5 flex-shrink-0 ${temporaryPassword ? "text-success" : "text-primary"}`} />
+          <div className="min-w-0 flex-1">
+            <h2 id="reset-password-title" className="font-semibold">
+              {temporaryPassword ? "รีเซ็ตรหัสผ่านแล้ว" : "รีเซ็ตรหัสผ่าน"}
+            </h2>
+
+            {temporaryPassword ? (
+              <>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  ส่งรหัสชั่วคราวนี้ให้ <span className="font-semibold text-foreground">{name}</span> โดยตรง
+                  ระบบจะให้ตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบครั้งถัดไป
+                </p>
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-border bg-surface-hover px-4 py-3">
+                  <code className="flex-1 select-all font-mono text-lg tracking-wider">{temporaryPassword}</code>
+                  <button
+                    type="button"
+                    onClick={() => void copyTextWithFeedback(temporaryPassword)}
+                    title="คัดลอกรหัสชั่วคราว"
+                    aria-label="คัดลอกรหัสชั่วคราว"
+                    className="rounded-full p-1.5 text-muted transition-colors hover:bg-surface hover:text-foreground"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="mt-3 text-xs text-danger">รหัสนี้แสดงครั้งเดียว ปิดหน้าต่างแล้วจะดูอีกไม่ได้</p>
+              </>
+            ) : (
+              <p className="mt-2 text-sm leading-6 text-muted">
+                รีเซ็ตรหัสผ่านของ <span className="font-semibold text-foreground">{name}</span> ({user.username})?
+                รหัสผ่านเดิมจะใช้ไม่ได้ทันที และผู้ใช้ที่เปิดระบบค้างไว้จะต้องตั้งรหัสใหม่ก่อนใช้งานต่อ
+              </p>
+            )}
+
+            {error && (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-danger-light px-3 py-2 text-sm text-danger" role="alert">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end gap-2">
+          {temporaryPassword ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary/90"
+            >
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> ส่งรหัสให้ผู้ใช้แล้ว
+            </button>
+          ) : (
+            <>
+              <button
+                ref={cancelRef}
+                type="button"
+                onClick={onClose}
+                disabled={working}
+                className="rounded-lg px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover disabled:opacity-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => void confirm()}
+                disabled={working}
+                className="inline-flex items-center gap-2 rounded-lg bg-danger px-3 py-2 text-sm font-medium text-white hover:bg-danger/90 disabled:opacity-60"
+              >
+                {working ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                รีเซ็ตรหัสผ่าน
+              </button>
+            </>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

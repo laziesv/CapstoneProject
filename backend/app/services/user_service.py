@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 
@@ -10,6 +11,10 @@ from app.schemas.user import UserCreate, UserUpdate
 from app.repositories.user_repository import UserRepository
 
 ALLOWED_ROLES = {"admin", "investigator", "officer"}
+
+# ตัด 0/O, 1/l/I ออก เพราะ admin ต้องอ่านรหัสให้ผู้ใช้ฟังหรือพิมพ์ส่งต่อ
+_TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
+TEMP_PASSWORD_LENGTH = 12
 
 
 def _validate_supervisor(db: Session, user_id: UUID | None, supervisor_id: UUID | None) -> None:
@@ -160,3 +165,37 @@ def update_user(db: Session, user_id: UUID, data: UserUpdate, actor: User) -> Us
         setattr(user, field, value)
 
     return UserRepository.update(db, user)
+
+
+def generate_temporary_password() -> str:
+    return "".join(
+        secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(TEMP_PASSWORD_LENGTH)
+    )
+
+
+def reset_password(db: Session, user_id: UUID, actor: User) -> str:
+    """ตั้งรหัสชั่วคราวให้ผู้ใช้ที่ลืมรหัสผ่าน แล้วบังคับให้ตั้งรหัสใหม่ตอนเข้าระบบ
+
+    คืนรหัสชั่วคราวให้ route ส่งกลับครั้งเดียว — ห้าม log เพราะ admin ไม่ควรมี
+    ช่องทางย้อนดูรหัสของคนอื่นได้ภายหลัง
+    """
+    user = UserRepository.get_by_id(db, user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="ไม่พบผู้ใช้",
+        )
+
+    # รีเซ็ตตัวเองแล้วรหัสเดิมใช้ไม่ได้ทันที ถ้าเป็น admin คนสุดท้ายจะแก้กลับยาก
+    if user.user_id == actor.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="รีเซ็ตรหัสผ่านของตัวเองไม่ได้ กรุณาเปลี่ยนรหัสผ่านที่หน้าโปรไฟล์",
+        )
+
+    temporary_password = generate_temporary_password()
+    user.password_hash = hash_password(temporary_password)
+    user.must_change_password = True
+    user.updated_at = datetime.now(timezone.utc)
+    UserRepository.update(db, user)
+    return temporary_password

@@ -26,6 +26,10 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         if (!active) return;
         // sync ข้อมูล user ล่าสุด แล้วปล่อยให้เข้าได้
         setSession(token, user);
+        if (user.must_change_password) {
+          router.replace("/change-password");
+          return;
+        }
         setChecking(false);
       } catch {
         if (!active) return;

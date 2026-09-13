@@ -7,6 +7,7 @@
 // │ PUT  /api/users/{user_id}    → AuthUser          (admin เท่านั้น)     │
 // │      partial update — ส่งเฉพาะ field ที่จะแก้                          │
 // │ GET  /api/users/selectable   → SelectableUser[]  (ทุก role)          │
+// │ POST /api/users/{id}/reset-password → { temporary_password } (admin) │
 // └──────────────────────────────────────────────────────────────────────┘
 
 import { request } from "./client";
@@ -42,6 +43,15 @@ export const userService = {
       method: "PUT",
       body: JSON.stringify(input),
     });
+  },
+
+  /** รีเซ็ตรหัสผ่านเป็นรหัสชั่วคราว — backend คืนรหัสครั้งเดียว ห้ามเก็บไว้ที่ไหน */
+  async resetPassword(userId: string): Promise<string> {
+    const data = await request<{ temporary_password: string }>(
+      `/api/users/${userId}/reset-password`,
+      { method: "POST" },
+    );
+    return data.temporary_password;
   },
 
   /** ตั้ง/แก้หัวหน้า (null = ไม่มีหัวหน้า) */

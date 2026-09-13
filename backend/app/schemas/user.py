@@ -46,6 +46,7 @@ class UserResponse(UserBase):
 
     role: str = "officer"
     is_active: bool
+    must_change_password: bool = False
 
     # สายบังคับบัญชา — คืนทั้ง id (ใช้อ้างอิง) และ username (ใช้แสดงผล)
     supervisor_id: Optional[UUID] = None
@@ -54,6 +55,11 @@ class UserResponse(UserBase):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
+
+# ── Password reset ──────────────────────────────────────
+# รหัสชั่วคราวส่งกลับครั้งเดียวให้ admin นำไปแจ้งผู้ใช้ ระบบไม่เก็บตัวรหัสไว้ที่ไหนอีก
+class PasswordResetResponse(BaseModel):
+    temporary_password: str
 
 # ── Selectable ──────────────────────────────────────────
 # ข้อมูลเท่าที่จำเป็นสำหรับ dropdown "ผู้รับผิดชอบคดี"

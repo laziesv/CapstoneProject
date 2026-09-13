@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, Eye, EyeOff, AlertCircle, Loader2, Lock } from "lucide-react";
+import { ShieldCheck, Eye, EyeOff, AlertCircle, Loader2, Lock, KeyRound } from "lucide-react";
 import { isAuthenticated } from "@/utils/session";
 import { authService, ApiError } from "@/services";
 
@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgotHelp, setShowForgotHelp] = useState(false);
 
   // ถ้า login อยู่แล้ว เด้งเข้า dashboard เลย
   useEffect(() => {
@@ -27,8 +28,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await authService.login(username, password);
-      router.push("/dashboard");
+      const user = await authService.login(username, password);
+      // เข้าด้วยรหัสชั่วคราวที่ admin รีเซ็ตให้ — ต้องตั้งรหัสใหม่ก่อน
+      router.push(user.must_change_password ? "/change-password" : "/dashboard");
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -54,9 +56,6 @@ export default function LoginPage() {
           <span className="text-lg font-bold tracking-tight">DEVA</span>
           <span className="hidden text-sm text-muted sm:inline">ระบบคลังหลักฐานดิจิทัล</span>
         </div>
-        <span className="cursor-pointer text-sm text-text-secondary transition-colors hover:text-foreground">
-          ต้องการความช่วยเหลือ?
-        </span>
       </header>
 
       {/* ── กลางจอ: การ์ดฟอร์ม ── */}
@@ -92,7 +91,15 @@ export default function LoginPage() {
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label htmlFor="password" className="text-sm font-semibold">รหัสผ่าน</label>
-                <span className="cursor-pointer text-sm font-medium text-primary hover:underline">ลืมรหัสผ่าน</span>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotHelp((v) => !v)}
+                  aria-expanded={showForgotHelp}
+                  aria-controls="forgot-password-help"
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  ลืมรหัสผ่าน
+                </button>
               </div>
               <div className="relative">
                 <input
@@ -114,6 +121,18 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+              {showForgotHelp && (
+                <div
+                  id="forgot-password-help"
+                  className="mt-2 flex items-start gap-2.5 rounded-xl bg-surface-hover px-4 py-3 text-xs leading-5 text-text-secondary"
+                >
+                  <KeyRound className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span>
+                    ติดต่อผู้ดูแลระบบของหน่วยงานเพื่อรีเซ็ตรหัสผ่าน
+                    คุณจะได้รับรหัสชั่วคราว และต้องตั้งรหัสผ่านใหม่เมื่อเข้าสู่ระบบ
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* ปุ่มเข้าสู่ระบบ (pill น้ำเงิน) */}

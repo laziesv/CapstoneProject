@@ -17,11 +17,15 @@ _credentials_error = HTTPException(
 )
 
 
-def get_current_user(
+def get_authenticated_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
-    """ตรวจสอบ Bearer token แล้วคืน user ปัจจุบัน ใช้กับ route ที่ต้อง auth"""
+    """ตรวจ token และสถานะบัญชี โดยยังไม่บังคับเปลี่ยนรหัสผ่าน
+
+    ใช้เฉพาะ route ที่คนถูกรีเซ็ตรหัสต้องเรียกได้ (ดูตัวเอง / ตั้งรหัสใหม่)
+    route อื่นให้ใช้ get_current_user
+    """
     if credentials is None:
         raise _credentials_error
     payload = decode_access_token(credentials.credentials)
@@ -45,6 +49,32 @@ def get_current_user(
             detail="บัญชีถูกระงับ กรุณาติดต่อผู้ดูแลระบบ",
         )
 
+    return user
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    """ตรวจสอบ Bearer token แล้วคืน user ปัจจุบัน ใช้กับ route ที่ต้อง auth
+
+    ผู้ใช้ที่ admin เพิ่งรีเซ็ตรหัสให้ต้องตั้งรหัสใหม่ก่อน เช็กจาก DB ทุก request
+    token ที่เปิดค้างไว้ก่อนรีเซ็ตจึงถูกบล็อกด้วย
+    (คง signature เดิมไว้ เพราะมีเทสต์เรียก get_current_user(credentials=..., db=...) ตรง)
+    """
+    user = get_authenticated_user(credentials, db)
+    return require_password_changed(user)
+
+
+def require_password_changed(user: User) -> User:
+    if user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "PASSWORD_CHANGE_REQUIRED",
+                "message": "กรุณาตั้งรหัสผ่านใหม่ก่อนใช้งาน",
+            },
+        )
     return user
 
 
