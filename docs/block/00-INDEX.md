@@ -113,7 +113,7 @@ git -C blockchain diff <DOCUMENTED_BLOCKCHAIN_REV>..HEAD
 
 | ชุด | ผล baseline |
 |---|---:|
-| Backend | 230 passed |
+| Backend | 233 passed |
 | Blockchain Python | 185 passed |
 | Frontend | 63 passed, 1 failed (64 total; ดูรายละเอียดใน Testing and Acceptance) |
 | Foundry | 19 passed |

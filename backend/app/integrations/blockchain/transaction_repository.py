@@ -63,6 +63,7 @@ class BlockchainTransactionRepository:
         initiated_by: UUID,
         block_number: int,
         contract_address: str,
+        gas_used: int,
     ) -> BlockchainTransaction:
         transaction = BlockchainTransaction(
             tx_hash=tx_hash,
@@ -72,6 +73,7 @@ class BlockchainTransactionRepository:
             block_number=block_number,
             contract_address=contract_address,
             status="confirmed",
+            gas_used=gas_used,
         )
         db.add(transaction)
         # Blockchain integration: Keep metadata in the upload's final DB commit.
@@ -87,6 +89,7 @@ class BlockchainTransactionRepository:
         initiated_by: UUID,
         block_number: int,
         contract_address: str,
+        gas_used: int,
     ) -> BlockchainTransaction:
         transaction = BlockchainTransaction(
             tx_hash=tx_hash,
@@ -96,6 +99,7 @@ class BlockchainTransactionRepository:
             block_number=block_number,
             contract_address=contract_address,
             status="confirmed",
+            gas_used=gas_used,
         )
         db.add(transaction)
         # การเชื่อมต่อ Blockchain: เก็บ metadata ร่วมกับ AccessLog ใน transaction เดียวกัน
@@ -133,10 +137,12 @@ class BlockchainTransactionRepository:
         block_number: int,
         block_timestamp: datetime,
         contract_address: str,
+        gas_used: int,
     ) -> BlockchainTransaction:
         transaction.block_number = block_number
         transaction.block_timestamp = block_timestamp
         transaction.contract_address = contract_address
+        transaction.gas_used = gas_used
         transaction.status = "confirmed"
         return transaction
 
@@ -154,6 +160,7 @@ class BlockchainTransactionRepository:
         transaction.contract_address = contract_address
         transaction.block_number = None
         transaction.block_timestamp = None
+        transaction.gas_used = None
         transaction.status = status
         return transaction
 

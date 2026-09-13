@@ -22,8 +22,8 @@
 - Network: Besu 26.7.0, QBFT, 4 validators + 1 RPC
 - Reference Chain ID: `20260720`
 - Reference deployment: contract `0xf9e0Ca8d6cFa419bd79276775F441816c2cb2403`, block `12`
-- Current Alembic head: `a6c8e1f4b2d9`
-- Validation snapshot: Backend 230 passed; Blockchain Python 185 and Foundry 19 passed in current-revision CI; Frontend 63 passed and 1 failed of 64
+- Current Alembic head: `c7d9e2a4f6b1`
+- Validation snapshot: Backend 233 passed; Blockchain Python 185 and Foundry 19 passed in current-revision CI; Frontend 63 passed and 1 failed of 64
 
 Reference deployment เป็นตัวอย่าง local environment ไม่ใช่ universal constant ทุกเครื่อง
 
@@ -129,7 +129,8 @@ flowchart TD
 - `backend/app/services/chain_of_custody_service.py`: chain-first timeline
 - `backend/app/services/blockchain_explorer_service.py`: admin reads
 - `backend/app/watermark/`: DWT/QIM/QR codec
-- `backend/alembic/versions/a6c8e1f4b2d9_add_pending_view_lifecycle.py`: pending uniqueness/head
+- `backend/alembic/versions/a6c8e1f4b2d9_add_pending_view_lifecycle.py`: pending uniqueness
+- `backend/alembic/versions/c7d9e2a4f6b1_remove_input_data_hash.py`: current head; removes unused transaction input hash metadata
 
 ### Parent Frontend
 

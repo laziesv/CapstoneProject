@@ -247,6 +247,7 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             "tx_hash": "0x" + "1" * 64,
             "block_number": 7000,
             "contract_address": "0x" + "2" * 40,
+            "gas_used": 43_210,
         }
         self.watermark = MagicMock()
         self.watermark.create_personalized_copy.return_value = SimpleNamespace(
@@ -414,6 +415,7 @@ class PersonalizedDownloadOrchestrationTests(unittest.TestCase):
             "tx_hash": "0x" + "1" * 64,
             "block_number": 7000,
             "contract_address": "0x" + "2" * 40,
+            "gas_used": 43_210,
         }
         self.db.commit.side_effect = RuntimeError("commit failed")
         with patch(

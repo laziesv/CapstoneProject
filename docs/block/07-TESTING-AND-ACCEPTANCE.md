@@ -25,7 +25,7 @@ Unit tests ต้องไม่ต้องมี Besu จริง Controlled 
 
 | Layer | Reported/verified baseline | Tool |
 |---|---:|---|
-| Backend | 230 passed | `unittest discover` |
+| Backend | 233 passed | `unittest discover` |
 | Blockchain Python | 185 passed (current-revision CI) | pytest |
 | Frontend | 63 passed, 1 failed (64 total; local) | Node test runner |
 | Foundry | 19 passed (current-revision CI) | forge test |
@@ -47,7 +47,7 @@ Focused inventory:
 |---|---:|---|
 | `test_blockchain_integration.py` | 28 | config/provider/refs/V3 reads-writes/scans/health |
 | `test_evidence_upload_transaction.py` | 11 | flush/final commit/files cleanup/registration metadata |
-| `test_evidence_view_preparation.py` | 29 | PENDING/idempotency/reconciliation/recovery/nonce incidents |
+| `test_evidence_view_preparation.py` | 30 | PENDING/idempotency/reconciliation/recovery/nonce incidents/gas receipt lifecycle |
 | `test_evidence_download_access.py` | 14 | integrity gates, rolling WATERMARKED state, one download write, rollback |
 | `test_personalized_evidence_download.py` | 11 | personalized codec/temp file/session metadata |
 | `test_original_evidence_integrity.py` | 7 | current/DB/chain hash states |
@@ -60,9 +60,9 @@ Focused inventory:
 | `test_evidence_preview_authorization.py` | 10 | WATERMARKED-only/auth/no audit side effect |
 | `test_case_authorization.py` | 14 | hierarchy/admin/generic not-found |
 | `test_watermark_minimum_size.py` | 7 | 640 px minimum, upload rejection, codec constraint alignment |
-| migrations/model/startup/dashboard | 12 | schema compatibility, head safety, route behavior |
+| migrations/model/startup/dashboard | 14 | schema compatibility, reversible metadata removal, head safety, route behavior |
 
-รวม 230 test methods
+รวม 233 test methods
 
 ### Test isolation
 
@@ -231,7 +231,7 @@ Write-Output "Effective DB_NAME: $env:DB_NAME"
 .\.venv\Scripts\python.exe -m alembic heads
 ```
 
-`current` และ `heads` ต้องตรงกันที่ `a6c8e1f4b2d9` สำหรับ source revision ใน header นี้ จากนั้นตรวจ FastAPI, Blockchain health และ writer โดยแสดงเพียง boolean ห้าม print key:
+`current` และ `heads` ต้องตรงกันที่ `c7d9e2a4f6b1` สำหรับ source revision ใน header นี้ จากนั้นตรวจ FastAPI, Blockchain health และ writer โดยแสดงเพียง boolean ห้าม print key:
 
 ```powershell
 .\.venv\Scripts\python.exe -c "from app.main import app; print('FastAPI app import OK')"
@@ -632,7 +632,7 @@ cd backend
 .\.venv\Scripts\python.exe -m alembic check
 ```
 
-Expected current/head `a6c8e1f4b2d9` และ no new upgrade operations ใน DB ที่ models ตรง source ห้ามรัน migration อัตโนมัติบน DB ทีมจาก test task
+Expected current/head `c7d9e2a4f6b1` และ no new upgrade operations ใน DB ที่ models ตรง source ห้ามรัน migration อัตโนมัติบน DB ทีมจาก test task
 
 ## Static Validation
 

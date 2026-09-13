@@ -83,7 +83,7 @@ Disabled mode คืน health status โดยไม่สร้าง client; 
 |---|---|
 | `EvidenceItem` | flags `is_watermarked`, `is_blockchain_verified`; relation files/transactions/access logs |
 | `EvidenceFile` | ORIGINAL/WATERMARKED path, hash, size |
-| `BlockchainTransaction` | action, tx hash, block, contract, status, confirmation metadata |
+| `BlockchainTransaction` | action, tx hash, block, contract, status และ `gas_used` จริงจาก mined receipt; ค่า gas เป็น `NULL` ก่อน confirmation |
 | `AccessLog` | action/result/request identity, evidence/case/user, `tx_internal_id`, timestamps/client metadata |
 | `User` | profile และ supervisor tree; actor ref derive จาก UUID ไม่เก็บ key |
 
@@ -99,10 +99,10 @@ fa1497c19db3 -> 02677bad017f
                          c3f7a1d9e2b4 ------------------------------- e8b4c2d7a901
                                                                        |
                                                                        v
-                                                                 a6c8e1f4b2d9
+                                                                 a6c8e1f4b2d9 -> c7d9e2a4f6b1
 ```
 
-`a6c8e1f4b2d9` เพิ่ม enum `PENDING` และ partial unique index `uq_access_logs_pending_view` สำหรับ VIEW lifecycle Head ปัจจุบันคือ `a6c8e1f4b2d9` App startup ไม่รัน Alembic อัตโนมัติ
+`a6c8e1f4b2d9` เพิ่ม enum `PENDING` และ partial unique index `uq_access_logs_pending_view` สำหรับ VIEW lifecycle ส่วน `c7d9e2a4f6b1` ลบ `blockchain_transactions.input_data_hash` ที่ไม่มี canonical semantics Head ปัจจุบันคือ `c7d9e2a4f6b1` App startup ไม่รัน Alembic อัตโนมัติ
 
 > [!WARNING]
 > `backend/reset_db.py` มี destructive schema reset และอ้าง API startup เก่าบางส่วน ไม่ใช่คำสั่งมาตรฐานสำหรับ integration database ห้ามใช้กับฐานข้อมูลทีม
@@ -278,7 +278,7 @@ Endpoint รองรับ `limit` 1-200 และ `offset` ตั้งแต�
 - `app/routes/{blockchain,access_logs}.py` และ route extensions
 - `app/schemas/{blockchain_explorer,chain_of_custody,integrity,access_log}.py`
 - `app/repositories/access_log_repository.py`
-- focused tests 19 modules, 230 test methods ณ baseline ล่าสุด
+- focused tests 19 modules, 233 test methods ณ baseline ล่าสุด
 
 ### Existing team files modified for orchestration
 
