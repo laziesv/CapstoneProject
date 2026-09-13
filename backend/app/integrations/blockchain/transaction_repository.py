@@ -63,6 +63,7 @@ class BlockchainTransactionRepository:
         initiated_by: UUID,
         block_number: int,
         contract_address: str,
+        gas_used: int | None = None,
     ) -> BlockchainTransaction:
         transaction = BlockchainTransaction(
             tx_hash=tx_hash,
@@ -71,6 +72,7 @@ class BlockchainTransactionRepository:
             action_type=BlockchainAction.REGISTER,
             block_number=block_number,
             contract_address=contract_address,
+            gas_used=gas_used,
             status="confirmed",
         )
         db.add(transaction)
@@ -87,6 +89,7 @@ class BlockchainTransactionRepository:
         initiated_by: UUID,
         block_number: int,
         contract_address: str,
+        gas_used: int | None = None,
     ) -> BlockchainTransaction:
         transaction = BlockchainTransaction(
             tx_hash=tx_hash,
@@ -95,6 +98,7 @@ class BlockchainTransactionRepository:
             action_type=BlockchainAction.ACCESS,
             block_number=block_number,
             contract_address=contract_address,
+            gas_used=gas_used,
             status="confirmed",
         )
         db.add(transaction)
@@ -133,10 +137,12 @@ class BlockchainTransactionRepository:
         block_number: int,
         block_timestamp: datetime,
         contract_address: str,
+        gas_used: int | None = None,
     ) -> BlockchainTransaction:
         transaction.block_number = block_number
         transaction.block_timestamp = block_timestamp
         transaction.contract_address = contract_address
+        transaction.gas_used = gas_used
         transaction.status = "confirmed"
         return transaction
 
@@ -154,6 +160,7 @@ class BlockchainTransactionRepository:
         transaction.contract_address = contract_address
         transaction.block_number = None
         transaction.block_timestamp = None
+        transaction.gas_used = None
         transaction.status = status
         return transaction
 

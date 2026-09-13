@@ -67,7 +67,6 @@ class BlockchainTransactionRepositoryTests(TestCase):
 
         self.assertEqual(transaction.action_type, BlockchainAction.REGISTER)
         self.assertEqual(transaction.status, "confirmed")
-        self.assertIsNone(transaction.input_data_hash)
         self.assertIsNone(transaction.gas_used)
         self.assertIsNone(transaction.block_timestamp)
         db.add.assert_called_once_with(transaction)

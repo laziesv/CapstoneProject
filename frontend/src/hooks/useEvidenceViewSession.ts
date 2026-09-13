@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { userFacingApiError } from "@/utils/evidenceDownloadError";
 import {
   rememberViewSuccess,
+  ViewSessionPendingTimeoutError,
   waitForConfirmedViewSession,
 } from "@/utils/evidenceOperationFeedback";
 import {
@@ -19,6 +20,8 @@ export type ViewSessionStatus =
   | "SUBMITTING"
   | "WAITING_FOR_BLOCKCHAIN"
   | "PENDING_BLOCKCHAIN_CONFIRMATION";
+
+const VIEW_SESSION_PENDING_TIMEOUT_MS = 25_000;
 
 /** บันทึก VIEW ลง access log + Blockchain แล้วรอจนยืนยันสำเร็จ
  *
@@ -91,12 +94,20 @@ export function useEvidenceViewSession() {
             }
           },
           () => setDelayed(true),
+          10_000,
+          VIEW_SESSION_PENDING_TIMEOUT_MS,
         );
         window.sessionStorage.removeItem(requestKey);
         succeeded = true;
         clearUnlockTimer();
         return session;
       } catch (cause) {
+        if (cause instanceof ViewSessionPendingTimeoutError) {
+          setError(
+            "ยังไม่สามารถเปิดหลักฐานได้ เพราะ Blockchain ยังไม่พร้อมยืนยันรายการ รายการเข้าถึงถูกบันทึกเป็น PENDING แล้ว กรุณาลองใหม่หลังเครือข่ายกลับมาทำงาน",
+          );
+          return null;
+        }
         if (cause instanceof ApiError) {
           window.sessionStorage.removeItem(requestKey);
         }

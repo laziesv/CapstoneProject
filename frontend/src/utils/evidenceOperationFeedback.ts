@@ -18,6 +18,13 @@ export const VIEW_SUCCESS_FEEDBACK = {
   message: "การดูหลักฐานถูกบันทึกในฐานข้อมูลและ Blockchain แล้ว",
 } as const;
 
+export class ViewSessionPendingTimeoutError extends Error {
+  constructor() {
+    super("view session is still pending blockchain confirmation");
+    this.name = "ViewSessionPendingTimeoutError";
+  }
+}
+
 export const UPLOAD_RESULT_PRESENTATION = {
   stepLabel: "Registration Result",
   heading: "Registration Result",
@@ -81,6 +88,7 @@ export async function waitForConfirmedViewSession(
   onSession?: (session: EvidenceViewSessionResponse) => void,
   onLongWait?: () => void,
   longWaitAfterMilliseconds = 30_000,
+  maxPendingMilliseconds?: number,
 ): Promise<EvidenceViewSessionResponse> {
   let currentRequestId = requestId;
   let waitedMilliseconds = 0;
@@ -92,6 +100,12 @@ export async function waitForConfirmedViewSession(
     if (session.status === "CONFIRMED") return session;
     const retrySeconds = session.retry_after_seconds ?? 2;
     const waitMilliseconds = Math.max(retrySeconds, 1) * 1000;
+    if (
+      maxPendingMilliseconds !== undefined &&
+      waitedMilliseconds + waitMilliseconds >= maxPendingMilliseconds
+    ) {
+      throw new ViewSessionPendingTimeoutError();
+    }
     await wait(waitMilliseconds);
     waitedMilliseconds += waitMilliseconds;
     if (!longWaitReported && waitedMilliseconds >= longWaitAfterMilliseconds) {

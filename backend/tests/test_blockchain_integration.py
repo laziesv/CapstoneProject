@@ -196,6 +196,7 @@ class BlockchainIntegrationTests(TestCase):
     def test_record_evidence_derives_v3_arguments(self) -> None:
         client = Mock()
         client.record_evidence.return_value = _transaction_result()
+        _attach_receipt(client, gas_used=73_835)
         secret = "writer-key-not-returned"
         service = BlockchainIntegrationService(
             settings=_settings(writer_private_key=secret),
@@ -215,12 +216,14 @@ class BlockchainIntegrationTests(TestCase):
         self.assertEqual(result["uploader_ref"], derive_actor_ref(UPLOADER_ID))
         self.assertEqual(result["tx_hash"], TX_HASH)
         self.assertEqual(result["block_number"], 6500)
+        self.assertEqual(result["gas_used"], 73_835)
         self.assertEqual(result["contract_address"], CONTRACT_ADDRESS)
         self.assertNotIn(secret, repr(result))
 
     def test_record_access_derives_v3_arguments(self) -> None:
         client = Mock()
         client.record_access.return_value = _transaction_result()
+        _attach_receipt(client, gas_used=51_507)
         service = BlockchainIntegrationService(
             settings=_settings(writer_private_key="writer-key"),
             client_provider=lambda: client,
@@ -247,6 +250,7 @@ class BlockchainIntegrationTests(TestCase):
         )
         self.assertEqual(result["action"], AccessAction.DOWNLOAD)
         self.assertEqual(result["occurred_at"], 1_700_000_001)
+        self.assertEqual(result["gas_used"], 51_507)
 
     def test_submit_and_confirm_access_keep_broadcast_separate_from_receipt(self) -> None:
         client = Mock()
@@ -256,6 +260,7 @@ class BlockchainIntegrationTests(TestCase):
             chain_id=20260720,
         )
         client.confirm_access.return_value = _transaction_result()
+        _attach_receipt(client, gas_used=49_001)
         service = BlockchainIntegrationService(
             settings=_settings(writer_private_key="writer-key"),
             client_provider=lambda: client,
@@ -280,6 +285,7 @@ class BlockchainIntegrationTests(TestCase):
 
         self.assertEqual(submitted["tx_hash"], TX_HASH)
         self.assertEqual(confirmed["block_number"], 6500)
+        self.assertEqual(confirmed["gas_used"], 49_001)
         client.submit_access.assert_called_once()
         client.confirm_access.assert_called_once_with(
             TX_HASH,
@@ -715,6 +721,10 @@ def _transaction_result() -> TransactionResult:
         confirmations=0,
         event={},
     )
+
+
+def _attach_receipt(client: Mock, *, gas_used: int) -> None:
+    client.web3.eth.get_transaction_receipt.return_value = {"gasUsed": gas_used}
 
 
 def _access_event(

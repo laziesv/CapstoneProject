@@ -449,7 +449,6 @@ class EvidenceDownloadAccessTests(unittest.TestCase):
         self.assertEqual(transaction.evidence_id, self.evidence.evidence_id)
         self.assertEqual(transaction.initiated_by, self.user.user_id)
         self.assertEqual(transaction.block_number, 7000)
-        self.assertIsNone(transaction.input_data_hash)
         self.assertIsNone(transaction.gas_used)
         self.assertIsNone(transaction.block_timestamp)
         self.db.add.assert_called_once_with(transaction)

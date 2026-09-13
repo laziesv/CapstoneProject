@@ -230,6 +230,7 @@ class EvidenceService:
                 initiated_by=uploaded_by,
                 block_number=blockchain_result["block_number"],
                 contract_address=blockchain_result["contract_address"],
+                gas_used=blockchain_result.get("gas_used"),
             )
 
             evidence.is_watermarked = True

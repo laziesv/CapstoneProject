@@ -146,6 +146,7 @@ class EvidenceAccessService:
                 initiated_by=current_user.user_id,
                 block_number=chain_result["block_number"],
                 contract_address=chain_result["contract_address"],
+                gas_used=chain_result.get("gas_used"),
             )
             access_log.tx_internal_id = transaction.tx_internal_id
 

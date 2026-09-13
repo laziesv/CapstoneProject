@@ -7,7 +7,6 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     TIMESTAMP,
-    Text,
     func,
 )
 
@@ -33,8 +32,6 @@ class BlockchainTransaction(Base):
     block_number = Column(Integer)
 
     contract_address = Column(String(42))  # 0x + 40 hex
-
-    input_data_hash = Column(Text)
 
     status = Column(String(30), nullable=False, server_default="pending", index=True)
 

@@ -101,6 +101,7 @@ class BlockchainIntegrationService:
             "uploader_ref": uploader_ref,
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
+            "gas_used": self.get_transaction_gas_used(result.tx_hash),
             "contract_address": result.contract_address,
         }
 
@@ -133,6 +134,7 @@ class BlockchainIntegrationService:
             "occurred_at": occurred_at,
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
+            "gas_used": self.get_transaction_gas_used(result.tx_hash),
             "contract_address": result.contract_address,
         }
 
@@ -204,8 +206,22 @@ class BlockchainIntegrationService:
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
             "block_timestamp": result.block_timestamp,
+            "gas_used": self.get_transaction_gas_used(result.tx_hash),
             "contract_address": result.contract_address,
         }
+
+    def get_transaction_gas_used(self, tx_hash: str) -> int | None:
+        """Read actual gas used from the authoritative transaction receipt."""
+
+        canonical_hash = normalize_tx_hash(tx_hash)
+        try:
+            receipt = self._client_provider().web3.eth.get_transaction_receipt(
+                canonical_hash
+            )
+        except TransactionNotFound:
+            return None
+        gas_used = receipt.get("gasUsed")
+        return int(gas_used) if gas_used is not None else None
 
     def check_write_liveness(self) -> dict[str, Any]:
         """Classify RPC and recent block production before an access broadcast."""
