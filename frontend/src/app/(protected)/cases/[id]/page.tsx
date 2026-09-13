@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Loader2, ShieldAlert, Plus, ImageOff } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, ShieldAlert, Plus, ImageOff, Pencil } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSupervisorMap } from "@/hooks/useSupervisorMap";
-import { caseService, evidenceService } from "@/services";
-import { canSeeCase } from "@/utils/caseAccess";
+import { ApiError, caseService, evidenceService, userService } from "@/services";
+import { canCreateCase, canSeeCase, subordinatesOf } from "@/utils/caseAccess";
+import { assignableOptions, toDateTimeLocal } from "@/utils/caseForm";
 import { canAccess } from "@/config/permissions";
-import type { Case, CaseAssignee, EvidenceItem } from "@/interfaces";
+import type { Case, CaseAssignee, EvidenceItem, SelectableUser } from "@/interfaces";
 import { formatIncident } from "@/utils/format";
 import { EvidencePreviewImage } from "@/components/EvidencePreviewImage";
 import { useIntentionalEvidenceNavigation } from "@/hooks/useIntentionalEvidenceNavigation";
@@ -29,6 +30,7 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState<Case | null | undefined>(undefined);
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>([]);
   const [evFilter, setEvFilter] = useState<EvFilter>("all");
+  const [editing, setEditing] = useState(false);
   const { openEvidence, openingEvidenceId, openStatus, openDelayed, openError, dismissOpenError } =
     useIntentionalEvidenceNavigation();
 
@@ -76,6 +78,7 @@ export default function CaseDetailPage() {
   }
 
   const canUpload = canAccess(user.role, "/evidence/upload");
+  const canEdit = canCreateCase(user);
   const uploadHref = `/evidence/upload?case=${caseData.case_id}`;
 
   // ไทม์ไลน์การดูแลรักษา — สร้างจากข้อมูลจริง (สร้างคดี + การอัปโหลดหลักฐาน)
@@ -106,10 +109,20 @@ export default function CaseDetailPage() {
         </Link>
         <span className="text-muted/60">/</span>
         <span className="font-mono text-base font-semibold">{caseData.case_number}</span>
+        <span className="ml-auto" />
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex h-10 items-center gap-1.5 rounded-full border border-border bg-surface px-5 text-sm font-semibold transition-colors hover:bg-surface-hover"
+          >
+            <Pencil className="h-4 w-4" /> แก้ไขคดี
+          </button>
+        )}
         {canUpload && (
           <Link
             href={uploadHref}
-            className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
+            className="inline-flex h-10 items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-semibold text-white transition-colors hover:bg-primary-hover"
           >
             <Plus className="h-4 w-4" /> เพิ่มหลักฐาน
           </Link>
@@ -261,6 +274,195 @@ export default function CaseDetailPage() {
         error={openError}
         onDismissError={dismissOpenError}
       />
+      {editing && (
+        <EditCaseDialog
+          caseData={caseData}
+          allowedIds={[user.user_id, ...subordinatesOf(user.user_id, supervisorMap)]}
+          onClose={() => setEditing(false)}
+          onSaved={(updated) => {
+            setCaseData(updated);
+            setEditing(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** แก้รายละเอียดคดี + เพิ่มผู้รับผิดชอบ
+ *  คนที่มอบหมายแล้วแสดงเป็นติ๊กถาวร เพราะ backend ไม่ให้ถอดสิทธิ์ย้อนหลัง */
+function EditCaseDialog({
+  caseData,
+  allowedIds,
+  onClose,
+  onSaved,
+}: {
+  caseData: Case;
+  allowedIds: string[];
+  onClose: () => void;
+  onSaved: (updated: Case) => void;
+}) {
+  const [form, setForm] = useState({
+    title: caseData.title,
+    description: caseData.description,
+    location: caseData.location,
+    incident_date: toDateTimeLocal(caseData.incident_date),
+  });
+  const [added, setAdded] = useState<string[]>([]);
+  const [allUsers, setAllUsers] = useState<SelectableUser[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    titleRef.current?.focus();
+    let cancelled = false;
+    userService
+      .listSelectable()
+      .then((us) => {
+        if (!cancelled) setAllUsers(us);
+      })
+      .catch(() => {
+        // โหลดรายชื่อไม่ได้ = เพิ่มคนไม่ได้ แต่ยังแก้รายละเอียดได้
+        if (!cancelled) setAllUsers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !saving) onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose, saving]);
+
+  const options = assignableOptions(allowedIds, allUsers ?? [], caseData.assigned_officers);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const toggle = (userId: string) =>
+    setAdded((cur) => (cur.includes(userId) ? cur.filter((u) => u !== userId) : [...cur, userId]));
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!form.title.trim()) {
+      setError("กรุณากรอกชื่อคดี");
+      return;
+    }
+    setSaving(true);
+    try {
+      const updated = await caseService.update(caseData.case_id, {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        location: form.location.trim(),
+        incident_date: form.incident_date,
+        assigned_officers: [...caseData.assigned_officers, ...added],
+      });
+      onSaved(updated);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "ไม่สามารถบันทึกการแก้ไขได้");
+      setSaving(false);
+    }
+  };
+
+  const inputCls =
+    "mt-1 h-10 w-full rounded-lg border border-border bg-surface px-3 text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-case-title"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-xl"
+      >
+        <h2 id="edit-case-title" className="text-lg font-semibold">แก้ไขคดี</h2>
+        <p className="mt-0.5 font-mono text-xs text-muted">{caseData.case_number}</p>
+
+        <form onSubmit={submit} className="mt-5 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl bg-danger-light px-3 py-2 text-sm text-danger" role="alert">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <label className="block text-xs font-medium text-muted">
+            ชื่อคดี *
+            <input ref={titleRef} required value={form.title} onChange={set("title")} className={inputCls} />
+          </label>
+          <label className="block text-xs font-medium text-muted">
+            รายละเอียด
+            <textarea value={form.description} onChange={set("description")} rows={3} className={`${inputCls} h-auto py-2`} />
+          </label>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block text-xs font-medium text-muted">
+              สถานที่เกิดเหตุ
+              <input value={form.location} onChange={set("location")} className={inputCls} />
+            </label>
+            <label className="block text-xs font-medium text-muted">
+              วันที่เกิดเหตุ
+              <input type="datetime-local" value={form.incident_date} onChange={set("incident_date")} className={inputCls} />
+            </label>
+          </div>
+
+          <fieldset>
+            <legend className="text-xs font-medium text-muted">ผู้รับผิดชอบ</legend>
+            <ul className="mt-2 space-y-2">
+              {caseData.assignees.map((a) => (
+                <li key={a.user_id}>
+                  <label className="flex items-center gap-2 text-sm text-text-secondary">
+                    <input type="checkbox" checked disabled />
+                    <span className="min-w-0 truncate">{a.full_name || a.username}{a.rank ? ` (${a.rank})` : ""}</span>
+                    <span className="ml-auto flex-shrink-0 rounded-full bg-surface-hover px-2 py-0.5 text-[11px]">มอบหมายแล้ว</span>
+                  </label>
+                </li>
+              ))}
+              {allUsers === null ? (
+                <li className="flex items-center gap-2 text-sm text-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" /> กำลังโหลดรายชื่อ...
+                </li>
+              ) : options.length === 0 ? (
+                <li className="text-sm text-muted">ไม่มีผู้ใต้บังคับบัญชาที่เพิ่มได้</li>
+              ) : (
+                options.map((u) => (
+                  <li key={u.user_id}>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input type="checkbox" checked={added.includes(u.user_id)} onChange={() => toggle(u.user_id)} />
+                      <span className="min-w-0 truncate">{u.full_name ?? u.username}{u.rank ? ` (${u.rank})` : ""}</span>
+                    </label>
+                  </li>
+                ))
+              )}
+            </ul>
+            <p className="mt-3 text-xs text-muted">ผู้รับผิดชอบที่มอบหมายแล้วจะมีสิทธิ์เข้าถึงคดีถาวร เอาออกไม่ได้</p>
+          </fieldset>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-hover disabled:opacity-50"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              บันทึก
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }

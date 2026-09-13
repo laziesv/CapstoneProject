@@ -11,11 +11,12 @@
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 from fastapi import HTTPException
 
+from app.schemas.case import CaseUpdate
 from app.services.case_authorization import can_access_case
 from app.services.case_service import CaseService
 
@@ -126,6 +127,77 @@ class AssignmentValidationTests(unittest.TestCase):
         db = db_for()
         self.assertEqual(CaseService._validate_assignees(db, user(), []), [])
         db.query.assert_not_called()
+
+
+class AddAssigneesOnUpdateTests(unittest.TestCase):
+    """แก้คดีภายหลัง — เพิ่มผู้รับผิดชอบได้ แต่ถอดคนที่มอบหมายแล้วออกไม่ได้"""
+
+    def _case_with(self, *user_ids):
+        target = case(assigned_officer=user_ids[0] if user_ids else None)
+        target.assignee_links = [SimpleNamespace(user_id=u) for u in user_ids]
+        return target
+
+    def _update(self, db, actor, target, **fields):
+        with patch("app.services.case_service.CaseService.get_by_id", return_value=target), \
+             patch("app.services.case_service.CaseRepository.update", side_effect=lambda _db, c: c):
+            return CaseService.update(db, target.case_id, CaseUpdate(**fields), actor)
+
+    def _ids(self, target):
+        return [link.user_id for link in target.assignee_links]
+
+    def test_new_subordinate_is_added_and_existing_kept(self) -> None:
+        boss = user()
+        existing, junior = uuid4(), uuid4()
+        target = self._case_with(existing)
+        db = db_for(hierarchy=[(existing, boss.user_id), (junior, boss.user_id)], existing_users=[junior])
+
+        self._update(db, boss, target, assigned_officers=[existing, junior])
+
+        self.assertEqual(self._ids(target), [existing, junior])
+        self.assertEqual(target.assigned_officer, existing)
+
+    def test_existing_assignee_who_moved_away_does_not_block_adding(self) -> None:
+        """บั๊กเดิม — ตรวจทั้งชุดทำให้คนที่ย้ายสายไปแล้วโดน 403 จนเพิ่มใครไม่ได้"""
+        boss = user()
+        moved, junior = uuid4(), uuid4()
+        target = self._case_with(moved)
+        db = db_for(hierarchy=[(junior, boss.user_id)], existing_users=[junior])
+
+        self._update(db, boss, target, assigned_officers=[moved, junior])
+
+        self.assertEqual(self._ids(target), [moved, junior])
+
+    def test_dropping_an_existing_assignee_is_rejected(self) -> None:
+        boss = user()
+        existing, junior = uuid4(), uuid4()
+        target = self._case_with(existing)
+        db = db_for(hierarchy=[(junior, boss.user_id)], existing_users=[junior])
+
+        with self.assertRaises(HTTPException) as raised:
+            self._update(db, boss, target, assigned_officers=[junior])
+        self.assertEqual(raised.exception.status_code, 400)
+        self.assertEqual(self._ids(target), [existing])
+
+    def test_adding_an_outsider_is_rejected(self) -> None:
+        boss = user()
+        existing = uuid4()
+        target = self._case_with(existing)
+        db = db_for(hierarchy=[])
+
+        with self.assertRaises(HTTPException) as raised:
+            self._update(db, boss, target, assigned_officers=[existing, uuid4()])
+        self.assertEqual(raised.exception.status_code, 403)
+
+    def test_editing_details_only_leaves_assignees_alone(self) -> None:
+        boss = user()
+        existing = uuid4()
+        target = self._case_with(existing)
+        target.title = "เดิม"
+
+        self._update(db_for(), boss, target, title="ใหม่")
+
+        self.assertEqual(target.title, "ใหม่")
+        self.assertEqual(self._ids(target), [existing])
 
 
 if __name__ == "__main__":

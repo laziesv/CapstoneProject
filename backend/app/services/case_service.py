@@ -165,11 +165,24 @@ class CaseService:
             setattr(case, key, value)
 
         if assignees is not None:
-            validated = CaseService._validate_assignees(db, current_user, assignees)
-            CaseService._replace_assignees(db, case, validated, current_user)
-            # ผู้รับผิดชอบหลักต้องอยู่ในรายชื่อเสมอ ไม่งั้นจะแสดงคนที่ไม่มีสิทธิ์แล้ว
-            if case.assigned_officer not in validated:
-                case.assigned_officer = validated[0] if validated else None
+            current = [link.user_id for link in case.assignee_links]
+
+            # เพิ่มได้อย่างเดียว — สิทธิ์ที่ให้ไปแล้วเป็นหลักฐานว่าใครเข้าถึงคดีได้
+            # การถอดออกภายหลังจะทำให้ chain of custody ขาด
+            if any(user_id not in assignees for user_id in current):
+                raise HTTPException(
+                    status_code=400,
+                    detail="ไม่สามารถถอดผู้รับผิดชอบที่มอบหมายแล้วออกได้",
+                )
+
+            # ตรวจเฉพาะคนที่เพิ่มใหม่ คนเดิมที่ย้ายสายไปแล้วต้องไม่ทำให้เพิ่มคนใหม่ไม่ได้
+            added = CaseService._validate_assignees(
+                db, current_user, [u for u in assignees if u not in current]
+            )
+            target = [*current, *added]
+            CaseService._replace_assignees(db, case, target, current_user)
+            if case.assigned_officer not in target:
+                case.assigned_officer = target[0] if target else None
 
         return CaseRepository.update(db, case)
 

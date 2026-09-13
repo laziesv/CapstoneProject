@@ -11,6 +11,8 @@
 // │               assigned_officers?: UUID[] }                          │
 // │      server ออก case_id / case_number / created_at ให้เอง            │
 // │      created_by มาจาก token (ไม่ต้องส่ง)                             │
+// │ PUT  /api/cases/{case_id} → CaseApiResponse (investigator)          │
+// │      assigned_officers ต้องมีคนเดิมครบ — เพิ่มได้ ถอดออกไม่ได้ (400)   │
 // └─────────────────────────────────────────────────────────────────────┘
 //
 // ── ช่องว่างที่ยังเหลือ (ต้องคุยกับทีม backend) ─────────────────────────
@@ -21,7 +23,7 @@
 // (ปิดไปแล้ว) ผู้รับผิดชอบหลายคนใช้ตาราง case_assignees แล้ว
 //   ซึ่งให้สิทธิ์ถาวร ไม่หลุดเมื่อย้ายหัวหน้า
 
-import type { Case, NewCaseInput, CaseApiResponse } from "@/interfaces";
+import type { Case, NewCaseInput, CaseApiResponse, UpdateCaseInput } from "@/interfaces";
 import { ApiError, request } from "./client";
 
 const pendingCaseReads = new Map<string, Promise<CaseApiResponse>>();
@@ -98,6 +100,21 @@ export const caseService = {
         location: input.location || null,
         incident_date: input.incident_date || null,
         assigned_officers: assigned,
+      }),
+    });
+    return toCase(dto);
+  },
+
+  /** แก้รายละเอียดคดีและเพิ่มผู้รับผิดชอบ แล้วคืนคดีที่อัปเดตแล้ว */
+  async update(caseId: string, input: UpdateCaseInput): Promise<Case> {
+    const dto = await request<CaseApiResponse>(`/api/cases/${encodeURIComponent(caseId)}`, {
+      method: "PUT",
+      body: JSON.stringify({
+        title: input.title,
+        description: input.description || null,
+        location: input.location || null,
+        incident_date: input.incident_date || null,
+        assigned_officers: input.assigned_officers.filter((o) => UUID_RE.test(o)),
       }),
     });
     return toCase(dto);

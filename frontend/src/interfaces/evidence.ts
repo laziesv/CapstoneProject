@@ -69,6 +69,16 @@ export interface NewCaseInput {
   assigned_officers: string[];
 }
 
+/** payload แก้คดี — PUT /api/cases/{case_id}
+ *  assigned_officers ต้องมีคนเดิมครบ (เพิ่มได้อย่างเดียว ถอดออกไม่ได้) */
+export interface UpdateCaseInput {
+  title: string;
+  description: string;
+  location: string;
+  incident_date: string;
+  assigned_officers: string[];
+}
+
 export interface EvidenceItem {
   evidence_id: string;
   evidence_number: string;
