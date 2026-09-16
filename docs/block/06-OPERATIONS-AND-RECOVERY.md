@@ -185,7 +185,7 @@ $env:DB_NAME
 .\.venv\Scripts\python.exe -m alembic check
 ```
 
-Head ที่ source ปัจจุบัน: `a6c8e1f4b2d9`
+Head ที่ source ปัจจุบัน: `c7d9e2a4f6b1`
 
 ห้ามใช้ `stamp head` เพื่อข้าม missing revision จนกว่าจะตรวจ schema equivalence ห้ามใช้ `reset_db.py`, `DROP DATABASE`, `DROP SCHEMA`, broad `TRUNCATE` หรือ unconditional `DELETE` กับ DB ทีม
 

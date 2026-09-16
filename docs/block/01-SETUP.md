@@ -269,7 +269,7 @@ $env:DB_NAME = '<target-database>'
 .\.venv\Scripts\python.exe -m alembic check
 ```
 
-Head ปัจจุบันคือ `a6c8e1f4b2d9` อย่ารันกับ DB จริงโดยไม่ยืนยัน `DB_NAME` ก่อน การ import `app.main` ยังทดสอบ DB connection และ seed admin/sample data ตามเงื่อนไข จึงไม่ใช่ read-only import
+Head ปัจจุบันคือ `c7d9e2a4f6b1` อย่ารันกับ DB จริงโดยไม่ยืนยัน `DB_NAME` ก่อน การ import `app.main` ยังทดสอบ DB connection และ seed admin/sample data ตามเงื่อนไข จึงไม่ใช่ read-only import
 
 ## Run Backend
 

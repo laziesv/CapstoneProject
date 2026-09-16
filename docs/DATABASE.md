@@ -271,9 +271,8 @@ users ──┐
 | `action_type` | enum BlockchainAction | **not null** — REGISTER/VERIFY/UPLOAD/ACCESS/TRANSFER/FLAG |
 | `block_number` | int | เลขบล็อก |
 | `contract_address` | varchar(42) | `0x` + 40 hex |
-| `input_data_hash` | text | |
 | `status` | varchar(30) | **not null** default pending, index — pending/confirmed/failed |
-| `gas_used` | int | |
+| `gas_used` | int | ค่า `gasUsed` จริงจาก mined receipt; เป็น `NULL` ระหว่างรอยืนยัน |
 | `block_timestamp` | timestamptz | |
 | `created_at` | timestamptz | **not null** default now() |
 

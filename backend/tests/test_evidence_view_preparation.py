@@ -22,7 +22,7 @@ from fastapi import HTTPException, Response
 from app.integrations.blockchain.transaction_repository import (
     BlockchainTransactionRepository,
 )
-from app.models.enums import AuditAction, AuditResult
+from app.models.enums import AuditAction, AuditResult, BlockchainAction
 from app.repositories.access_log_repository import AccessLogRepository
 from app.routes.evidence_items import create_view_session
 from app.schemas.evidence import EvidenceViewSessionRequest
@@ -173,6 +173,39 @@ class AccessLogViewRepositoryTests(unittest.TestCase):
         db.commit.assert_not_called()
 
 
+class BlockchainTransactionViewRepositoryTests(unittest.TestCase):
+    def test_pending_confirmation_and_replacement_gas_lifecycle(self):
+        db = MagicMock()
+        transaction = BlockchainTransactionRepository.stage_submitted_access(
+            db,
+            tx_hash="0x" + "12" * 32,
+            evidence_id=uuid4(),
+            initiated_by=uuid4(),
+            contract_address="0x" + "34" * 20,
+        )
+
+        self.assertEqual(transaction.action_type, BlockchainAction.ACCESS)
+        self.assertIsNone(transaction.gas_used)
+
+        BlockchainTransactionRepository.confirm_access(
+            transaction,
+            block_number=18_100,
+            block_timestamp=datetime(2026, 9, 10, 5, 0, tzinfo=timezone.utc),
+            contract_address="0x" + "34" * 20,
+            gas_used=45_678,
+        )
+        self.assertEqual(transaction.gas_used, 45_678)
+
+        BlockchainTransactionRepository.replace_access_submission(
+            transaction,
+            tx_hash="0x" + "56" * 32,
+            contract_address="0x" + "34" * 20,
+        )
+        self.assertIsNone(transaction.gas_used)
+        self.assertIsNone(transaction.block_number)
+        self.assertIsNone(transaction.block_timestamp)
+
+
 class EvidenceViewLifecycleTests(unittest.TestCase):
     def setUp(self):
         self.db = MagicMock()
@@ -197,6 +230,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
             status="pending_confirmation",
             block_number=None,
             block_timestamp=None,
+            gas_used=None,
             contract_address="0x" + "34" * 20,
             created_at=None,
         )
@@ -205,6 +239,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
             "block_number": 18100,
             "block_timestamp": self.occurred_at,
             "contract_address": self.transaction.contract_address,
+            "gas_used": 45_678,
         }
         self.blockchain = MagicMock()
         self.blockchain.contract_address = self.transaction.contract_address
@@ -301,6 +336,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.assertEqual(result.access_log_id, self.request_id)
         self.assertEqual(self.access_log.result, AuditResult.SUCCESS)
         self.assertEqual(self.transaction.status, "confirmed")
+        self.assertEqual(self.transaction.gas_used, 45_678)
         self.assertEqual(events, ["db_commit", "submit", "db_commit", "confirm", "db_commit"])
         self.blockchain.submit_access.assert_called_once()
         self.blockchain.confirm_access.assert_called_once()
@@ -314,6 +350,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.assertEqual(result.tx_hash, self.transaction.tx_hash)
         self.assertEqual(self.access_log.result, AuditResult.PENDING)
         self.assertEqual(self.access_log.tx_internal_id, self.transaction.tx_internal_id)
+        self.assertIsNone(self.transaction.gas_used)
         self.assertGreaterEqual(self.db.commit.call_count, 2)
         self.blockchain.submit_access.assert_called_once()
 
@@ -345,6 +382,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.assertEqual(second.status, EvidenceViewState.CONFIRMED)
         self.assertEqual(first.access_log_id, second.access_log_id)
         self.assertEqual(first.access_session_ref, second.access_session_ref)
+        self.assertEqual(self.transaction.gas_used, 45_678)
         self.blockchain.submit_access.assert_called_once()
         self.assertEqual(self.blockchain.confirm_access.call_count, 2)
         self.assertFalse(self.blockchain.confirm_access.call_args.kwargs["wait_for_receipt"])
@@ -545,6 +583,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.blockchain.confirm_access.side_effect = [None, {
             **self.confirmed,
             "tx_hash": replacement_tx_hash,
+            "gas_used": 67_890,
         }]
         self.blockchain.submit_access.return_value = {
             "tx_hash": replacement_tx_hash,
@@ -576,6 +615,7 @@ class EvidenceViewLifecycleTests(unittest.TestCase):
         self.assertNotEqual(self.transaction.tx_hash, old_tx_hash)
         self.assertEqual(self.transaction.tx_hash, replacement_tx_hash)
         self.assertEqual(self.transaction.status, "confirmed")
+        self.assertEqual(self.transaction.gas_used, 67_890)
         self.blockchain.submit_access.assert_called_once_with(
             evidence_id=self.evidence.evidence_id,
             officer_user_id=self.user.user_id,
