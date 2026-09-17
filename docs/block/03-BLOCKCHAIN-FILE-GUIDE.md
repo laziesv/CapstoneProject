@@ -1,9 +1,9 @@
 # Blockchain File Guide
 
 > **วัตถุประสงค์:** อธิบายโครงสร้างไฟล์, source of truth, ownership และความปลอดภัยในการแก้ Blockchain repository
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Blockchain Developer, Backend Developer, Operator, AI
@@ -124,6 +124,8 @@ flowchart LR
 
 ห้ามแก้ artifact ด้วยมือ CI เปรียบเทียบ artifact ที่ export กับ Foundry build แบบ byte-for-byte
 
+Revision `3a92ec3` ปรับ CI ให้แสดง diagnostics และเก็บ artifact เมื่อ comparison ล้ม, regenerate committed artifact จาก build และ normalize path metadata ใน `foundry.lock` โดย dependency revisions เดิม ส่วน Python client/test เปลี่ยนเฉพาะ type/import cleanup ไม่มี Solidity, ABI semantics, network topology หรือ runtime client behavior เปลี่ยน
+
 ## Network Files
 
 | Path | หน้าที่ |
@@ -137,7 +139,7 @@ flowchart LR
 | `network/besu/scripts/health-check.py` | read-only chain/network checks |
 | `network/besu/scripts/validate-generated-network.py` | validate generated topology |
 | `network/besu/monitoring/prometheus.yml` | scrape targets/interval |
-| `network/besu/monitoring/alerts.yml` | current Prometheus alert rules |
+| `network/besu/monitoring/alert-rules.yml` | current Prometheus alert rules |
 | `network/besu/monitoring/grafana/` | datasource, dashboard provisioning และ JSON |
 
 ## Data Classification

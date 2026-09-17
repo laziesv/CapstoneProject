@@ -241,7 +241,7 @@ def seed_sample_data():
         BlockchainTransaction(tx_hash="0x6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a",
                               evidence_id=e3.evidence_id, initiated_by=officer_id,
                               action_type=BlockchainAction.REGISTER, block_number=18251000,
-                              contract_address=contract, status="pending", gas_used=0,
+                              contract_address=contract, status="pending", gas_used=None,
                               block_timestamp=_dt("2026-04-12T09:01:00")),
     ]
     db.add_all(txs)

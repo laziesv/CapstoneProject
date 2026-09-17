@@ -1,9 +1,12 @@
 """Focused checks for environment loading and the reconciled migration graph."""
 
 import importlib.util
+from contextlib import contextmanager
 from pathlib import Path
 from unittest import TestCase
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+import sqlalchemy as sa
 
 from app.environment import BACKEND_ENV_PATH, load_backend_environment
 from app.models.enums import AuditAction, FileType
@@ -44,6 +47,9 @@ class MigrationCompatibilityTests(TestCase):
         pending_view = _load_migration(
             "a6c8e1f4b2d9_add_pending_view_lifecycle.py"
         )
+        remove_input_hash = _load_migration(
+            "c7d9e2a4f6b1_remove_input_data_hash.py"
+        )
 
         self.assertIsNone(legacy_root.down_revision)
         self.assertEqual(legacy_head.down_revision, legacy_root.revision)
@@ -59,6 +65,53 @@ class MigrationCompatibilityTests(TestCase):
             {compatibility_merge.revision, drop_audit.revision},
         )
         self.assertEqual(pending_view.down_revision, final_merge.revision)
+        self.assertEqual(remove_input_hash.down_revision, pending_view.revision)
+
+    def test_input_data_hash_removal_is_reversible(self) -> None:
+        migration = _load_migration("c7d9e2a4f6b1_remove_input_data_hash.py")
+
+        with self._inspected_columns(migration, ["tx_hash", "input_data_hash"]):
+            with patch.object(migration.op, "drop_column") as drop_column:
+                migration.upgrade()
+        drop_column.assert_called_once_with(
+            "blockchain_transactions",
+            "input_data_hash",
+        )
+
+        with self._inspected_columns(migration, ["tx_hash"]):
+            with patch.object(migration.op, "add_column") as add_column:
+                migration.downgrade()
+        table_name, column = add_column.call_args.args
+        self.assertEqual(table_name, "blockchain_transactions")
+        self.assertEqual(column.name, "input_data_hash")
+        self.assertIsInstance(column.type, sa.Text)
+        self.assertTrue(column.nullable)
+
+    def test_input_data_hash_removal_skips_a_column_another_branch_dropped(self) -> None:
+        """สาย deploy มี 7c2a4d9b8e13 ที่ลบคอลัมน์เดียวกัน พอรวมสองสายแล้ว
+        ตัวที่รันทีหลังต้องข้ามไปเฉย ๆ ไม่ใช่ล้มทั้ง migration"""
+
+        migration = _load_migration("c7d9e2a4f6b1_remove_input_data_hash.py")
+
+        with self._inspected_columns(migration, ["tx_hash"]):
+            with patch.object(migration.op, "drop_column") as drop_column:
+                migration.upgrade()
+        drop_column.assert_not_called()
+
+        with self._inspected_columns(migration, ["tx_hash", "input_data_hash"]):
+            with patch.object(migration.op, "add_column") as add_column:
+                migration.downgrade()
+        add_column.assert_not_called()
+
+    @contextmanager
+    def _inspected_columns(self, migration, names: list[str]):
+        """ทำให้ migration มองเห็นคอลัมน์ตามที่กำหนด โดยไม่ต้องต่อฐานข้อมูลจริง"""
+
+        inspector = Mock()
+        inspector.get_columns.return_value = [{"name": name} for name in names]
+        with patch.object(migration.op, "get_bind", return_value=Mock()):
+            with patch.object(migration.sa, "inspect", return_value=inspector):
+                yield
 
     def test_python_enums_accept_legacy_and_current_labels(self) -> None:
         self.assertEqual(FileType("IMAGE"), FileType.IMAGE)

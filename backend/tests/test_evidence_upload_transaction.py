@@ -63,11 +63,12 @@ class BlockchainTransactionRepositoryTests(TestCase):
             initiated_by="22222222-2222-4222-8222-222222222222",
             block_number=6500,
             contract_address="0x1111111111111111111111111111111111111111",
+            gas_used=54_321,
         )
 
         self.assertEqual(transaction.action_type, BlockchainAction.REGISTER)
         self.assertEqual(transaction.status, "confirmed")
-        self.assertIsNone(transaction.gas_used)
+        self.assertEqual(transaction.gas_used, 54_321)
         self.assertIsNone(transaction.block_timestamp)
         db.add.assert_called_once_with(transaction)
         db.flush.assert_called_once_with()
@@ -152,6 +153,7 @@ class EvidenceUploadTransactionTests(TestCase):
             "tx_hash": "0x" + "c" * 64,
             "block_number": 6500,
             "contract_address": "0x1111111111111111111111111111111111111111",
+            "gas_used": 54_321,
         }
 
         with (
@@ -228,6 +230,7 @@ class EvidenceUploadTransactionTests(TestCase):
             initiated_by="22222222-2222-4222-8222-222222222222",
             block_number=6500,
             contract_address="0x1111111111111111111111111111111111111111",
+            gas_used=54_321,
         )
         self.assertTrue(evidence.is_blockchain_verified)
         self.assertEqual(upload_result.evidence_ref, "0x" + "d" * 64)
@@ -507,6 +510,7 @@ class EvidenceUploadTransactionTests(TestCase):
             "tx_hash": "0x" + "c" * 64,
             "block_number": 6500,
             "contract_address": "0x1111111111111111111111111111111111111111",
+            "gas_used": 54_321,
         }
 
         with (

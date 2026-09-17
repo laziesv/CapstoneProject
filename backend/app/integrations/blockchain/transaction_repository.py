@@ -63,7 +63,7 @@ class BlockchainTransactionRepository:
         initiated_by: UUID,
         block_number: int,
         contract_address: str,
-        gas_used: int | None = None,
+        gas_used: int,
     ) -> BlockchainTransaction:
         transaction = BlockchainTransaction(
             tx_hash=tx_hash,
@@ -89,7 +89,7 @@ class BlockchainTransactionRepository:
         initiated_by: UUID,
         block_number: int,
         contract_address: str,
-        gas_used: int | None = None,
+        gas_used: int,
     ) -> BlockchainTransaction:
         transaction = BlockchainTransaction(
             tx_hash=tx_hash,
@@ -137,7 +137,7 @@ class BlockchainTransactionRepository:
         block_number: int,
         block_timestamp: datetime,
         contract_address: str,
-        gas_used: int | None = None,
+        gas_used: int,
     ) -> BlockchainTransaction:
         transaction.block_number = block_number
         transaction.block_timestamp = block_timestamp

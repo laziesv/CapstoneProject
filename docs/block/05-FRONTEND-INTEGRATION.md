@@ -1,9 +1,9 @@
 # Frontend Integration
 
 > **วัตถุประสงค์:** อธิบาย Frontend behavior, API contracts, state/polling และ forensic presentation ที่เพิ่มจาก Blockchain integration
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Frontend Developer, UX Reviewer, AI
@@ -25,6 +25,8 @@ flowchart TD
 ```
 
 Frontend ไม่ derive signer, ไม่ถือ private key, ไม่เรียก Besu RPC และไม่ตัดสิน integrity จากข้อมูลที่สร้างเอง
+
+Evidence list ใช้ shared in-flight read สำหรับ request path เดียวกัน เพื่อลด duplicate QUERY audit จาก React Strict Mode ส่วน `evidenceService.get(ref)` เรียก direct `GET /api/evidences/{ref}` และไม่โหลดรายการทั้งหมดมากรองใน browser Endpoint นี้เป็น read-only; intentional VIEW ยังเกิดผ่าน hook แยก
 
 ## Intentional VIEW
 
@@ -129,6 +131,8 @@ Frontend ใช้ศัพท์ forensic ที่ไม่กล่าวห�
 
 Legacy row ถูกติดป้าย partial ไม่แสดงเหมือน V3 fully verified
 
+Panel โหลดหน้าใหม่ล่าสุดก่อนด้วย `limit/offset`, แสดงจำนวนรวม และให้ขยายย้อนกลับเป็นหน้า ๆ โดยไม่เปลี่ยน Blockchain order ภายใน timeline หรือผล verification ซึ่ง Backend คำนวณจาก full history
+
 ## Blockchain Explorer UI
 
 Admin page `/blockchain` รองรับค้นหา:
@@ -195,7 +199,7 @@ Frontend protected layout/Sidebar ซ่อน Admin-only features ตาม rol
 | Test file | Tests | Focus |
 |---|---:|---|
 | `blockchainExplorer.test.mjs` | 9 | input parsing, chain/DB presentation |
-| `evidenceDownloadError.test.mjs` | 8 | error categories/safe messages |
+| `evidenceDownloadError.test.mjs` | 9 | error categories/safe messages/minimum watermark size |
 | `evidenceIntegrityPresentation.test.mjs` | 3 | original/DB/blockchain integrity |
 | `evidenceOperationFeedback.test.mjs` | 10 | operation wording/metadata |
 | `forensics.test.mjs` | 11 | timestamps, identity, mismatch formatting |
@@ -204,7 +208,7 @@ Frontend protected layout/Sidebar ซ่อน Admin-only features ตาม rol
 | `viewRequestIdentity.test.mjs` | 2 | stable/scoped request identity |
 | `watermarkQrPresentation.test.mjs` | 7 | QR/payload presentation |
 
-รวม baseline 63 tests
+รวม 64 tests ใน source ปัจจุบัน การตรวจครั้งล่าสุดผ่าน 63 และล้ม 1 test ใน `operationProgress.test.mjs` เพราะ assertion ยังหา `<IntentionalEvidenceProgress` ใน dashboard source ซึ่ง implementation ปัจจุบันไม่มี ต้องแก้เป็นงาน Frontend แยกก่อนอ้างว่า suite ผ่านทั้งหมด
 
 ## Development Rules
 

@@ -90,7 +90,8 @@ class BlockchainIntegrationService:
         evidence_ref = derive_evidence_ref(evidence_id)
         canonical_hash = normalize_bytes32(evidence_hash, "evidence_hash")
         uploader_ref = derive_actor_ref(uploader_user_id)
-        result = self._client_provider().record_evidence(
+        client = self._client_provider()
+        result = client.record_evidence(
             evidence_ref,
             canonical_hash,
             uploader_ref,
@@ -101,8 +102,8 @@ class BlockchainIntegrationService:
             "uploader_ref": uploader_ref,
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
-            "gas_used": self.get_transaction_gas_used(result.tx_hash),
             "contract_address": result.contract_address,
+            "gas_used": self._receipt_gas_used(client, result.tx_hash),
         }
 
     def record_access(
@@ -119,7 +120,8 @@ class BlockchainIntegrationService:
         evidence_ref = derive_evidence_ref(evidence_id)
         officer_ref = derive_actor_ref(officer_user_id)
         access_session_ref = derive_access_session_ref(access_log_id)
-        result = self._client_provider().record_access(
+        client = self._client_provider()
+        result = client.record_access(
             evidence_ref,
             officer_ref,
             access_session_ref,
@@ -134,8 +136,8 @@ class BlockchainIntegrationService:
             "occurred_at": occurred_at,
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
-            "gas_used": self.get_transaction_gas_used(result.tx_hash),
             "contract_address": result.contract_address,
+            "gas_used": self._receipt_gas_used(client, result.tx_hash),
         }
 
     def submit_access(
@@ -186,7 +188,8 @@ class BlockchainIntegrationService:
         evidence_ref = derive_evidence_ref(evidence_id)
         officer_ref = derive_actor_ref(officer_user_id)
         access_session_ref = derive_access_session_ref(access_log_id)
-        result = self._client_provider().confirm_access(
+        client = self._client_provider()
+        result = client.confirm_access(
             tx_hash,
             evidence_ref,
             officer_ref,
@@ -206,22 +209,16 @@ class BlockchainIntegrationService:
             "tx_hash": result.tx_hash,
             "block_number": result.block_number,
             "block_timestamp": result.block_timestamp,
-            "gas_used": self.get_transaction_gas_used(result.tx_hash),
             "contract_address": result.contract_address,
+            "gas_used": self._receipt_gas_used(client, result.tx_hash),
         }
 
-    def get_transaction_gas_used(self, tx_hash: str) -> int | None:
-        """Read actual gas used from the authoritative transaction receipt."""
-
-        canonical_hash = normalize_tx_hash(tx_hash)
-        try:
-            receipt = self._client_provider().web3.eth.get_transaction_receipt(
-                canonical_hash
-            )
-        except TransactionNotFound:
-            return None
-        gas_used = receipt.get("gasUsed")
-        return int(gas_used) if gas_used is not None else None
+    @staticmethod
+    def _receipt_gas_used(client: Any, tx_hash: str) -> int:
+        # การเชื่อมต่อ Blockchain: ใช้ gasUsed จาก mined receipt เท่านั้น
+        # ไม่ใช้ gas limit, estimate หรือค่าที่ผู้เรียกส่งเข้ามา
+        receipt = client.web3.eth.get_transaction_receipt(tx_hash)
+        return int(receipt["gasUsed"])
 
     def check_write_liveness(self) -> dict[str, Any]:
         """Classify RPC and recent block production before an access broadcast."""

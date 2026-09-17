@@ -1,9 +1,9 @@
 # Backend Integration
 
 > **วัตถุประสงค์:** อธิบาย Backend changes, public APIs, transaction boundaries และ extension points ของ Blockchain Integration
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Backend Developer, Reviewer, AI
@@ -83,7 +83,7 @@ Disabled mode คืน health status โดยไม่สร้าง client; 
 |---|---|
 | `EvidenceItem` | flags `is_watermarked`, `is_blockchain_verified`; relation files/transactions/access logs |
 | `EvidenceFile` | ORIGINAL/WATERMARKED path, hash, size |
-| `BlockchainTransaction` | action, tx hash, block, contract, status, confirmation metadata |
+| `BlockchainTransaction` | action, tx hash, block, contract, status และ `gas_used` จริงจาก mined receipt; ค่า gas เป็น `NULL` ก่อน confirmation |
 | `AccessLog` | action/result/request identity, evidence/case/user, `tx_internal_id`, timestamps/client metadata |
 | `User` | profile และ supervisor tree; actor ref derive จาก UUID ไม่เก็บ key |
 
@@ -99,10 +99,10 @@ fa1497c19db3 -> 02677bad017f
                          c3f7a1d9e2b4 ------------------------------- e8b4c2d7a901
                                                                        |
                                                                        v
-                                                                 a6c8e1f4b2d9
+                                                                 a6c8e1f4b2d9 -> c7d9e2a4f6b1
 ```
 
-`a6c8e1f4b2d9` เพิ่ม enum `PENDING` และ partial unique index `uq_access_logs_pending_view` สำหรับ VIEW lifecycle Head ปัจจุบันคือ `a6c8e1f4b2d9` App startup ไม่รัน Alembic อัตโนมัติ
+`a6c8e1f4b2d9` เพิ่ม enum `PENDING` และ partial unique index `uq_access_logs_pending_view` สำหรับ VIEW lifecycle ส่วน `c7d9e2a4f6b1` ลบ `blockchain_transactions.input_data_hash` ที่ไม่มี canonical semantics Head ปัจจุบันคือ `c7d9e2a4f6b1` App startup ไม่รัน Alembic อัตโนมัติ
 
 > [!WARNING]
 > `backend/reset_db.py` มี destructive schema reset และอ้าง API startup เก่าบางส่วน ไม่ใช่คำสั่งมาตรฐานสำหรับ integration database ห้ามใช้กับฐานข้อมูลทีม
@@ -174,18 +174,19 @@ Exception types แยก not found, conflict, blockchain write และ reconc
 
 `EvidenceAccessService.prepare_download()`:
 
-1. authorize evidence/case
+1. lock evidence row และ authorize evidence/case
 2. require ORIGINAL/WATERMARKED metadata และ physical files
-3. live integrity check ก่อน side effect
-4. stage DOWNLOAD AccessLog
-5. derive `access_session_ref` จาก AccessLog UUID
-6. สร้าง temporary personalized copy จาก ORIGINAL
-7. `record_access(... DOWNLOAD ...)`
-8. stage confirmed ACCESS transaction และ link log
-9. commit
-10. route stream file และลบ temp หลัง response
+3. ตรวจ current WATERMARKED SHA-256 กับ hash ใน DB
+4. live ORIGINAL/DB/Blockchain integrity check ก่อน side effect
+5. stage DOWNLOAD AccessLog
+6. derive `access_session_ref` จาก AccessLog UUID
+7. สร้าง temporary personalized copy จาก WATERMARKED state ล่าสุด โดยแทน Dynamic เดิม
+8. `record_access(... DOWNLOAD ...)`
+9. stage confirmed ACCESS transaction และ link log
+10. แทน stored WATERMARKED แบบ atomic, update hash/size และคง backup จน commit
+11. commit แล้ว route stream file และลบ temp/backup ตาม lifecycle
 
-Integrity mismatch เป็น HTTP 409 พร้อม code `EVIDENCE_INTEGRITY_MISMATCH`; RPC/write failure เป็น 503; ไม่ retry write อัตโนมัติ
+Original/DB/Blockchain integrity mismatch เป็น HTTP 409 พร้อม code `EVIDENCE_INTEGRITY_MISMATCH`; stored WATERMARKED mismatch ใช้ `WATERMARKED_FILE_INTEGRITY_MISMATCH`; RPC/write failure เป็น 503; ไม่ retry write อัตโนมัติ หาก orchestration ล้มก่อน commit จะ restore stored WATERMARKED จาก backup
 
 ## Watermark Verification
 
@@ -237,6 +238,10 @@ Checks ครอบคลุม:
 
 V3 chain event ยังแสดงได้แม้ local row ถูกลบ Legacy contract row ใช้ partial verification ไม่ปะปนกับ V3 proof
 
+Endpoint รองรับ `limit` 1-200 และ `offset` ตั้งแต่ 0 เพื่อส่งหน้าล่าสุดก่อน โดยยังคำนวณ verification จาก full history และคืน `access_history_total`, `access_history_limit`, `access_history_offset` พร้อมรายการในหน้าเรียงตาม Blockchain order เดิม
+
+`GET /api/evidences/{evidence_ref}` รับได้ทั้ง Evidence UUID และ evidence number เป็น direct read ภายใต้ authorization ไม่บันทึก intentional VIEW; VIEW lifecycle ยังเป็นเจ้าของ audit side effect
+
 ## Explorer
 
 `BlockchainExplorerService` และ `/api/blockchain/*` ให้ Admin อ่าน overview/block/transaction/evidence/evidence-ref/access-session Decoding จำกัด event ของ contract address ปัจจุบัน DB enrichment เป็น optional และไม่เปลี่ยนข้อมูล chain
@@ -273,7 +278,7 @@ V3 chain event ยังแสดงได้แม้ local row ถูกลบ
 - `app/routes/{blockchain,access_logs}.py` และ route extensions
 - `app/schemas/{blockchain_explorer,chain_of_custody,integrity,access_log}.py`
 - `app/repositories/access_log_repository.py`
-- focused tests 18 modules, 220 test methods ณ baseline ล่าสุด
+- focused tests 19 modules, 233 test methods ณ baseline ล่าสุด
 
 ### Existing team files modified for orchestration
 

@@ -9,7 +9,7 @@ class StartupMigrationSafetyTests(unittest.TestCase):
         with (
             patch.object(startup_module, "test_database_connection"),
             patch.object(startup_module, "seed_admin"),
-            patch.object(startup_module, "seed_sample_data"),
+            patch.object(startup_module, "seed_demo_users"),
             patch("alembic.command.upgrade") as upgrade,
         ):
             startup_module.startup()

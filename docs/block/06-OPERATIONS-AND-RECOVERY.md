@@ -1,9 +1,9 @@
 # Operations and Recovery
 
 > **วัตถุประสงค์:** Runbook สำหรับดูแล Besu QBFT, Backend writer, pending access และข้อมูลโดยไม่ทำลาย chain state
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Operator, Developer, Incident Responder, AI
@@ -162,13 +162,13 @@ Current code ไม่มี generic automated registration reconciliation จ�
 
 - ไม่เกิด personalized file สำเร็จ
 - ไม่เกิด DOWNLOAD AccessLog/BlockchainTransaction/recordAccess
-- เปรียบ current Original hash, DB hash และ chain evidenceHash
+- ตรวจ stored WATERMARKED hash เทียบ DB ก่อน แล้วเปรียบ current Original hash, DB original hash และ chain evidenceHash
 - restore file/metadata จาก backup ที่เชื่อถือได้หรือเปิด incident
 
 ### Chain confirm แต่ DB commit ล้ม
 
 - chain session อาจมีอยู่
-- temp file ถูก cleanup เมื่อ exception
+- temp file ถูก cleanup และ stored WATERMARKED ถูก restore จาก rollback backup เมื่อ exception ก่อน DB commit
 - ห้าม retry download แบบ blind
 - query `getAccessBySession(access_session_ref)` และ transaction receipt ก่อนตัดสินใจ
 - reconciliation ต้อง reuse immutable session ไม่สร้าง log identity ใหม่โดยไม่มีเหตุผล
@@ -185,7 +185,7 @@ $env:DB_NAME
 .\.venv\Scripts\python.exe -m alembic check
 ```
 
-Head ที่ source ปัจจุบัน: `a6c8e1f4b2d9`
+Head ที่ source ปัจจุบัน: `c7d9e2a4f6b1`
 
 ห้ามใช้ `stamp head` เพื่อข้าม missing revision จนกว่าจะตรวจ schema equivalence ห้ามใช้ `reset_db.py`, `DROP DATABASE`, `DROP SCHEMA`, broad `TRUNCATE` หรือ unconditional `DELETE` กับ DB ทีม
 

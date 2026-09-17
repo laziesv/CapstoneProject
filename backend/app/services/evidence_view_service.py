@@ -737,7 +737,7 @@ class EvidenceViewPreparationService:
             block_number=result["block_number"],
             block_timestamp=result["block_timestamp"],
             contract_address=result["contract_address"],
-            gas_used=result.get("gas_used"),
+            gas_used=result["gas_used"],
         )
         access_log.result = AuditResult.SUCCESS
         db.commit()

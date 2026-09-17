@@ -26,7 +26,13 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.add_column(
-        "blockchain_transactions",
-        sa.Column("input_data_hash", sa.Text(), nullable=True),
-    )
+    # เช็คก่อนเพิ่มเพราะสาย main มี c7d9e2a4f6b1 ที่ downgrade แล้วเพิ่มคอลัมน์เดียวกัน
+    # ตัวที่รันทีหลังจะเจอคอลัมน์อยู่แล้ว ต้องปล่อยผ่านไม่ใช่ล้มด้วย DuplicateColumn
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("blockchain_transactions")}
+    if "input_data_hash" not in columns:
+        op.add_column(
+            "blockchain_transactions",
+            sa.Column("input_data_hash", sa.Text(), nullable=True),
+        )

@@ -3,7 +3,7 @@
 from unittest import TestCase
 
 from app.database import Base
-from app.models import AccessLog  # noqa: F401
+from app.models import AccessLog, BlockchainTransaction  # noqa: F401
 from app.models.enums import AuditAction, AuditResult
 
 
@@ -45,3 +45,9 @@ class ModelMetadataAlignmentTests(TestCase):
             ["user_id", "evidence_id"],
         )
         self.assertEqual(AuditResult("PENDING"), AuditResult.PENDING)
+
+    def test_blockchain_transaction_keeps_nullable_gas_without_input_hash(self) -> None:
+        table = Base.metadata.tables["blockchain_transactions"]
+
+        self.assertNotIn("input_data_hash", table.c)
+        self.assertTrue(table.c.gas_used.nullable)

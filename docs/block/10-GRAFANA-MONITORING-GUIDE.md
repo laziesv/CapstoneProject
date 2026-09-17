@@ -1,9 +1,9 @@
 # Grafana Monitoring Guide
 
 > **วัตถุประสงค์:** คู่มืออ่าน Grafana/Prometheus/Besu metrics, แยก consensus health จาก application transaction health และใช้ dashboard วินิจฉัยอย่างปลอดภัย
-> **Last Verified Date:** 2026-09-10
-> **Parent Revision:** `de54028e4cf704068ac7dcabfe4c7767be2336f5`
-> **Blockchain Revision:** `1fdfe5a839105c0fec6c9ada98d04b82d8f04d06`
+> **Last Verified Date:** 2026-09-12
+> **Parent Revision:** `133aa9b3716c735748c96ac4ad9fba047fddc35f` (base revision; submodule/docs update pending commit)
+> **Blockchain Revision:** `3a92ec3f2096d812c588d8bf8eea209e60a27717`
 > **Smart Contract Version:** `EvidenceRegistryV3` (V3-only runtime)
 > **Network Technology:** Hyperledger Besu 26.7.0, QBFT, private EVM, Chain ID `20260720`
 > **Intended Audience:** Operator, Developer, Incident Responder, AI
