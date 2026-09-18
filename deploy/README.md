@@ -1,5 +1,25 @@
 # DEVA Production-lite Deployment
 
+## Jenkins CI/CD
+
+`Jenkinsfile` runs these checks in order before deployment:
+
+1. Check out the repository and initialize Git submodules.
+2. Install backend dependencies in `.ci-venv` and run `pytest`.
+3. Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` for the frontend.
+4. Run `forge test` for the smart contracts.
+
+The Jenkins Linux agent needs Python 3.12 with `venv`/`pip`, Node.js 24 with npm,
+Foundry (`forge`), Git, and the native libraries used by the backend tests
+(including `libzbar0` and OpenCV runtime libraries). It also needs network access
+to install dependencies and initialize the submodule. A failed check stops the
+pipeline before deployment.
+
+Deployment and its health check run only for the `deploy` branch. Before updating
+the VPS, Jenkins checks that the remote `deploy` commit matches `GIT_COMMIT`, so
+the deployed source is the same commit that passed CI. The existing SSH credential
+`deva-vps-ssh` and deployment environment on the VPS are still required.
+
 โฟลเดอร์นี้ใช้สำหรับ deploy โปรเจค DEVA ขึ้น VPS แบบ production-lite ด้วย Docker Compose และ Ansible
 
 ## Files

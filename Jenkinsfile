@@ -5,6 +5,7 @@ pipeline {
     timestamps()
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '10'))
+    timeout(time: 45, unit: 'MINUTES')
   }
 
   environment {
@@ -21,10 +22,50 @@ pipeline {
     stage('Checkout') {
       steps {
         checkout scm
+        sh 'git submodule update --init --recursive'
+      }
+    }
+
+    stage('Backend tests') {
+      steps {
+        sh '''
+          set -eu
+          python3.12 -m venv .ci-venv
+          cd backend
+          ../.ci-venv/bin/python -m pip install -r requirements.txt pytest
+          ../.ci-venv/bin/python -m pytest -q tests
+        '''
+      }
+    }
+
+    stage('Frontend checks') {
+      steps {
+        dir('frontend') {
+          sh '''
+            set -eu
+            npm ci
+            npm test
+            npm run lint
+            npm run build
+          '''
+        }
+      }
+    }
+
+    stage('Smart contract tests') {
+      steps {
+        dir('blockchain') {
+          sh 'forge test'
+        }
       }
     }
 
     stage('Deploy') {
+      when {
+        expression {
+          env.BRANCH_NAME == 'deploy' || env.GIT_BRANCH in ['deploy', 'origin/deploy']
+        }
+      }
       steps {
         sshagent(credentials: [env.DEPLOY_CREDENTIALS]) {
           sh '''
@@ -32,8 +73,10 @@ pipeline {
               set -e
               cd ${APP_DIR}
               git fetch origin ${BRANCH}
+              test \"\$(git rev-parse FETCH_HEAD)\" = \"${GIT_COMMIT}\"
               git checkout ${BRANCH}
               git pull --ff-only origin ${BRANCH}
+              test \"\$(git rev-parse HEAD)\" = \"${GIT_COMMIT}\"
               cd ${DEPLOY_DIR}
               docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
             "
@@ -43,6 +86,11 @@ pipeline {
     }
 
     stage('Health check') {
+      when {
+        expression {
+          env.BRANCH_NAME == 'deploy' || env.GIT_BRANCH in ['deploy', 'origin/deploy']
+        }
+      }
       steps {
         sh '''
           for attempt in $(seq 1 24); do
@@ -68,10 +116,10 @@ pipeline {
 
   post {
     success {
-      echo 'DEVA deployment completed successfully.'
+      echo 'DEVA CI checks passed; deployment runs only for the deploy branch.'
     }
     failure {
-      echo 'DEVA deployment failed. Check the Jenkins console output.'
+      echo 'DEVA pipeline failed. Check the Jenkins console output.'
     }
   }
 }
