@@ -15,6 +15,51 @@ Foundry (`forge`), Git, and the native libraries used by the backend tests
 to install dependencies and initialize the submodule. A failed check stops the
 pipeline before deployment.
 
+### Jenkins running in a container
+
+The standard `jenkins/jenkins:lts` image does not include the CI tools above.
+`deploy/jenkins-ci.Dockerfile` adds them to the **same Jenkins controller image**;
+it does not require a Docker socket or Docker Pipeline plugin. Build it on the
+Ubuntu host using the currently running controller image as the base, so the
+Jenkins version does not change:
+
+```bash
+cd /opt/deva
+docker image tag "$(docker inspect -f '{{.Image}}' jenkins)" deva-jenkins-base:current
+docker build --build-arg JENKINS_BASE=deva-jenkins-base:current \
+  -f deploy/jenkins-ci.Dockerfile -t deva-jenkins-ci:local .
+docker run --rm --entrypoint sh deva-jenkins-ci:local -c \
+  'python3.12 --version && node --version && npm --version && forge --version'
+```
+
+The current local installation uses `/opt/jenkins` for `/var/jenkins_home`,
+`bridge` networking, `unless-stopped` restart, and loopback-only ports 8080 and
+50000. After checking that the existing container has no additional custom
+environment or flags, replace only the container; keep `/opt/jenkins` and the
+old container for rollback:
+
+```bash
+docker stop jenkins
+docker rename jenkins jenkins-before-ci
+docker run -d --name jenkins --restart unless-stopped --network bridge \
+  -p 127.0.0.1:8080:8080 -p 127.0.0.1:50000:50000 \
+  -v /opt/jenkins:/var/jenkins_home deva-jenkins-ci:local
+docker logs --tail 50 jenkins
+```
+
+If the new controller cannot start, restore the previous container using the
+same `/opt/jenkins` data directory:
+
+```bash
+docker stop jenkins
+docker rename jenkins jenkins-ci-failed
+docker rename jenkins-before-ci jenkins
+docker start jenkins
+```
+
+These commands change the Jenkins container only; they do not redeploy DEVA or
+modify the Besu network. Run the pipeline again after Jenkins is healthy.
+
 Deployment and its health check run only for the `deploy` branch. Before updating
 the VPS, Jenkins checks that the remote `deploy` commit matches `GIT_COMMIT`, so
 the deployed source is the same commit that passed CI. The existing SSH credential
