@@ -27,6 +27,13 @@ pipeline {
     }
 
     stage('Backend tests') {
+      environment {
+        DB_HOST = '127.0.0.1'
+        DB_PORT = '5432'
+        DB_NAME = 'deva_ci'
+        DB_USER = 'deva_ci'
+        DB_PASSWORD = 'deva_ci'
+      }
       steps {
         sh '''
           set -eu

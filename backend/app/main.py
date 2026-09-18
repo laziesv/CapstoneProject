@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,9 +15,16 @@ from app.routes.blockchain import router as blockchain_router
 from app.core.startup import startup
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    startup()
+    yield
+
+
 app = FastAPI(
     title="DEVA API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ── CORS ────────────────────────────────────────────────
@@ -28,7 +37,6 @@ app.add_middleware(
 )
 
 # ── Startup ─────────────────────────────────────────────
-startup()
 
 # ── Routers ─────────────────────────────────────────────
 app.include_router(auth_router, prefix="/api")
