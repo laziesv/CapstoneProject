@@ -15,11 +15,12 @@ from app.repositories.evidence_items_repository import EvidenceRepository
 from app.utils.ref_lookup import resolve_by_ref
 from app.repositories.evidence_files_repository import EvidenceFileRepository
 from app.utils.hash import calculate_sha256
-from app.models.enums import FileType
+from app.models.enums import BlockchainAction, FileType
 from app.integrations.blockchain import BlockchainIntegrationService
 from app.integrations.blockchain.transaction_repository import (
     BlockchainTransactionRepository,
 )
+from blockchain_client import derive_evidence_ref
 
 # mainyy.py ใช้ implicit import (from clTBwavelet import ...) จึงต้องมีโฟลเดอร์
 # watermark อยู่บน sys.path ก่อน import — ทำที่นี่เพื่อไม่ต้องแก้โค้ดในโฟลเดอร์ watermark
@@ -37,6 +38,13 @@ UPLOAD_DIR = "uploads/evidence"
 
 class EvidenceBlockchainWriteError(RuntimeError):
     """Raised when evidence registration cannot be confirmed on chain."""
+
+
+class EvidenceUploadRequestConflictError(ValueError):
+    """request_id นี้ถูกใช้โดยผู้อัปโหลดคนอื่นไปแล้ว
+
+    แยกจากการส่งซ้ำตามปกติ เพราะการคืนหลักฐานของคนอื่นกลับไปคือการรั่วข้อมูล
+    """
 
 
 class EvidenceImageTooSmallError(ValueError):
@@ -105,6 +113,35 @@ class EvidenceService:
 
 
     @staticmethod
+    def _replay_upload(db: Session, evidence: EvidenceItem):
+        """สร้างผลลัพธ์เดิมของหลักฐานที่เคยบันทึกสำเร็จแล้ว โดยไม่แตะเชนซ้ำ
+
+        evidence_ref คำนวณจาก evidence_id ได้ตรง ๆ (เป็นฟังก์ชันที่ให้ผลเดิมเสมอ)
+        ส่วน tx_hash/block_number/contract_address อ่านจากตารางธุรกรรมที่บันทึกไว้
+        ตอนอัปโหลดครั้งแรก
+        """
+        registrations = BlockchainTransactionRepository.get_by_evidence_and_action(
+            db,
+            evidence_id=evidence.evidence_id,
+            action_type=BlockchainAction.REGISTER,
+        )
+        if not registrations:
+            # มีหลักฐานแต่ไม่มีธุรกรรมกำกับ = ข้อมูลไม่ครบคู่ ซึ่งไม่ควรเกิด
+            # ไม่เดาค่าให้ เพราะผลอัปโหลดต้องอ้างธุรกรรมจริงบนเชนเสมอ
+            raise EvidenceBlockchainWriteError(
+                "Evidence registration transaction is missing"
+            )
+
+        transaction = registrations[0]
+        return EvidenceUploadResult(
+            evidence=evidence,
+            evidence_ref=derive_evidence_ref(evidence.evidence_id),
+            tx_hash=transaction.tx_hash,
+            block_number=transaction.block_number,
+            contract_address=transaction.contract_address,
+        )
+
+    @staticmethod
     def upload(
         db: Session,
         data,
@@ -116,6 +153,21 @@ class EvidenceService:
         # DB rollback cannot undo filesystem writes, so track files created by this
         # upload and remove them when the orchestration fails.
         created_file_paths = []
+
+        # กันอัปโหลดซ้ำก่อนทำอะไรทั้งสิ้น — ถ้า request_id นี้เคยสำเร็จแล้ว
+        # คืนผลเดิมทันที ไม่เขียนไฟล์ ไม่ฝังลายน้ำ ไม่ยิงธุรกรรมใหม่
+        # เคสที่เกิดจริง: เน็ตหลุดตอนรอ response แล้วผู้ใช้กดส่งใหม่
+        request_id = getattr(data, "request_id", None)
+        if request_id is not None:
+            existing = EvidenceRepository.get_by_upload_request_id(db, request_id)
+            if existing is not None:
+                if existing.uploaded_by != uploaded_by:
+                    # คนละคนใช้ request_id ซ้ำกัน = ไม่ใช่การส่งซ้ำของคำขอเดิม
+                    # ไม่คืนหลักฐานของคนอื่นให้ และไม่บันทึกทับของเดิม
+                    raise EvidenceUploadRequestConflictError(
+                        "upload request id belongs to another uploader"
+                    )
+                return EvidenceService._replay_upload(db, existing)
 
         try:
             os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -139,7 +191,8 @@ class EvidenceService:
                 uploaded_by=uploaded_by,
                 description=data.description,
                 captured_at=data.captured_at,
-                original_filename=upload_file.filename
+                original_filename=upload_file.filename,
+                upload_request_id=request_id,
             )
 
             EvidenceRepository.create(db, evidence)

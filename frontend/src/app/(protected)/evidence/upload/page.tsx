@@ -28,7 +28,26 @@ interface PendingFile {
   exifCapturedAt: string;   // จากไฟล์ ("" ถ้าไม่มี)
   manualCapturedAt: string; // ผู้ใช้กรอกเอง (ใช้เมื่อไฟล์ไม่มี EXIF)
   description: string;
+  /** กันอัปโหลดซ้ำ — ผูกกับไฟล์ตั้งแต่ตอนเพิ่มเข้ารายการ ไม่เปลี่ยนอีกเลย
+   *  ถ้าส่งไปแล้วสำเร็จแต่ผู้ใช้ไม่รู้แล้วกดซ้ำ server จะคืนผลเดิมให้
+   *  แทนที่จะสร้างหลักฐานใหม่พร้อมธุรกรรมบนเชนที่ลบไม่ได้ */
+  requestId: string;
 }
+
+/** UUID สำหรับกันอัปโหลดซ้ำ — crypto.randomUUID ไม่มีใน http ที่ไม่ใช่ localhost
+ *  จึงมีทางสำรองไว้ ค่าที่ได้ไม่ต้องเดายาก แค่ต้องไม่ซ้ำกันเองในเครื่องเดียว */
+const newRequestId = (): string => {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant
+  const s = Array.from(bytes, hex).join("");
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
+};
 
 const capturedAtOf = (p: PendingFile) => p.exifCapturedAt || p.manualCapturedAt;
 const sourceOf = (p: PendingFile): UploadEvidenceFile["captured_at_source"] =>
@@ -74,6 +93,7 @@ export default function UploadEvidencePage() {
         exifCapturedAt: await readCapturedAt(file),
         manualCapturedAt: "",
         description: "",
+        requestId: newRequestId(),
       }))
     );
     setItems((p) => [...p, ...added]);
@@ -103,6 +123,7 @@ export default function UploadEvidencePage() {
           description: it.description,
           captured_at: capturedAtOf(it) || undefined,
           captured_at_source: sourceOf(it),
+          request_id: it.requestId,
         })),
       });
 

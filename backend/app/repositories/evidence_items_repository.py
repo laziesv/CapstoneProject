@@ -44,6 +44,21 @@ class EvidenceRepository:
 
 
     @staticmethod
+    def get_by_upload_request_id(
+        db: Session,
+        upload_request_id,
+    ):
+        """หลักฐานที่เคยบันทึกสำเร็จด้วย request_id นี้ (None = ยังไม่เคย)"""
+        return (
+            db.query(EvidenceItem)
+            .filter(
+                EvidenceItem.upload_request_id == upload_request_id
+            )
+            .first()
+        )
+
+
+    @staticmethod
     def get_by_number(
         db: Session,
         evidence_number: str

@@ -9,6 +9,11 @@ class EvidenceCreate(BaseModel):
     description: str | None = None
     captured_at: datetime | None = None
 
+    # กันอัปโหลดซ้ำ — หน้าเว็บสร้างค่านี้ต่อไฟล์ตั้งแต่ตอนเลือกไฟล์ ไม่ใช่ตอนกดส่ง
+    # ส่งค่าเดิมซ้ำ = ได้ผลเดิมกลับไป ไม่เกิดธุรกรรมใหม่บนเชน
+    # ไม่ส่งมา = ทำงานแบบเดิมทุกประการ
+    request_id: UUID | None = None
+
 
 class EvidenceResponse(BaseModel):
     evidence_id: UUID

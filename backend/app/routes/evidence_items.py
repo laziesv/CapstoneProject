@@ -29,6 +29,7 @@ from app.services.chain_of_custody_service import (
 from app.services.evidence_service import (
     EvidenceBlockchainWriteError,
     EvidenceImageTooSmallError,
+    EvidenceUploadRequestConflictError,
     EvidenceService,
 )
 from app.services.evidence_access_service import EvidenceAccessService
@@ -235,6 +236,15 @@ def upload(
                 "width": exc.width,
                 "height": exc.height,
                 "minimum_side": exc.minimum_side,
+            },
+        ) from exc
+    except EvidenceUploadRequestConflictError as exc:
+        # 409 = คำขอถูกต้องแต่ชนกับสถานะปัจจุบัน — request_id ถูกใช้โดยคนอื่นแล้ว
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "UPLOAD_REQUEST_ID_CONFLICT",
+                "message": "รหัสคำขออัปโหลดนี้ถูกใช้กับการอัปโหลดของผู้ใช้อื่นแล้ว",
             },
         ) from exc
     except EvidenceBlockchainWriteError as exc:

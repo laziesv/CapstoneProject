@@ -172,6 +172,8 @@ export const evidenceService = {
           case_id: input.case_id,
           description: item.description || null,
           captured_at: item.captured_at || null,
+          // ส่งไปทุกครั้ง — server ใช้ตัดสินว่าเป็นการส่งซ้ำของคำขอเดิมหรือของใหม่
+          request_id: item.request_id ?? null,
         })
       );
 

@@ -163,8 +163,11 @@ export interface EvidenceDownloadResult {
 export interface UploadEvidenceFile {
   file: File;
   description: string;
-  captured_at?: string; 
+  captured_at?: string;
   captured_at_source?: "exif" | "manual";
+  /** กันอัปโหลดซ้ำ — สร้างตอนเพิ่มไฟล์เข้ารายการ ไม่ใช่ตอนกดส่ง
+   *  ถ้าสร้างตอนกดส่ง การกดซ้ำจะได้ค่าใหม่ทุกครั้งและกันอะไรไม่ได้เลย */
+  request_id?: string;
 }
 
 /** payload สร้างหลักฐานใหม่ — สเปคสำหรับ POST /api/evidence (multipart)

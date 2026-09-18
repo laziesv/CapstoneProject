@@ -127,7 +127,12 @@ class UploadRejectsSmallImageTests(TestCase):
             with self.assertRaises(EvidenceImageTooSmallError) as raised:
                 EvidenceService.upload(
                     db,
-                    Mock(case_id=None, description=None, captured_at=None),
+                    Mock(
+                        case_id=None,
+                        description=None,
+                        captured_at=None,
+                        request_id=None,
+                    ),
                     upload_file,
                     uploaded_by=None,
                     blockchain_service=blockchain_service,
