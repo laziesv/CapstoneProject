@@ -76,17 +76,21 @@ pipeline {
       steps {
         sshagent(credentials: [env.DEPLOY_CREDENTIALS]) {
           sh '''
-            ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} "
-              set -e
-              cd ${APP_DIR}
-              git fetch origin ${BRANCH}
-              test \"\$(git rev-parse FETCH_HEAD)\" = \"${GIT_COMMIT}\"
-              git checkout ${BRANCH}
-              git pull --ff-only origin ${BRANCH}
-              test \"\$(git rev-parse HEAD)\" = \"${GIT_COMMIT}\"
-              cd ${DEPLOY_DIR}
-              docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
-            "
+            ssh -o StrictHostKeyChecking=no ${DEPLOY_USER}@${DEPLOY_HOST} sh -s -- "${GIT_COMMIT}" "${APP_DIR}" "${BRANCH}" "${DEPLOY_DIR}" <<'REMOTE'
+set -eu
+expected_commit=$1
+app_dir=$2
+branch=$3
+deploy_dir=$4
+cd "$app_dir"
+git fetch origin "$branch"
+test "$(git rev-parse FETCH_HEAD)" = "$expected_commit"
+git checkout "$branch"
+git pull --ff-only origin "$branch"
+test "$(git rev-parse HEAD)" = "$expected_commit"
+cd "$deploy_dir"
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+REMOTE
           '''
         }
       }
