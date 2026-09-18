@@ -1,0 +1,33 @@
+{
+  "blocks_used": 2,
+  "concurrency": 100,
+  "duration_seconds": 25.69418,
+  "experiment": {
+    "active_validators": 3,
+    "allowed_down_instances": [
+      "validator-4:9545"
+    ],
+    "experiment_condition": "3/4_validators_active"
+  },
+  "failed": 0,
+  "failure_rate": 0.0,
+  "first_block": 100742,
+  "gas_mean": 122867.08,
+  "gas_total": 12286708,
+  "last_block": 100743,
+  "latency_max_seconds": 25.366204,
+  "latency_mean_seconds": 17.485101959999998,
+  "latency_min_seconds": 10.331529,
+  "latency_p50_seconds": 10.9360105,
+  "latency_p95_seconds": 25.296473,
+  "latency_p99_seconds": 25.35333895,
+  "operation": "recordAccess",
+  "repetition": 3,
+  "run_id": "7bba1a6f23e343a9a2a70f123b8fb2ff",
+  "scenario_name": "access-c100",
+  "submitted": 100,
+  "success_rate": 1.0,
+  "successful": 100,
+  "throughput_tps": 3.8919319472347436,
+  "transactions_per_block": 50.0
+}

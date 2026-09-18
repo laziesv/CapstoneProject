@@ -1,0 +1,31 @@
+{
+  "blocks_used": 2,
+  "concurrency": 100,
+  "duration_seconds": 15.085119,
+  "experiment": {
+    "active_validators": 4,
+    "allowed_down_instances": [],
+    "experiment_condition": "4/4_validators_active"
+  },
+  "failed": 23,
+  "failure_rate": 0.23,
+  "first_block": 98688,
+  "gas_mean": 97651.25974025975,
+  "gas_total": 7519147,
+  "last_block": 98689,
+  "latency_max_seconds": 14.740898,
+  "latency_mean_seconds": 11.543341818181817,
+  "latency_min_seconds": 9.531134,
+  "latency_p50_seconds": 10.045488,
+  "latency_p95_seconds": 14.642430599999999,
+  "latency_p99_seconds": 14.7252876,
+  "operation": "recordEvidence",
+  "repetition": 3,
+  "run_id": "a04ade9c339f4146a0b9a7ff4a7e7738",
+  "scenario_name": "evidence-c100",
+  "submitted": 100,
+  "success_rate": 0.77,
+  "successful": 77,
+  "throughput_tps": 5.104368086191431,
+  "transactions_per_block": 38.5
+}

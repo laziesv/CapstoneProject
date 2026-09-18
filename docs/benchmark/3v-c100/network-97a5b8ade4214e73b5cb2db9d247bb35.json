@@ -1,0 +1,461 @@
+{
+  "after": {
+    "captured_at": "2026-09-17T21:28:11.765225+00:00",
+    "metrics": {
+      "block_height": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 100129.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 100128.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 100128.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 100128.0
+        }
+      ],
+      "chain_head_transaction_count": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 46.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 46.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 46.0
+        }
+      ],
+      "jvm_memory_used_bytes": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 115386056.0
+        },
+        {
+          "instance": "rpc-node:9545",
+          "value": 101087032.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 129480192.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 90270656.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 128223920.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 90801792.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 127057320.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 91893592.0
+        }
+      ],
+      "node_up": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-4:9545",
+          "value": 0.0
+        }
+      ],
+      "peer_count": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 3.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 3.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 3.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 3.0
+        }
+      ],
+      "process_cpu_rate": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.05361459945192416
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.038245614035080054
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.039087170706374005
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.05052631578946602
+        }
+      ],
+      "process_resident_memory_bytes": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 455634944.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 656580608.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 665661440.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 628936704.0
+        }
+      ],
+      "rpc_active_connections": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 100.0
+        }
+      ],
+      "sync_status": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 1.0
+        }
+      ],
+      "transaction_pool": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.0
+        }
+      ]
+    }
+  },
+  "before": {
+    "captured_at": "2026-09-17T21:27:46.621005+00:00",
+    "metrics": {
+      "block_height": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 100125.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 100125.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 100125.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 100125.0
+        }
+      ],
+      "chain_head_transaction_count": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.0
+        }
+      ],
+      "jvm_memory_used_bytes": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 102792200.0
+        },
+        {
+          "instance": "rpc-node:9545",
+          "value": 101839280.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 113410072.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 90175368.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 120773816.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 90728832.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 115136088.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 91795176.0
+        }
+      ],
+      "node_up": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-4:9545",
+          "value": 0.0
+        }
+      ],
+      "peer_count": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 3.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 3.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 3.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 3.0
+        }
+      ],
+      "process_cpu_rate": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.02578956417390946
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.031192763559551924
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0326665520471904
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.04094736842105926
+        }
+      ],
+      "process_resident_memory_bytes": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 434184192.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 651722752.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 659116032.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 615514112.0
+        }
+      ],
+      "rpc_active_connections": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        }
+      ],
+      "sync_status": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 1.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 1.0
+        }
+      ],
+      "transaction_pool": [
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "rpc-node:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-1:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-2:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.0
+        },
+        {
+          "instance": "validator-3:9545",
+          "value": 0.0
+        }
+      ]
+    }
+  },
+  "experiment": {
+    "active_validators": 3,
+    "allowed_down_instances": [
+      "validator-4:9545"
+    ],
+    "experiment_condition": "3/4_validators_active"
+  },
+  "prometheus_url": "http://172.28.0.2:9090",
+  "run_id": "97a5b8ade4214e73b5cb2db9d247bb35"
+}

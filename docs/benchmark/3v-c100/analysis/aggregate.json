@@ -1,0 +1,50 @@
+[
+  {
+    "active_validators": 3,
+    "allowed_down_instances": [
+      "validator-4:9545"
+    ],
+    "concurrency": 100,
+    "experiment_condition": "3/4_validators_active",
+    "failed": 0,
+    "failure_rate": 0.0,
+    "max_throughput_tps": 4.003830865371988,
+    "mean_gas": 122867.23999999999,
+    "mean_p50_seconds": 17.377639333333335,
+    "mean_p95_seconds": 23.733952950000003,
+    "mean_p99_seconds": 24.995867406666665,
+    "mean_throughput_tps": 3.9300358928843173,
+    "min_throughput_tps": 3.8919319472347436,
+    "operation": "recordAccess",
+    "repetitions": 3,
+    "scenario_name": "access-c100",
+    "stddev_throughput_tps": 0.06391970758412298,
+    "submitted": 300,
+    "success_rate": 1.0,
+    "successful": 300
+  },
+  {
+    "active_validators": 3,
+    "allowed_down_instances": [
+      "validator-4:9545"
+    ],
+    "concurrency": 100,
+    "experiment_condition": "3/4_validators_active",
+    "failed": 0,
+    "failure_rate": 0.0,
+    "max_throughput_tps": 4.02830464086073,
+    "mean_gas": 97650.72000000002,
+    "mean_p50_seconds": 10.186034999999999,
+    "mean_p95_seconds": 24.554266416666664,
+    "mean_p99_seconds": 24.60013564666667,
+    "mean_throughput_tps": 4.003307344561743,
+    "min_throughput_tps": 3.9786773133949613,
+    "operation": "recordEvidence",
+    "repetitions": 3,
+    "scenario_name": "evidence-c100",
+    "stddev_throughput_tps": 0.024815702097798133,
+    "submitted": 300,
+    "success_rate": 1.0,
+    "successful": 300
+  }
+]
