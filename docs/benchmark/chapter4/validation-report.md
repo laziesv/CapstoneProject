@@ -5,6 +5,13 @@
 - PASS: measured transaction count is 1,200.
 - PASS: measured transaction failures are 0.
 - PASS: each operation/condition contains 3 repetitions of 100 measured transactions.
+- PASS: `transaction-detail.csv` contains exactly 1,200 rows.
+- PASS: `transaction-run-summary.csv` contains exactly 12 rows.
+- PASS: each run contains exactly 100 measured transactions with sequence 1-100 and confirmations = 1.
+- PASS: no duplicate `validator_condition + operation + repetition + sequence` key exists.
+- PASS: all 1,200 transaction-detail rows are successful.
+- PASS: run-level averages reconcile to `transaction-summary.csv` within output rounding tolerance.
+- PASS: pooled latency percentiles were calculated and checked separately from mean-of-run percentiles.
 - PASS: transaction summaries reconcile to each source `analysis/aggregate.csv` within output rounding.
 - PASS: 3/4 CPU and memory totals include only RPC plus validators 1-3.
 - PASS: the 3/4 transition and recovery samples were excluded by the observed validator-4 series state.
@@ -50,6 +57,41 @@ The 3/4 export first satisfies the steady-state rule at 23:44:45, after the 5-mi
 | recordAccess | 3/4 | p95_latency_s | 23.733953 | 23.734000 | -0.000047 | PASS |
 | recordAccess | 3/4 | p99_latency_s | 24.995867 | 24.996000 | -0.000133 | PASS |
 | recordAccess | 3/4 | mean_gas_used | 122867.240000 | 122867.240000 | +0.000000 | PASS |
+
+## Run-level validation
+
+The throughput standard deviation is the sample standard deviation across the three repetitions, matching the source aggregate convention.
+
+| Operation | Condition | Runs | Mean latency actual (s) | Target (s) | Throughput stddev actual (TPS) | Target (TPS) | Status |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | --- |
+| recordEvidence | 4/4 | 3 | 13.290472 | 13.290473 | 0.812305 | 0.812305 | PASS |
+| recordEvidence | 3/4 | 3 | 16.635475 | 16.635475 | 0.024816 | 0.024816 | PASS |
+| recordAccess | 4/4 | 3 | 12.953366 | 12.953366 | 0.000972 | 0.000972 | PASS |
+| recordAccess | 3/4 | 3 | 20.161838 | 20.161838 | 0.063920 | 0.063920 | PASS |
+
+## Run-level reconciliation to transaction summary
+
+For each operation/condition, the arithmetic mean of the three run rows was compared with `transaction-summary.csv` for throughput, P50, P95, P99, and mean gas. The table reports the largest absolute throughput/latency delta among those four rate/latency metrics; gas is shown separately because it has a different unit.
+
+| Operation | Condition | Maximum absolute throughput/latency delta | Mean-gas delta | Status |
+| --- | --- | ---: | ---: | --- |
+| recordEvidence | 4/4 | 0.000000333 | 0.000000 | PASS |
+| recordEvidence | 3/4 | 0.000000344 | 0.000000 | PASS |
+| recordAccess | 4/4 | 0.000000462 | 0.000000 | PASS |
+| recordAccess | 3/4 | 0.000000667 | 0.000000 | PASS |
+
+These sub-micro-unit differences result from averaging values serialized to the run-summary output precision. They are below the six-decimal rounding tolerance and do not indicate a source discrepancy.
+
+## Pooled transaction latency validation
+
+These percentiles use all 300 transaction observations per operation/condition. They are validation-only pooled statistics and do not replace the mean of per-run percentiles in `transaction-summary.csv`.
+
+| Operation | Condition | Pooled P50 actual (s) | Target (s) | Pooled P95 actual (s) | Target (s) | Pooled P99 actual (s) | Target (s) | Status |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| recordEvidence | 4/4 | 14.590257 | 14.590257 | 19.412771 | 19.412771 | 19.505089 | 19.505089 | PASS |
+| recordEvidence | 3/4 | 10.268159 | 10.268159 | 24.601545 | 24.601545 | 24.683465 | 24.683465 | PASS |
+| recordAccess | 4/4 | 11.355194 | 11.355194 | 15.433074 | 15.433074 | 15.519129 | 15.519129 | PASS |
+| recordAccess | 3/4 | 20.458192 | 20.458192 | 25.262619 | 25.262619 | 25.340570 | 25.340570 | PASS |
 
 ## Monitoring target comparison
 

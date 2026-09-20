@@ -7,6 +7,8 @@ This directory is the processed/final dataset for Chapter 4. It supports tables,
 ## Files
 
 - `transaction-summary.csv`: four operation/validator-condition summary rows.
+- `transaction-run-summary.csv`: 12 benchmark run summaries for repetition-level and run-to-run variability analysis.
+- `transaction-detail.csv`: all 1,200 measured transaction observations for transaction-level distribution analysis such as boxplots.
 - `monitoring-summary.csv`: two condition-level monitoring summary rows.
 - `monitoring-timeseries-clean.csv`: cleaned, exact-timestamp monitoring observations.
 - `validation-report.md`: source reconciliation, cleaning-window derivation, and validation-target comparisons.
@@ -27,6 +29,10 @@ The raw transaction and Grafana export files remain unchanged.
 The dataset contains 1,200 measured transactions: 100 transactions x 3 repetitions for each combination of `recordEvidence`/`recordAccess` and 4/4/3/4 validators. Confirmations are 1 and concurrency is 100. The `recordAccess` workload measures `AccessAction.DOWNLOAD`; it does not represent a combined VIEW-and-DOWNLOAD benchmark.
 
 Submitted/successful/failed counts and gas were reconciled against every `transactions-*.csv`. Throughput and latency percentiles are arithmetic means of the three per-run values in `summary-*.json`, matching the experiment aggregate convention and the source `analysis/aggregate.csv` files.
+
+`transaction-detail.csv` contains the measured transaction rows from every source `transactions-*.csv`. It excludes transaction hashes and timestamps because its purpose is distribution analysis rather than forensic transaction lookup. `transaction-run-summary.csv` contains the corresponding 12 source `summary-*.json` records for repetition-level comparison, including mean latency, throughput, blocks used, and transactions per block.
+
+The percentile definitions are intentionally distinct. The P50/P95/P99 values in `transaction-summary.csv` are the arithmetic mean of the three per-run percentiles. Pooled percentiles derived from `transaction-detail.csv` are calculated from all 300 transaction observations in a condition. These definitions must not be substituted for one another without explicit labeling.
 
 ## Monitoring cleaning rules
 
@@ -53,6 +59,10 @@ Timestamps are reproduced exactly as exported by Grafana. The CSV files do not e
 | `throughput_tps` | Mean of three per-run successful transaction throughputs. |
 | `p50_latency_s`, `p95_latency_s`, `p99_latency_s` | Mean of the corresponding per-run latency percentile. |
 | `mean_gas_used` | Mean gas used across successful measured transactions. |
+| `latency_seconds` | Completion latency for one measured transaction. |
+| `repetition`, `run_id`, `sequence` | Run identity and the transaction's 1-100 sequence within that run. |
+| `duration_seconds`, `latency_mean_seconds` | Run duration and arithmetic mean transaction latency for one repetition. |
+| `blocks_used`, `transactions_per_block` | Blocks containing the measured run and the run's average measured transactions per block. |
 | `block_rate_rpc_blocks_per_s` | RPC-observed `rate(ethereum_blockchain_height[5m])`. |
 | `block_interval_rpc_s` | RPC-observed estimated average block interval from the Grafana export. |
 | `besu_cpu_total_cores` | Sum of `rate(process_cpu_seconds_total[5m])` across included Besu processes. |
@@ -95,5 +105,6 @@ Timestamps are reproduced exactly as exported by Grafana. The CSV files do not e
 - Besu process resident memory is not total host RAM usage; it excludes the OS and other platform processes.
 - Lower total CPU and memory in 3/4 partly reflects one fewer Besu validator process. Use the per-process columns when comparing process-normalized utilization.
 - Monitoring results describe this measured environment and must not be generalized to all Besu/QBFT deployments.
+- `transaction-summary.csv` percentiles are means of per-run percentiles; pooled percentiles from `transaction-detail.csv` use all 300 observations in a condition. Always state which definition is used.
 
 See `validation-report.md` for exact checks and target deltas.
