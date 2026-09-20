@@ -1,0 +1,5 @@
+operation,validator_condition,active_validators,submitted,successful,failed,success_rate_percent,throughput_tps,p50_latency_s,p95_latency_s,p99_latency_s,mean_gas_used
+recordEvidence,4/4,4,300,300,0,100.000000,5.489919,13.522881,16.521356,17.838081,97650.36
+recordEvidence,3/4,3,300,300,0,100.000000,4.003307,10.186035,24.554266,24.600136,97650.72
+recordAccess,4/4,4,300,300,0,100.000000,6.295918,11.318120,15.423576,15.462405,122864.64
+recordAccess,3/4,3,300,300,0,100.000000,3.930036,17.377639,23.733953,24.995867,122867.24

@@ -1,0 +1,3 @@
+condition,active_validators,active_besu_processes,block_rate_mean_blocks_per_s,block_interval_mean_s,besu_cpu_mean_cores,besu_cpu_p95_cores,besu_cpu_max_observed_cores,besu_cpu_mean_per_process_cores,besu_memory_mean_mib,besu_memory_p95_mib,besu_memory_max_observed_mib,besu_memory_mean_per_process_mib,rpc_txpool_max_observed
+4/4,4,5,0.200000,5.000000,0.260178,0.540900,0.583300,0.052036,2085.089,2208.000,2263.000,417.018,33
+3/4,3,4,0.120000,8.336000,0.184445,0.256100,0.328800,0.046111,1648.253,1730.100,1883.000,412.063,44
