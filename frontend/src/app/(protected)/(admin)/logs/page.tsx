@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Loader2, ArrowLeft, FileClock, Calendar, Download, ChevronLeft, ChevronRight, Eye, EyeOff } from "lucide-react";
-import type { AccessLog, AccessLogFilters } from "@/interfaces";
-import { accessLogService, evidenceService } from "@/services";
+import { Search, Loader2, ArrowLeft, FileClock, Calendar, Download, ChevronLeft, ChevronRight, Eye, EyeOff, ShieldAlert } from "lucide-react";
+import type { AccessLog, AccessLogFilters, DatabaseIntegrityAlert } from "@/interfaces";
+import { accessLogService, evidenceService, integrityAlertService } from "@/services";
 import { labelForAction, labelForResult } from "@/utils/labels";
 
 // ชิปกรองด่วน — map เป็นตัวกรองที่ backend เข้าใจ (action=view/download หรือ only_anomaly)
@@ -58,6 +58,7 @@ export default function LogsPage() {
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [integrityAlerts, setIntegrityAlerts] = useState<DatabaseIntegrityAlert[]>([]);
 
   // debounce ช่องค้นหา — กันยิง API ทุกตัวอักษร
   useEffect(() => {
@@ -106,6 +107,31 @@ export default function LogsPage() {
   useEffect(() => {
     accessLogService.listPage({ only_anomaly: true, limit: 1 }).then((r) => setAnomalyTotal(r.total)).catch(() => {});
   }, []);
+
+  // ความผิดปกติที่ตรวจเทียบกับ Blockchain แยกจาก result FAILED/PENDING ของ AccessLog
+  useEffect(() => {
+    let ignore = false;
+    integrityAlertService
+      .list()
+      .then((result) => {
+        if (!ignore) {
+          setIntegrityAlerts(result.alerts.filter((alert) => alert.alert_type === "ACCESS_LOG"));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const integrityByLogId = useMemo(
+    () => new Map(
+      integrityAlerts
+        .filter((alert) => alert.access_log_id)
+        .map((alert) => [alert.access_log_id as string, alert]),
+    ),
+    [integrityAlerts],
+  );
 
   // รายการหลักฐานสำหรับ dropdown — จากคลังหลักฐาน (จำนวนน้อยกว่า log มาก ไม่กระทบโหลด)
   const [evidenceOptions, setEvidenceOptions] = useState<{ id: string; number: string }[]>([]);
@@ -192,6 +218,42 @@ export default function LogsPage() {
         </p>
       )}
 
+      {integrityAlerts.length > 0 && (
+        <section id="integrity-alerts" className="overflow-hidden rounded-2xl border border-danger/30 bg-danger-light/50" aria-labelledby="integrity-alerts-heading">
+          <div className="flex items-center gap-2 border-b border-danger/20 px-4 py-3 text-danger">
+            <ShieldAlert className="h-5 w-5" />
+            <h2 id="integrity-alerts-heading" className="text-sm font-semibold">
+              พบ Access Log ไม่ตรงกับ Blockchain {integrityAlerts.length} รายการ
+            </h2>
+          </div>
+          <div className="divide-y divide-danger/15">
+            {integrityAlerts.map((alert) => (
+              <div key={alert.access_session_ref || alert.access_log_id} className="grid gap-1 px-4 py-3 text-xs md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center md:gap-4">
+                <div>
+                  <span className="font-semibold text-danger">{integrityStatusLabel(alert.status)}</span>
+                  <p className="mt-0.5 font-mono text-[11px] text-text-secondary">
+                    Log ID: {alert.access_log_id || "ไม่พบแถวในฐานข้อมูล"}
+                  </p>
+                </div>
+                <div className="font-mono text-[11px] text-text-secondary">
+                  <p>หลักฐาน: {alert.evidence_number || alert.evidence_id || "ไม่ทราบ"}</p>
+                  <p className="truncate" title={alert.access_session_ref || undefined}>Session: {alert.access_session_ref || "—"}</p>
+                </div>
+                {alert.access_log_id && (
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById(`access-log-${alert.access_log_id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                    className="justify-self-start rounded-full border border-danger/30 bg-white px-3 py-1.5 font-semibold text-danger hover:bg-danger-light md:justify-self-end"
+                  >
+                    แสดงในตาราง
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Drill-down banner (มุมมองรายชิ้น) */}
       {selectedEvidenceNumber && (
         <div className="flex items-center justify-between rounded-2xl border border-primary/20 bg-primary-light/50 px-4 py-3">
@@ -232,6 +294,11 @@ export default function LogsPage() {
         >
           ผิดปกติ {anomalyTotal}
         </button>
+        {integrityAlerts.length > 0 && (
+          <a href="#integrity-alerts" className="inline-flex h-9 items-center rounded-full border border-danger/30 bg-danger-light px-4 text-sm font-semibold text-danger">
+            Integrity {integrityAlerts.length}
+          </a>
+        )}
 
         {/* สลับแสดง/ซ่อนรายการประเภท "ค้นหา" (QUERY) — ซ่อนเป็นค่าเริ่มต้น */}
         <button
@@ -306,8 +373,9 @@ export default function LogsPage() {
                   // pending = รอ Blockchain ยืนยัน ยังไม่ใช่ความล้มเหลว จึงไม่ทำเป็นแถวแดง
                   const pending = l.result === "pending";
                   const fail = !pending && l.result !== "success";
+                  const integrityAlert = integrityByLogId.get(l.log_id);
                   return (
-                    <tr key={l.log_id} className={`transition-colors ${fail ? "bg-danger-light/40 hover:bg-danger-light/70" : "hover:bg-surface-hover"}`}>
+                    <tr id={`access-log-${l.log_id}`} key={l.log_id} className={`transition-colors ${integrityAlert ? "bg-danger-light ring-1 ring-inset ring-danger/30" : fail ? "bg-danger-light/40 hover:bg-danger-light/70" : "hover:bg-surface-hover"}`}>
                       <td className="px-5 py-3.5 font-mono text-xs text-text-secondary">
                         {new Date(l.accessed_at).toLocaleString("th-TH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </td>
@@ -331,6 +399,9 @@ export default function LogsPage() {
                         }`}>
                           {labelForResult(l.result)}
                         </span>
+                        {integrityAlert && (
+                          <span className="mt-1 block text-[11px] font-semibold text-danger">ข้อมูลไม่ตรงกับ Blockchain</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -385,6 +456,12 @@ function pageWindow(current: number, total: number): (number | "…")[] {
   if (hi < total - 1) out.push("…");
   out.push(total);
   return out;
+}
+
+function integrityStatusLabel(status: DatabaseIntegrityAlert["status"]): string {
+  if (status === "ACCESS_LOG_MISSING_IN_DATABASE") return "ไม่พบแถว Access Log ในฐานข้อมูล";
+  if (status === "ACCESS_LOG_MISSING_ON_CHAIN") return "ไม่พบ Access Session บน Blockchain";
+  return "ข้อมูล Access Log ถูกแก้ไข";
 }
 
 function PageDot({ disabled, onClick, aria, children }: { disabled: boolean; onClick: () => void; aria: string; children: React.ReactNode }) {
