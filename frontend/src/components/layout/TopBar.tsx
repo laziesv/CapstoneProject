@@ -46,9 +46,14 @@ export default function TopBar() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    void loadIntegrityAlerts();
+    const initialLoadId = window.setTimeout(() => {
+      void loadIntegrityAlerts();
+    }, 0);
     const intervalId = window.setInterval(loadIntegrityAlerts, 30_000);
-    return () => window.clearInterval(intervalId);
+    return () => {
+      window.clearTimeout(initialLoadId);
+      window.clearInterval(intervalId);
+    };
   }, [isAdmin, loadIntegrityAlerts]);
 
   useEffect(() => {
