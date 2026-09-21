@@ -16,3 +16,7 @@ Thumbs.db
 deploy/ansible/inventory.ini
 deploy/ansible/group_vars/deva_servers.yml
 deploy/.env.prod
+
+# Local demo and generated media assets
+sample-evidence/
+short-assets/

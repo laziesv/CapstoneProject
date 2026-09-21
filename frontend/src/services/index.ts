@@ -13,4 +13,5 @@ export { evidenceService } from "./http/evidence.service";
 export { accessLogService } from "./http/accessLog.service";
 export { watermarkService } from "./http/watermark.service";
 export { blockchainService } from "./http/blockchain.service";
+export { integrityAlertService } from "./http/integrityAlert.service";
 export { ApiError } from "./http/client";

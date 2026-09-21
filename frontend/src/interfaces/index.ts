@@ -7,3 +7,4 @@ export * from "./evidence";
 export * from "./dashboard";
 export * from "./chainOfCustody";
 export * from "./blockchainExplorer";
+export * from "./integrityAlert";
