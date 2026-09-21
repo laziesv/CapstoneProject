@@ -85,6 +85,33 @@ export default function LogsPage() {
     const load = async () => {
       setLoading(true);
       try {
+        if (quick === "anomaly") {
+          const baseFilters = { ...filters };
+          delete baseFilters.only_anomaly;
+          const [failedLogs, candidateLogs] = await Promise.all([
+            accessLogService.list({ ...baseFilters, only_anomaly: true }),
+            accessLogService.list(baseFilters),
+          ]);
+          const integrityLogIds = new Set(
+            integrityAlerts
+              .map((alert) => alert.access_log_id)
+              .filter((logId): logId is string => Boolean(logId)),
+          );
+          const combined = new Map(failedLogs.map((log) => [log.log_id, log]));
+          candidateLogs
+            .filter((log) => integrityLogIds.has(log.log_id))
+            .forEach((log) => combined.set(log.log_id, log));
+          const mergedLogs = Array.from(combined.values()).sort(
+            (left, right) => new Date(right.accessed_at).getTime() - new Date(left.accessed_at).getTime(),
+          );
+          if (ignore) return;
+          const offset = (page - 1) * PAGE_SIZE;
+          setLogs(mergedLogs.slice(offset, offset + PAGE_SIZE));
+          setTotal(mergedLogs.length);
+          setError(null);
+          return;
+        }
+
         const res = await accessLogService.listPage({ ...filters, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
         if (ignore) return;
         setLogs(res.items);
@@ -100,7 +127,7 @@ export default function LogsPage() {
     return () => {
       ignore = true;
     };
-  }, [filters, page]);
+  }, [filters, integrityAlerts, page, quick]);
 
   // จำนวนรายการผิดปกติทั้งระบบ (ไม่ขึ้นกับตัวกรอง) — โชว์บนชิป (query เบา: นับอย่างเดียว)
   const [anomalyTotal, setAnomalyTotal] = useState(0);
@@ -242,10 +269,10 @@ export default function LogsPage() {
                 {alert.access_log_id && (
                   <button
                     type="button"
-                    onClick={() => document.getElementById(`access-log-${alert.access_log_id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                    onClick={() => setQuick("anomaly")}
                     className="justify-self-start rounded-full border border-danger/30 bg-white px-3 py-1.5 font-semibold text-danger hover:bg-danger-light md:justify-self-end"
                   >
-                    แสดงในตาราง
+                    ดูในหมวดผิดปกติ
                   </button>
                 )}
               </div>
@@ -292,13 +319,8 @@ export default function LogsPage() {
               : "border border-danger/25 bg-danger-light text-danger hover:bg-danger-light/70"
           }`}
         >
-          ผิดปกติ {anomalyTotal}
+          ผิดปกติ {anomalyTotal + integrityAlerts.length}
         </button>
-        {integrityAlerts.length > 0 && (
-          <a href="#integrity-alerts" className="inline-flex h-9 items-center rounded-full border border-danger/30 bg-danger-light px-4 text-sm font-semibold text-danger">
-            Integrity {integrityAlerts.length}
-          </a>
-        )}
 
         {/* สลับแสดง/ซ่อนรายการประเภท "ค้นหา" (QUERY) — ซ่อนเป็นค่าเริ่มต้น */}
         <button

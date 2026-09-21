@@ -14,7 +14,8 @@ test("Access Log page identifies Blockchain integrity alerts by log id", () => {
   assert.match(logsPage, /ACCESS_LOG_MISSING_IN_DATABASE/);
 });
 
-test("Access Log integrity rows can be located from the alert summary", () => {
+test("Access Log integrity rows are included in the anomaly category", () => {
   assert.match(logsPage, /id=\{`access-log-\$\{l\.log_id\}`\}/);
-  assert.match(logsPage, /scrollIntoView/);
+  assert.match(logsPage, /setQuick\("anomaly"\)/);
+  assert.match(logsPage, /integrityLogIds\.has\(log\.log_id\)/);
 });
