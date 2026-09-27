@@ -19,6 +19,10 @@ from app.services.database_integrity_alert_service import DatabaseIntegrityAlert
 
 class DatabaseIntegrityAlertServiceTests(unittest.TestCase):
     def setUp(self):
+        with DatabaseIntegrityAlertService._cache_lock:
+            DatabaseIntegrityAlertService._evidence_cache.clear()
+            DatabaseIntegrityAlertService._history_cache.clear()
+            DatabaseIntegrityAlertService._load_locks.clear()
         self.evidence_id = uuid4()
         self.chain = Mock()
         self.chain.get_evidence_history_by_ref.return_value = {"access_history": []}
@@ -48,11 +52,11 @@ class DatabaseIntegrityAlertServiceTests(unittest.TestCase):
             "evidence_hash": "0x" + "aa" * 32,
         }
 
-    @patch("app.services.database_integrity_alert_service.AccessLogRepository.list")
-    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all")
+    @patch("app.services.database_integrity_alert_service.AccessLogRepository.get_all_for_integrity")
+    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all_for_integrity")
     def test_changed_database_hash_creates_admin_alert(self, get_all, list_logs):
         get_all.return_value = [self.evidence("bb" * 32)]
-        list_logs.return_value = ([], 0)
+        list_logs.return_value = []
         self.set_matching_evidence()
 
         result = self.service.scan(Mock())
@@ -62,13 +66,13 @@ class DatabaseIntegrityAlertServiceTests(unittest.TestCase):
         self.assertEqual(result.alerts[0].alert_type, "EVIDENCE_HASH")
         self.assertEqual(result.alerts[0].status, "DATABASE_HASH_MISMATCH")
 
-    @patch("app.services.database_integrity_alert_service.AccessLogRepository.list")
-    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all")
+    @patch("app.services.database_integrity_alert_service.AccessLogRepository.get_all_for_integrity")
+    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all_for_integrity")
     def test_matching_database_and_access_log_have_no_alert(self, get_all, list_logs):
         evidence = self.evidence("aa" * 32)
         access_log = self.access_log()
         get_all.return_value = [evidence]
-        list_logs.return_value = ([access_log], 1)
+        list_logs.return_value = [access_log]
         self.set_matching_evidence()
         self.chain.get_evidence_history_by_ref.return_value = {
             "access_history": [
@@ -87,13 +91,13 @@ class DatabaseIntegrityAlertServiceTests(unittest.TestCase):
         self.assertEqual(result.access_log_checked_count, 1)
         self.assertEqual(result.alert_count, 0)
 
-    @patch("app.services.database_integrity_alert_service.AccessLogRepository.list")
-    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all")
+    @patch("app.services.database_integrity_alert_service.AccessLogRepository.get_all_for_integrity")
+    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all_for_integrity")
     def test_changed_access_log_actor_is_detected(self, get_all, list_logs):
         evidence = self.evidence("aa" * 32)
         access_log = self.access_log()
         get_all.return_value = [evidence]
-        list_logs.return_value = ([access_log], 1)
+        list_logs.return_value = [access_log]
         self.set_matching_evidence()
         self.chain.get_evidence_history_by_ref.return_value = {
             "access_history": [
@@ -113,12 +117,12 @@ class DatabaseIntegrityAlertServiceTests(unittest.TestCase):
         self.assertEqual(result.alerts[0].alert_type, "ACCESS_LOG")
         self.assertEqual(result.alerts[0].status, "ACCESS_LOG_MISMATCH")
 
-    @patch("app.services.database_integrity_alert_service.AccessLogRepository.list")
-    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all")
+    @patch("app.services.database_integrity_alert_service.AccessLogRepository.get_all_for_integrity")
+    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all_for_integrity")
     def test_deleted_access_log_is_detected_from_blockchain(self, get_all, list_logs):
         evidence = self.evidence("aa" * 32)
         get_all.return_value = [evidence]
-        list_logs.return_value = ([], 0)
+        list_logs.return_value = []
         self.set_matching_evidence()
         self.chain.get_evidence_history_by_ref.return_value = {
             "access_history": [
@@ -136,6 +140,28 @@ class DatabaseIntegrityAlertServiceTests(unittest.TestCase):
 
         self.assertEqual(result.alert_count, 1)
         self.assertEqual(result.alerts[0].status, "ACCESS_LOG_MISSING_IN_DATABASE")
+
+    @patch("app.services.database_integrity_alert_service.AccessLogRepository.get_all_for_integrity")
+    @patch("app.services.database_integrity_alert_service.EvidenceRepository.get_all_for_integrity")
+    def test_reuses_chain_reads_but_detects_new_database_tampering(
+        self,
+        get_all,
+        list_logs,
+    ):
+        evidence = self.evidence("aa" * 32)
+        get_all.return_value = [evidence]
+        list_logs.return_value = []
+        self.set_matching_evidence()
+
+        first = self.service.scan(Mock())
+        evidence.original_file.file_hash = "bb" * 32
+        second = self.service.scan(Mock())
+
+        self.assertEqual(first.alert_count, 0)
+        self.assertEqual(second.alert_count, 1)
+        self.assertEqual(second.alerts[0].status, "DATABASE_HASH_MISMATCH")
+        self.chain.get_evidence.assert_called_once()
+        self.chain.get_evidence_history_by_ref.assert_called_once()
 
     def test_endpoint_is_restricted_to_admin(self):
         self.assertIs(list_integrity_alerts.__defaults__[1].dependency, get_admin_user)

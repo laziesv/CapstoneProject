@@ -1,4 +1,8 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from threading import Lock
+from time import monotonic
+from collections.abc import Callable
 from typing import Any
 
 from blockchain_client import (
@@ -27,6 +31,17 @@ class DatabaseIntegrityAlertUnavailableError(Exception):
 class DatabaseIntegrityAlertService:
     """Compare mutable evidence and access data with immutable Blockchain records."""
 
+    # Blockchain state is immutable once confirmed. Reusing recent reads avoids
+    # rescanning the same block range for every UI poll. The short history TTL
+    # still makes newly confirmed access events visible quickly.
+    _EVIDENCE_CACHE_TTL_SECONDS = 300.0
+    _HISTORY_CACHE_TTL_SECONDS = 10.0
+    _MAX_PARALLEL_CHAIN_READS = 4
+    _cache_lock = Lock()
+    _evidence_cache: dict[str, tuple[float, Any]] = {}
+    _history_cache: dict[str, tuple[float, Any]] = {}
+    _load_locks: dict[tuple[int, str], Lock] = {}
+
     def __init__(
         self,
         blockchain_service: BlockchainIntegrationService | None = None,
@@ -34,8 +49,8 @@ class DatabaseIntegrityAlertService:
         self._blockchain = blockchain_service or BlockchainIntegrationService()
 
     def scan(self, db: Session) -> DatabaseIntegrityAlertResponse:
-        evidence_items = EvidenceRepository.get_all(db)
-        access_logs, _ = AccessLogRepository.list(db)
+        evidence_items = EvidenceRepository.get_all_for_integrity(db)
+        access_logs = AccessLogRepository.get_all_for_integrity(db)
         access_logs_by_session = {
             derive_access_session_ref(access_log.log_id): access_log
             for access_log in access_logs
@@ -46,17 +61,11 @@ class DatabaseIntegrityAlertService:
         matched_access_sessions: set[str] = set()
         alerts: list[DatabaseIntegrityAlert] = []
 
+        chain_states = self._load_chain_states(evidence_items)
+
         for evidence in evidence_items:
             evidence_ref = derive_evidence_ref(evidence.evidence_id)
-            try:
-                chain_record = self._blockchain.get_evidence(evidence_ref)
-                chain_history = self._blockchain.get_evidence_history_by_ref(
-                    evidence_ref
-                )
-            except Exception as exc:
-                raise DatabaseIntegrityAlertUnavailableError(
-                    "Unable to read integrity records from Blockchain"
-                ) from exc
+            chain_record, chain_history = chain_states[evidence_ref]
 
             original_file = evidence.original_file
             database_hash = self._normalize_hash(
@@ -126,6 +135,100 @@ class DatabaseIntegrityAlertService:
             access_log_checked_count=len(access_logs),
             alerts=alerts,
         )
+
+    def _load_chain_states(
+        self,
+        evidence_items: list[Any],
+    ) -> dict[str, tuple[Any, Any]]:
+        """Load independent evidence records concurrently with bounded fan-out."""
+
+        evidence_refs = [
+            derive_evidence_ref(evidence.evidence_id)
+            for evidence in evidence_items
+        ]
+        if not evidence_refs:
+            return {}
+
+        if len(evidence_refs) == 1:
+            evidence_ref = evidence_refs[0]
+            return {evidence_ref: self._load_chain_state(evidence_ref)}
+
+        workers = min(self._MAX_PARALLEL_CHAIN_READS, len(evidence_refs))
+        states: dict[str, tuple[Any, Any]] = {}
+        try:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(self._load_chain_state, evidence_ref): evidence_ref
+                    for evidence_ref in evidence_refs
+                }
+                for future in as_completed(futures):
+                    evidence_ref = futures[future]
+                    states[evidence_ref] = future.result()
+        except Exception as exc:
+            raise DatabaseIntegrityAlertUnavailableError(
+                "Unable to read integrity records from Blockchain"
+            ) from exc
+        return states
+
+    def _load_chain_state(self, evidence_ref: str) -> tuple[Any, Any]:
+        chain_record = self._cached_chain_read(
+            cache=self._evidence_cache,
+            key=evidence_ref,
+            ttl_seconds=self._EVIDENCE_CACHE_TTL_SECONDS,
+            loader=lambda: self._blockchain.get_evidence(evidence_ref),
+        )
+        chain_history = self._cached_chain_read(
+            cache=self._history_cache,
+            key=evidence_ref,
+            ttl_seconds=self._HISTORY_CACHE_TTL_SECONDS,
+            loader=lambda: self._blockchain.get_evidence_history_by_ref(evidence_ref),
+        )
+        return chain_record, chain_history
+
+    @classmethod
+    def _cached_chain_read(
+        cls,
+        *,
+        cache: dict[str, tuple[float, Any]],
+        key: str,
+        ttl_seconds: float,
+        loader: Callable[[], Any],
+    ) -> Any:
+        now = monotonic()
+        with cls._cache_lock:
+            cached = cache.get(key)
+            if cached is not None and cached[0] > now:
+                return cached[1]
+            lock_key = (id(cache), key)
+            load_lock = cls._load_locks.setdefault(lock_key, Lock())
+
+        # Only one request loads a missing key. Concurrent callers reuse it.
+        with load_lock:
+            now = monotonic()
+            with cls._cache_lock:
+                cached = cache.get(key)
+                if cached is not None and cached[0] > now:
+                    return cached[1]
+
+            value = loader()
+            effective_ttl = ttl_seconds
+            # A not-yet-registered record can become available shortly after a
+            # transaction confirms, so negative reads must expire quickly.
+            if isinstance(value, dict) and value.get("exists") is False:
+                effective_ttl = min(effective_ttl, 5.0)
+            with cls._cache_lock:
+                cache[key] = (monotonic() + effective_ttl, value)
+                # Keep the process cache bounded even after evidence is removed.
+                if len(cache) > 2_000:
+                    expired = [
+                        item_key
+                        for item_key, item in cache.items()
+                        if item[0] <= now
+                    ]
+                    for item_key in expired:
+                        cache.pop(item_key, None)
+                        cls._load_locks.pop((id(cache), item_key), None)
+            return value
 
     def _access_mismatch_status(
         self,

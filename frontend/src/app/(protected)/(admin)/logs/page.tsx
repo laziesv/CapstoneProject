@@ -138,16 +138,21 @@ export default function LogsPage() {
   // ความผิดปกติที่ตรวจเทียบกับ Blockchain แยกจาก result FAILED/PENDING ของ AccessLog
   useEffect(() => {
     let ignore = false;
-    integrityAlertService
-      .list()
-      .then((result) => {
+    const loadIntegrityAlerts = () => {
+      if (document.visibilityState !== "visible") return;
+      void integrityAlertService.list().then((result) => {
         if (!ignore) {
           setIntegrityAlerts(result.alerts.filter((alert) => alert.alert_type === "ACCESS_LOG"));
         }
-      })
-      .catch(() => {});
+      }).catch(() => {});
+    };
+    loadIntegrityAlerts();
+    const intervalId = window.setInterval(loadIntegrityAlerts, 10_000);
+    document.addEventListener("visibilitychange", loadIntegrityAlerts);
     return () => {
       ignore = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", loadIntegrityAlerts);
     };
   }, []);
 

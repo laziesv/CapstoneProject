@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, noload, selectinload
 
 from app.models.evidence_items import EvidenceItem
 
@@ -79,6 +79,20 @@ class EvidenceRepository:
         return (
             db.query(EvidenceItem)
             .order_by(EvidenceItem.uploaded_at.desc())
+            .all()
+        )
+
+    @staticmethod
+    def get_all_for_integrity(db: Session):
+        """Load only evidence files needed by the integrity scan."""
+
+        return (
+            db.query(EvidenceItem)
+            .options(
+                selectinload(EvidenceItem.files),
+                noload(EvidenceItem.case),
+                noload(EvidenceItem.uploader),
+            )
             .all()
         )
 

@@ -115,6 +115,12 @@ class AccessLogRepository:
         return query.all(), total
 
     @staticmethod
+    def get_all_for_integrity(db: Session) -> list[AccessLog]:
+        """Return audit rows without the count/sort overhead used by the UI list."""
+
+        return db.query(AccessLog).all()
+
+    @staticmethod
     def list_successful_downloads_by_evidence(
         db: Session,
         *,

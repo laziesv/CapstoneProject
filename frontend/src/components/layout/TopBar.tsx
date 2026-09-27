@@ -32,11 +32,11 @@ export default function TopBar() {
   const [isLoading, setIsLoading] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const loadIntegrityAlerts = useCallback(async () => {
+  const loadIntegrityAlerts = useCallback(async (force = false) => {
     if (!isAdmin) return;
     setIsLoading(true);
     try {
-      setIntegrity(await integrityAlertService.list());
+      setIntegrity(await integrityAlertService.list({ force }));
     } catch {
       // Blockchain อาจหยุดชั่วคราว จึงไม่ให้การแจ้งเตือนขัดขวางหน้าหลัก
     } finally {
@@ -49,7 +49,7 @@ export default function TopBar() {
     const initialLoadId = window.setTimeout(() => {
       void loadIntegrityAlerts();
     }, 0);
-    const intervalId = window.setInterval(loadIntegrityAlerts, 30_000);
+    const intervalId = window.setInterval(loadIntegrityAlerts, 10_000);
     return () => {
       window.clearTimeout(initialLoadId);
       window.clearInterval(intervalId);
@@ -73,7 +73,11 @@ export default function TopBar() {
           <div ref={menuRef} className="relative">
             <button
               type="button"
-              onClick={() => setIsOpen((value) => !value)}
+              onClick={() => {
+                const nextOpen = !isOpen;
+                setIsOpen(nextOpen);
+                if (nextOpen) void loadIntegrityAlerts(true);
+              }}
               className={`relative flex h-9 w-9 items-center justify-center rounded-full border transition-colors ${
                 integrity?.alert_count
                   ? "border-danger/30 bg-danger-light text-danger"
@@ -95,10 +99,10 @@ export default function TopBar() {
                 <div className="flex items-center justify-between border-b border-border px-4 py-3">
                   <div>
                     <p className="text-sm font-semibold text-foreground">แจ้งเตือนความถูกต้อง</p>
-                    <p className="text-xs text-muted">เฉพาะผู้ดูแลระบบ · ตรวจทุก 30 วินาที</p>
+                    <p className="text-xs text-muted">เฉพาะผู้ดูแลระบบ · ตรวจทุก 10 วินาที</p>
                   </div>
                   <div className="flex gap-1">
-                    <button type="button" onClick={() => void loadIntegrityAlerts()} className="rounded-lg p-2 text-muted hover:bg-surface-hover" aria-label="ตรวจสอบอีกครั้ง">
+                    <button type="button" onClick={() => void loadIntegrityAlerts(true)} className="rounded-lg p-2 text-muted hover:bg-surface-hover" aria-label="ตรวจสอบอีกครั้ง">
                       <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                     </button>
                     <button type="button" onClick={() => setIsOpen(false)} className="rounded-lg p-2 text-muted hover:bg-surface-hover" aria-label="ปิด">
