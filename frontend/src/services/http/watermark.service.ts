@@ -14,6 +14,9 @@ import { request } from "./client";
 function toVerifyResult(dto: WatermarkVerifyApiResponse): VerifyResult {
   return {
     found: dto.found,
+    registeredOnChain: dto.registered_on_chain ?? null,
+    chainEvidenceRef: dto.chain_evidence_ref ?? null,
+    chainRecordedAt: dto.chain_recorded_at ?? null,
     evidenceId: dto.evidence_id,
     evidenceNumber: dto.evidence_number,
     officerName: dto.officer_name,

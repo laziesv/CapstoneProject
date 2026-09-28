@@ -49,6 +49,7 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         self.attribution = Mock()
         self.integrity = Mock()
         self.integrity.verify.return_value = self.integrity_result()
+        self.integrity.chain_registration.return_value = None
         self.matched_user = SimpleNamespace(
             user_id=USER_ID,
             badge_number="DL-002",
@@ -610,9 +611,43 @@ class WatermarkVerificationModeTests(unittest.TestCase):
     def test_blind_static_hash_unknown_to_system_is_not_found(self):
         result = self.identify(FILE_HASH, blind_hash="ef" * 32, indexed=None)
 
-        self.assertEqual(result, {"found": False})
+        self.assertEqual(result, {"found": False, "registered_on_chain": False})
+        self.integrity.chain_registration.assert_called_once_with("0x" + "ef" * 32)
         # ไล่แค่ค่าแฮชของ evidence_id ไม่เปิดไฟล์ภาพของหลักฐานชิ้นไหนเลย
         self.codec.extract.assert_not_called()
+
+    def test_evidence_missing_from_database_is_reported_from_chain(self):
+        # แถวหลักฐานถูกลบออกจาก DB แต่ลายน้ำชี้ evidenceRef ที่ลงทะเบียนบนเชนแล้ว
+        self.integrity.chain_registration.return_value = {"recorded_at": 1_700_000_000}
+
+        result = self.identify(FILE_HASH, blind_hash="ef" * 32, indexed=None)
+
+        self.assertEqual(
+            result,
+            {
+                "found": False,
+                "registered_on_chain": True,
+                "chain_evidence_ref": "0x" + "ef" * 32,
+                "chain_recorded_at": 1_700_000_000,
+            },
+        )
+        WatermarkExtractResponse.model_validate(result)
+
+    def test_unreadable_chain_is_not_reported_as_not_found(self):
+        self.integrity.chain_registration.side_effect = (
+            OriginalEvidenceBlockchainReadError("rpc unavailable")
+        )
+
+        with self.assertRaises(OriginalEvidenceBlockchainReadError):
+            self.identify(FILE_HASH, blind_hash="ef" * 32, indexed=None)
+
+    def test_undecodable_image_does_not_query_chain(self):
+        self.evidence.watermarked_file = None
+
+        result = self.identify(FILE_HASH, blind_hash=None)
+
+        self.assertEqual(result, {"found": False})
+        self.integrity.chain_registration.assert_not_called()
 
     def test_deleted_index_value_cannot_hide_evidence(self):
         self.evidence.static_watermark_hash = None

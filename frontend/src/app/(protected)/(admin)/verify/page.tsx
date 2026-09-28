@@ -154,7 +154,8 @@ function VerificationSummary({ result, loading, error }: { result: VerifyResult 
       <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h2 className="font-semibold">สรุปผลการตรวจสอบ</h2></div>
       {error && <EmptyState danger icon={<XCircle className="h-9 w-9" />} text={error} />}
       {!result && !error && <EmptyState icon={<ShieldCheck className="h-10 w-10 opacity-35" />} text="ยังไม่มีผลการตรวจสอบ" />}
-      {result && !result.found && <EmptyState danger icon={<ShieldAlert className="h-10 w-10" />} text="ไม่พบลายน้ำที่ตรงกับหลักฐานในระบบ" />}
+      {result && !result.found && result.registeredOnChain && <MissingFromDatabase result={result} />}
+      {result && !result.found && !result.registeredOnChain && <EmptyState danger icon={<ShieldAlert className="h-10 w-10" />} text="ไม่พบลายน้ำที่ตรงกับหลักฐานในระบบ" />}
       {result?.found && <VerifiedSummary result={result} />}
     </section>
   );
@@ -590,6 +591,21 @@ function CopyButton({ value }: { value: string }) {
 
 function StatusText({ label, value, ok }: { label: string; value: string; ok: boolean }) {
   return <div className="flex items-center justify-between gap-3 bg-slate-50 px-3 py-2 text-xs"><span>{label}</span><span className={`font-medium ${ok ? "text-success" : "text-warning"}`}>{value}</span></div>;
+}
+
+/** ลายน้ำชี้หลักฐานที่ลงทะเบียนบนเชนแล้ว แต่ไม่มีแถวใน DB — ข้อมูลในฐานข้อมูลอาจถูกลบ */
+function MissingFromDatabase({ result }: { result: VerifyResult }) {
+  return (
+    <div className="mt-4 space-y-3 rounded-lg border border-danger/40 bg-danger-light p-4 text-danger">
+      <div className="flex items-center gap-2">
+        <ShieldAlert className="h-5 w-5 flex-shrink-0" />
+        <p className="font-semibold">หลักฐานนี้ลงทะเบียนบน Blockchain แล้ว แต่ไม่พบในฐานข้อมูล</p>
+      </div>
+      <p className="text-sm">ลายน้ำในภาพชี้ไปที่หลักฐานที่เคยบันทึกบน Blockchain ข้อมูลหลักฐานในฐานข้อมูลอาจถูกลบหรือแก้ไข ควรตรวจสอบทันที</p>
+      <DataRow label="Evidence Ref บน Blockchain" value={result.chainEvidenceRef} copy />
+      <DataRow label="เวลาที่ลงทะเบียนบน Blockchain" value={formatForensicUnixTime(result.chainRecordedAt)} />
+    </div>
+  );
 }
 
 function EmptyState({ icon, text, danger = false }: { icon: ReactNode; text: string; danger?: boolean }) {

@@ -35,6 +35,12 @@ class WatermarkExtractResponse(BaseModel):
     """ผลการถอดลายน้ำจากภาพที่อัปโหลด — ระบบลองเทียบกับทุกหลักฐานจนเจอตัวที่ตรง (blind)"""
     found: bool                       # เจอหลักฐานที่ลายน้ำตรงไหม
 
+    # found=false แต่ลายน้ำชี้หลักฐานที่ลงทะเบียนบนเชนแล้ว = แถวใน DB หายไป
+    # None = ถอดลายน้ำถาวรไม่ได้ จึงไม่มีค่าไปถามเชน
+    registered_on_chain: bool | None = None
+    chain_evidence_ref: str | None = None
+    chain_recorded_at: int | None = None
+
     # ข้อมูลหลักฐานที่ระบุได้ (จาก DB) — None ถ้า found=false
     evidence_id: UUID | None = None
     evidence_number: str | None = None

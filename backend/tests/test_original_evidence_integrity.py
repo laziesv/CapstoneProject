@@ -35,6 +35,28 @@ class OriginalEvidenceIntegrityServiceTests(unittest.TestCase):
             database_hash=database_hash or current_hash,
         )
 
+    def test_chain_registration_returns_recorded_time_when_registered(self):
+        self.blockchain.get_evidence.return_value = {
+            "exists": True,
+            "recorded_at": 1_700_000_000,
+        }
+
+        result = self.service.chain_registration("0x" + "ab" * 32)
+
+        self.assertEqual(result, {"recorded_at": 1_700_000_000})
+        self.blockchain.get_evidence.assert_called_once_with("0x" + "ab" * 32)
+
+    def test_chain_registration_is_none_when_never_registered(self):
+        self.blockchain.get_evidence.return_value = {"exists": False, "recorded_at": 0}
+
+        self.assertIsNone(self.service.chain_registration("0x" + "ab" * 32))
+
+    def test_chain_registration_read_failure_raises(self):
+        self.blockchain.get_evidence.side_effect = RuntimeError("rpc unavailable")
+
+        with self.assertRaises(OriginalEvidenceBlockchainReadError):
+            self.service.chain_registration("0x" + "ab" * 32)
+
     def test_current_file_database_and_blockchain_hashes_match(self):
         result = self.verify(b"intact synthetic evidence")
 

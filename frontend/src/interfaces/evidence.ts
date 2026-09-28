@@ -222,6 +222,10 @@ export interface BlockchainTx {
 /** รูปแบบที่ backend คืนจาก POST /api/watermark/verify (multipart image) */
 export interface WatermarkVerifyApiResponse {
   found: boolean;
+  /** found=false แต่ลายน้ำชี้หลักฐานที่ลงทะเบียนบนเชนแล้ว = แถวใน DB หายไป (null = ถอดลายน้ำไม่ได้) */
+  registered_on_chain: boolean | null;
+  chain_evidence_ref: string | null;
+  chain_recorded_at: number | null;
   evidence_id: string | null;
   evidence_number: string | null;
   officer_name: string | null;
@@ -309,6 +313,9 @@ export type OriginalEvidenceIntegrityState =
  *  — static QR เก็บแค่ sha256(evidence_id) เท่านั้น ไม่มีข้อมูลคน/เวลา/พิกัด */
 export interface VerifyResult {
   found: boolean;
+  registeredOnChain: boolean | null;
+  chainEvidenceRef: string | null;
+  chainRecordedAt: number | null;
   evidenceId: string | null;
   evidenceNumber: string | null;
   officerName: string | null;

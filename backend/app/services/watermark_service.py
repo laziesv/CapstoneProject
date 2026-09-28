@@ -65,7 +65,7 @@ def _blind_static_hash(system, y_suspect) -> str | None:
     return decoded.lower()
 
 
-def _candidates(db: Session, system, y_suspect):
+def _candidates(db: Session, blind_hash: str | None):
     """หลักฐานที่ต้องลอง extract() กับต้นฉบับ เรียงตามลำดับที่ควรลอง
 
     ถ้าถอด Static จากภาพได้ตรง ๆ แปลว่าเรขาคณิตของภาพยังเหมือนตอนฝัง ค่าที่ได้จึงชี้
@@ -77,7 +77,6 @@ def _candidates(db: Session, system, y_suspect):
     ค่าไม่ตรงกับ evidence_id (คอลัมน์ถูกแก้/ลบ) จะคำนวณ sha256(evidence_id) ของทุกแถว
     ใหม่ ซึ่งไม่ต้องเปิดไฟล์ภาพ การแก้คอลัมน์จึงซ่อนหลักฐานจากการตรวจไม่ได้
     """
-    blind_hash = _blind_static_hash(system, y_suspect)
     if blind_hash is not None:
         indexed_id = None
         match = EvidenceRepository.get_by_static_watermark_hash(db, blind_hash)
@@ -136,8 +135,10 @@ class WatermarkService:
 
         y_suspect = _luminance(bgr).astype("float32")
         system = DigitalWatermarkingSystem()
+        integrity_service = integrity_service or OriginalEvidenceIntegrityService()
+        blind_hash = _blind_static_hash(system, y_suspect)
 
-        for ev in _candidates(db, system, y_suspect):
+        for ev in _candidates(db, blind_hash):
             ref = cv2.imread(ev.original_file.file_path, cv2.IMREAD_COLOR)
             if ref is None:
                 continue
@@ -150,9 +151,7 @@ class WatermarkService:
 
             # การตรวจสอบความถูกต้องของหลักฐาน: ใช้ hash บน Blockchain เป็น anchor
             # และ re-hash ไฟล์ ORIGINAL ปัจจุบันทุกครั้งที่ตรวจสอบ
-            original_integrity = (
-                integrity_service or OriginalEvidenceIntegrityService()
-            ).verify(
+            original_integrity = integrity_service.verify(
                 evidence_id=ev.evidence_id,
                 original_file_path=ev.original_file.file_path,
                 database_hash=ev.original_file.file_hash,
@@ -376,4 +375,17 @@ class WatermarkService:
             }
 
         # ไม่ตรงกับหลักฐานใดเลย
-        return {"found": False}
+        if blind_hash is None:
+            return {"found": False}
+
+        # ลายน้ำถาวรคือ evidenceRef บนเชน — ถามเชนตรง ๆ ไม่เชื่อ DB ว่า "ไม่มี"
+        evidence_ref = f"0x{blind_hash}"
+        registration = integrity_service.chain_registration(evidence_ref)
+        if registration is None:
+            return {"found": False, "registered_on_chain": False}
+        return {
+            "found": False,
+            "registered_on_chain": True,
+            "chain_evidence_ref": evidence_ref,
+            "chain_recorded_at": registration["recorded_at"],
+        }

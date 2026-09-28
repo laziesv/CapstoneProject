@@ -68,6 +68,27 @@ class OriginalEvidenceIntegrityService:
     ) -> None:
         self._blockchain = blockchain_service or BlockchainIntegrationService()
 
+    def chain_registration(self, evidence_ref: str) -> dict | None:
+        """การลงทะเบียนบนเชนของ evidence_ref (None = ไม่เคยลงทะเบียน)
+
+        ใช้ตอนถอดลายน้ำได้แต่ไม่พบหลักฐานใน DB — ถ้าเชนบอกว่าเคยลงทะเบียน
+        แปลว่าแถวใน DB หายไป ไม่ใช่ภาพจากนอกระบบ อ่านเชนไม่ได้ต้องโยน error
+        เพื่อไม่ตอบว่า "ไม่พบ" ทั้งที่ยังตรวจไม่ครบ
+        """
+        try:
+            record = self._blockchain.get_evidence(evidence_ref)
+        except Exception as exc:
+            raise OriginalEvidenceBlockchainReadError(
+                "Unable to read evidence registration from Blockchain"
+            ) from exc
+        if not isinstance(record, dict):
+            raise OriginalEvidenceBlockchainReadError(
+                "Blockchain evidence record is malformed"
+            )
+        if record.get("exists") is not True:
+            return None
+        return {"recorded_at": int(record["recorded_at"])}
+
     def verify(
         self,
         *,
