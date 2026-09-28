@@ -744,6 +744,58 @@ class BlockchainIntegrationTests(TestCase):
 
         self.assertEqual(result["block_number"], 102)
 
+    def test_parallel_scan_merges_chunks_in_block_order(self) -> None:
+        client = self._client_at(latest_block=119)
+        client.get_evidence.side_effect = RuntimeError("no hint")
+        client.get_evidence_record_event.side_effect = (
+            lambda _ref, from_block, to_block: (
+                self._registration_event(100) if from_block == 100 else None
+            )
+        )
+        client.list_access_events.side_effect = (
+            lambda _ref, from_block, to_block: [
+                _access_event(
+                    f"{from_block:08d}-5555-4555-8555-555555555555",
+                    from_block,
+                    1_700_000_000 + from_block,
+                )
+            ]
+        )
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+            event_scan_chunk_size=2,
+        )
+
+        result = service.get_chain_of_custody(EVIDENCE_ID)
+
+        self.assertEqual(client.list_access_events.call_count, 10)
+        self.assertEqual(
+            [event["block_number"] for event in result["access_history"]],
+            list(range(100, 120, 2)),
+        )
+        self.assertEqual(result["registration"]["block_number"], 100)
+
+    def test_parallel_scan_rejects_duplicate_registration(self) -> None:
+        client = self._client_at(latest_block=119)
+        client.get_evidence.side_effect = RuntimeError("no hint")
+        client.get_evidence_record_event.side_effect = (
+            lambda _ref, from_block, to_block: (
+                self._registration_event(from_block)
+                if from_block in (100, 110)
+                else None
+            )
+        )
+        client.list_access_events.return_value = []
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+            event_scan_chunk_size=2,
+        )
+
+        with self.assertRaises(RuntimeError):
+            service.get_chain_of_custody(EVIDENCE_ID)
+
     def test_chain_of_custody_handles_empty_history(self) -> None:
         client = Mock()
         client.health_check.return_value = BlockchainHealth(

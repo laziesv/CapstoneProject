@@ -1,6 +1,7 @@
 """Backend-facing blockchain integration service."""
 
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -25,6 +26,9 @@ from app.integrations.blockchain.provider import get_blockchain_client
 
 
 DEFAULT_EVENT_SCAN_CHUNK_SIZE = 1_000
+# อ่านหลายช่วงพร้อมกันเมื่อช่วงเยอะ — เท่ากับ database_integrity_alert_service
+# ช่วงน้อยกว่านี้อ่านทีละช่วงตามเดิม เพราะเร็วอยู่แล้ว
+_MAX_PARALLEL_SCAN_READS = 4
 
 
 class BlockchainIntegrationService:
@@ -556,29 +560,41 @@ class BlockchainIntegrationService:
         start_block: int,
         latest_block: int,
     ) -> tuple[Any, list[Any]]:
-        registration_event = None
-        access_events = []
         # การเชื่อมต่อ Blockchain: แบ่งช่วง eth_getLogs เพื่อไม่เกินข้อจำกัด
         # RPC ของ Besu และไม่อ่านก่อน deployment block ของสัญญา V3
-        for from_block, to_block in self._event_scan_ranges(latest_block, start_block):
-            chunk_registration = client.get_evidence_record_event(
+        ranges = self._event_scan_ranges(latest_block, start_block)
+
+        def read_chunk(block_range: tuple[int, int]) -> tuple[Any, list[Any]]:
+            from_block, to_block = block_range
+            registration = client.get_evidence_record_event(
                 canonical_evidence_ref,
                 from_block=from_block,
                 to_block=to_block,
             )
+            access = client.list_access_events(
+                canonical_evidence_ref,
+                from_block=from_block,
+                to_block=to_block,
+            )
+            return registration, list(access)
+
+        if len(ranges) > _MAX_PARALLEL_SCAN_READS:
+            # map() คืนผลเรียงตามลำดับช่วงเสมอ ผลรวมจึงเหมือนการอ่านทีละช่วงทุกประการ
+            with ThreadPoolExecutor(max_workers=_MAX_PARALLEL_SCAN_READS) as executor:
+                chunks = list(executor.map(read_chunk, ranges))
+        else:
+            chunks = [read_chunk(block_range) for block_range in ranges]
+
+        registration_event = None
+        access_events = []
+        for chunk_registration, chunk_access in chunks:
             if chunk_registration is not None:
                 if registration_event is not None:
                     raise RuntimeError(
                         "multiple EvidenceRecorded events found for evidence_ref"
                     )
                 registration_event = chunk_registration
-            access_events.extend(
-                client.list_access_events(
-                    canonical_evidence_ref,
-                    from_block=from_block,
-                    to_block=to_block,
-                )
-            )
+            access_events.extend(chunk_access)
         return registration_event, access_events
 
     def _event_scan_ranges(
