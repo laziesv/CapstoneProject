@@ -68,7 +68,10 @@ class ChainOfCustodyService:
             raise ChainOfCustodyEvidenceNotFoundError("Evidence not found")
 
         evidence_ref = derive_evidence_ref(evidence.evidence_id)
-        chain_custody = self._read_chain_custody(evidence.evidence_id)
+        chain_custody = self._read_chain_custody(
+            evidence.evidence_id,
+            self._registration_block_hint(db, evidence.evidence_id),
+        )
         registration = chain_custody.get("registration")
         chain_access_events = chain_custody.get("access_history")
         if registration is not None and not isinstance(registration, dict):
@@ -602,9 +605,36 @@ class ChainOfCustodyService:
             ],
         )
 
-    def _read_chain_custody(self, evidence_id: UUID) -> dict[str, Any]:
+    @staticmethod
+    def _registration_block_hint(db: Session, evidence_id: UUID) -> int | None:
+        """block ที่ลงทะเบียนหลักฐานตาม DB — ใช้เป็นจุดเริ่มสแกนเท่านั้น ไม่ใช้ตัดสินผลตรวจ
+        ถ้าค่านี้ผิด ชั้น blockchain จะสแกนใหม่ทั้งเชนเอง ผลตรวจจึงไม่เปลี่ยน"""
+        rows = BlockchainTransactionRepository.get_by_evidence_and_action(
+            db,
+            evidence_id=evidence_id,
+            action_type=BlockchainAction.REGISTER,
+        )
+        blocks = [
+            row.block_number
+            for row in rows or []
+            if isinstance(getattr(row, "block_number", None), int)
+            and row.block_number > 0
+        ]
+        return min(blocks) if blocks else None
+
+    def _read_chain_custody(
+        self,
+        evidence_id: UUID,
+        from_block_hint: int | None = None,
+    ) -> dict[str, Any]:
         try:
-            result = self._blockchain.get_chain_of_custody(evidence_id)
+            if from_block_hint is None:
+                result = self._blockchain.get_chain_of_custody(evidence_id)
+            else:
+                result = self._blockchain.get_chain_of_custody(
+                    evidence_id,
+                    from_block_hint=from_block_hint,
+                )
         except Exception as exc:
             raise ChainOfCustodyBlockchainReadError(
                 "Unable to read Chain of Custody events from Blockchain"

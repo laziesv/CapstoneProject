@@ -273,7 +273,10 @@ class ChainOfCustodyServiceTests(unittest.TestCase):
         self.assertTrue(all(item.verified for item in result.access_history))
         self.assertEqual(result.evidence.registration_tx_hash, REGISTER_TX_HASH)
         self.assertEqual(result.evidence.registration_block_number, 7001)
-        self.chain.get_chain_of_custody.assert_called_once_with(EVIDENCE_ID)
+        self.chain.get_chain_of_custody.assert_called_once_with(
+            EVIDENCE_ID,
+            from_block_hint=7001,
+        )
         self.chain.get_access_by_session.assert_not_called()
         self.chain.record_access.assert_not_called()
 

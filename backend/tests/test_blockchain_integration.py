@@ -523,6 +523,227 @@ class BlockchainIntegrationTests(TestCase):
             {"from_block": 6461, "to_block": 6464, "chunk_size": 2},
         )
 
+    def _registration_event(self, block_number: int) -> EvidenceRecordedEvent:
+        return EvidenceRecordedEvent(
+            evidence_ref=derive_evidence_ref(EVIDENCE_ID),
+            evidence_hash=EVIDENCE_HASH,
+            uploader_ref=derive_actor_ref(UPLOADER_ID),
+            recorded_at=1_700_000_000,
+            writer=CONTRACT_ADDRESS,
+            tx_hash=TX_HASH,
+            block_number=block_number,
+            transaction_index=0,
+            log_index=0,
+        )
+
+    def _client_at(self, latest_block: int) -> Mock:
+        client = Mock()
+        client.health_check.return_value = BlockchainHealth(
+            connected=True,
+            chain_id=20260720,
+            latest_block=latest_block,
+            contract_address=CONTRACT_ADDRESS,
+            contract_deployed=True,
+        )
+        return client
+
+    def test_chain_of_custody_scans_from_registration_block_hint(self) -> None:
+        client = self._client_at(latest_block=9000)
+        client.get_evidence_record_event.side_effect = [
+            self._registration_event(8998),
+            None,
+        ]
+        client.list_access_events.side_effect = [[], []]
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+            event_scan_chunk_size=2,
+        )
+
+        result = service.get_chain_of_custody(EVIDENCE_ID, from_block_hint=8998)
+
+        evidence_ref = derive_evidence_ref(EVIDENCE_ID)
+        self.assertEqual(
+            client.get_evidence_record_event.call_args_list,
+            [
+                ((evidence_ref,), {"from_block": 8998, "to_block": 8999}),
+                ((evidence_ref,), {"from_block": 9000, "to_block": 9000}),
+            ],
+        )
+        self.assertEqual(result["registration"]["block_number"], 8998)
+        self.assertEqual(result["scan"]["from_block"], 8998)
+
+    def test_chain_of_custody_rescans_whole_chain_when_hint_misses(self) -> None:
+        # block_number ใน DB ถูกแก้ให้เลยจุดลงทะเบียนจริง ต้องยังเจอการลงทะเบียน
+        client = self._client_at(latest_block=104)
+        client.get_evidence_record_event.side_effect = [
+            None,
+            self._registration_event(101),
+            None,
+            None,
+        ]
+        client.list_access_events.return_value = []
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+            event_scan_chunk_size=2,
+        )
+
+        result = service.get_chain_of_custody(EVIDENCE_ID, from_block_hint=104)
+
+        evidence_ref = derive_evidence_ref(EVIDENCE_ID)
+        self.assertEqual(
+            client.get_evidence_record_event.call_args_list,
+            [
+                ((evidence_ref,), {"from_block": 104, "to_block": 104}),
+                ((evidence_ref,), {"from_block": 100, "to_block": 101}),
+                ((evidence_ref,), {"from_block": 102, "to_block": 103}),
+                ((evidence_ref,), {"from_block": 104, "to_block": 104}),
+            ],
+        )
+        self.assertEqual(result["registration"]["block_number"], 101)
+        self.assertEqual(result["scan"]["from_block"], 100)
+
+    def test_chain_of_custody_ignores_hint_outside_chain(self) -> None:
+        client = self._client_at(latest_block=101)
+        client.get_evidence_record_event.return_value = None
+        client.list_access_events.return_value = []
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+        )
+
+        result = service.get_chain_of_custody(EVIDENCE_ID, from_block_hint=5000)
+
+        client.get_evidence_record_event.assert_called_once()
+        self.assertEqual(result["scan"]["from_block"], 100)
+
+    def _client_with_block_times(self, latest_block: int, first_block: int) -> Mock:
+        """เชนจำลองที่ block n มี timestamp = 1_700_000_000 + 5 * (n - first_block)"""
+        client = self._client_at(latest_block=latest_block)
+        client.web3.eth.get_block.side_effect = lambda number: {
+            "timestamp": 1_700_000_000 + 5 * (number - first_block)
+        }
+        return client
+
+    def test_chain_of_custody_finds_start_block_from_onchain_recorded_at(self) -> None:
+        client = self._client_with_block_times(latest_block=100_000, first_block=100)
+        registered_block = 90_000
+        client.get_evidence.return_value = {
+            "recorded_at": 1_700_000_000 + 5 * (registered_block - 100),
+            "exists": True,
+        }
+        client.get_evidence_record_event.side_effect = (
+            lambda _ref, from_block, to_block: (
+                self._registration_event(registered_block)
+                if from_block <= registered_block <= to_block
+                else None
+            )
+        )
+        client.list_access_events.return_value = []
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+        )
+
+        result = service.get_chain_of_custody(EVIDENCE_ID)
+
+        self.assertEqual(result["registration"]["block_number"], registered_block)
+        self.assertEqual(result["scan"]["from_block"], registered_block)
+        # 10,001 block ≈ 11 ช่วง แทน 100 ช่วงถ้าเริ่มจาก deployment block
+        self.assertLessEqual(client.get_evidence_record_event.call_count, 11)
+        self.assertLessEqual(client.web3.eth.get_block.call_count, 20)
+
+    def test_chain_of_custody_full_scan_when_block_times_unreadable(self) -> None:
+        client = self._client_at(latest_block=103)
+        client.get_evidence.return_value = {"recorded_at": 1_700_000_000}
+        client.web3.eth.get_block.side_effect = RuntimeError("rpc error")
+        client.get_evidence_record_event.side_effect = [
+            self._registration_event(101),
+            None,
+        ]
+        client.list_access_events.return_value = []
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+            event_scan_chunk_size=2,
+        )
+
+        result = service.get_chain_of_custody(EVIDENCE_ID)
+
+        self.assertEqual(result["registration"]["block_number"], 101)
+        self.assertEqual(result["scan"]["from_block"], 100)
+
+    def test_tampered_db_hint_before_registration_still_finds_all_events(self) -> None:
+        # hint เร็วกว่าจริง = สแกนกว้างขึ้นเท่านั้น ไม่มี event หลุด
+        client = self._client_at(latest_block=105)
+        client.get_evidence_record_event.side_effect = (
+            lambda _ref, from_block, to_block: (
+                self._registration_event(103)
+                if from_block <= 103 <= to_block
+                else None
+            )
+        )
+        client.list_access_events.side_effect = (
+            lambda _ref, from_block, to_block: [
+                _access_event(ACCESS_LOG_ID, 105, 1_700_000_001)
+            ]
+            if from_block <= 105 <= to_block
+            else []
+        )
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+            event_scan_chunk_size=2,
+        )
+
+        result = service.get_chain_of_custody(EVIDENCE_ID, from_block_hint=101)
+
+        self.assertEqual(result["registration"]["block_number"], 103)
+        self.assertEqual(len(result["access_history"]), 1)
+
+    def test_access_session_lookup_starts_at_onchain_recorded_block(self) -> None:
+        client = self._client_with_block_times(latest_block=50_000, first_block=100)
+        event_block = 49_990
+        event = _access_event(ACCESS_LOG_ID, event_block, 1_700_000_001)
+        client.get_access_by_session.return_value = {
+            "recorded_at": 1_700_000_000 + 5 * (event_block - 100),
+        }
+        client.get_access_event_by_session.side_effect = (
+            lambda _ref, from_block, to_block: (
+                event if from_block <= event_block <= to_block else None
+            )
+        )
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+        )
+
+        result = service.get_access_event_by_session(event.access_session_ref)
+
+        self.assertEqual(result["access_session_ref"], event.access_session_ref)
+        self.assertEqual(client.get_access_event_by_session.call_count, 1)
+
+    def test_access_session_lookup_rescans_when_narrow_range_misses(self) -> None:
+        client = self._client_with_block_times(latest_block=110, first_block=100)
+        event = _access_event(ACCESS_LOG_ID, 102, 1_700_000_001)
+        # recordedAt ชี้ไป block 108 แต่ event จริงอยู่ 102 ต้องยังหาเจอ
+        client.get_access_by_session.return_value = {"recorded_at": 1_700_000_040}
+        client.get_access_event_by_session.side_effect = (
+            lambda _ref, from_block, to_block: (
+                event if from_block <= 102 <= to_block else None
+            )
+        )
+        service = BlockchainIntegrationService(
+            settings=_settings(deployment_block=100),
+            client_provider=lambda: client,
+            event_scan_chunk_size=5,
+        )
+
+        result = service.get_access_event_by_session(event.access_session_ref)
+
+        self.assertEqual(result["block_number"], 102)
+
     def test_chain_of_custody_handles_empty_history(self) -> None:
         client = Mock()
         client.health_check.return_value = BlockchainHealth(

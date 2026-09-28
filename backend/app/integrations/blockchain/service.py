@@ -274,6 +274,7 @@ class BlockchainIntegrationService:
         self,
         evidence_id: UUID | str,
         access_session_ref: str | None = None,
+        from_block_hint: int | None = None,
     ) -> dict[str, Any]:
         """Return registration and access events for one evidence reference."""
 
@@ -281,14 +282,23 @@ class BlockchainIntegrationService:
         return self.get_evidence_history_by_ref(
             evidence_ref,
             access_session_ref=access_session_ref,
+            from_block_hint=from_block_hint,
         )
 
     def get_evidence_history_by_ref(
         self,
         evidence_ref: str,
         access_session_ref: str | None = None,
+        from_block_hint: int | None = None,
     ) -> dict[str, Any]:
-        """Return V3 registration and access events for one evidence ref."""
+        """Return V3 registration and access events for one evidence ref.
+
+        from_block_hint = block ที่ลงทะเบียนหลักฐานตามที่ DB บันทึกไว้ สัญญาไม่ยอมให้
+        บันทึกการเข้าถึงก่อนลงทะเบียน (EvidenceNotFound) เหตุการณ์ทั้งหมดจึงอยู่ตั้งแต่
+        block นั้นเป็นต้นไป สแกนจากตรงนั้นแทน deployment block ทำให้ไม่ช้าลงตามอายุเชน
+        ถ้าไม่เจอการลงทะเบียนในช่วงนั้น (เช่น block_number ใน DB ถูกแก้) จะสแกนใหม่ทั้งหมด
+        ผลตรวจจึงเหมือนเดิมทุกกรณี แค่เร็วขึ้นเมื่อ DB ถูกต้อง
+        """
 
         canonical_evidence_ref = normalize_bytes32(evidence_ref, "evidence_ref")
         if not self._settings.enabled:
@@ -312,28 +322,31 @@ class BlockchainIntegrationService:
             raise RuntimeError("unable to determine latest Blockchain block")
 
         latest_block = int(health.latest_block)
-        registration_event = None
-        access_events = []
-        # การเชื่อมต่อ Blockchain: แบ่งช่วง eth_getLogs เพื่อไม่เกินข้อจำกัด
-        # RPC ของ Besu และเริ่มอ่านจาก deployment block ของสัญญา V3 เท่านั้น
-        for from_block, to_block in self._event_scan_ranges(latest_block):
-            chunk_registration = client.get_evidence_record_event(
-                canonical_evidence_ref,
-                from_block=from_block,
-                to_block=to_block,
+        if from_block_hint is None:
+            from_block_hint = self._block_recorded_at(
+                client,
+                lambda: client.get_evidence(canonical_evidence_ref),
+                latest_block,
             )
-            if chunk_registration is not None:
-                if registration_event is not None:
-                    raise RuntimeError(
-                        "multiple EvidenceRecorded events found for evidence_ref"
-                    )
-                registration_event = chunk_registration
-            access_events.extend(
-                client.list_access_events(
-                    canonical_evidence_ref,
-                    from_block=from_block,
-                    to_block=to_block,
-                )
+        scan_from = self._settings.deployment_block
+        if (
+            from_block_hint is not None
+            and self._settings.deployment_block < from_block_hint <= latest_block
+        ):
+            scan_from = from_block_hint
+        registration_event, access_events = self._scan_evidence_events(
+            client,
+            canonical_evidence_ref,
+            scan_from,
+            latest_block,
+        )
+        if registration_event is None and scan_from != self._settings.deployment_block:
+            scan_from = self._settings.deployment_block
+            registration_event, access_events = self._scan_evidence_events(
+                client,
+                canonical_evidence_ref,
+                scan_from,
+                latest_block,
             )
 
         access_events.sort(
@@ -377,7 +390,7 @@ class BlockchainIntegrationService:
             "matched_access": matched_access,
             "access_history": access_history,
             "scan": {
-                "from_block": self._settings.deployment_block,
+                "from_block": scan_from,
                 "to_block": latest_block,
                 "chunk_size": self._event_scan_chunk_size,
             },
@@ -397,8 +410,30 @@ class BlockchainIntegrationService:
         if not health.connected or health.latest_block is None:
             raise RuntimeError("unable to determine latest Blockchain block")
 
+        latest_block = int(health.latest_block)
+        start_block = self._block_recorded_at(
+            client,
+            lambda: client.get_access_by_session(canonical_ref),
+            latest_block,
+        )
+        matched_event = self._find_access_event_by_session(
+            client, canonical_ref, start_block, latest_block
+        )
+        if matched_event is None and start_block is not None:
+            matched_event = self._find_access_event_by_session(
+                client, canonical_ref, None, latest_block
+            )
+        return self._map_access_event(matched_event) if matched_event else None
+
+    def _find_access_event_by_session(
+        self,
+        client: BlockchainClient,
+        canonical_ref: str,
+        start_block: int | None,
+        latest_block: int,
+    ) -> Any:
         matched_event = None
-        for from_block, to_block in self._event_scan_ranges(int(health.latest_block)):
+        for from_block, to_block in self._event_scan_ranges(latest_block, start_block):
             event = client.get_access_event_by_session(
                 canonical_ref,
                 from_block=from_block,
@@ -410,7 +445,42 @@ class BlockchainIntegrationService:
                         "multiple EvidenceAccessRecorded events found for access_session_ref"
                     )
                 matched_event = event
-        return self._map_access_event(matched_event) if matched_event else None
+        return matched_event
+
+    def _block_recorded_at(
+        self,
+        client: BlockchainClient,
+        read_record: Callable[[], dict[str, Any]],
+        latest_block: int,
+    ) -> int | None:
+        """block แรกที่ timestamp >= recordedAt ของ record บนเชน (None = หาไม่ได้)
+
+        สัญญาบันทึก recordedAt = block.timestamp ของ block ที่เขียน event นั้น การหา block
+        ด้วย binary search ใช้ราว 18 ครั้งของ eth_getBlockByNumber แทนการไล่ eth_getLogs
+        ทีละช่วงตั้งแต่ deployment block ซึ่งช้าลงทุกวันตามอายุเชน ค่านี้มาจากเชนเอง
+        ไม่ได้เชื่อ DB และผู้เรียกจะสแกนใหม่ทั้งเชนถ้าไม่เจอ event ในช่วงที่หาได้
+        """
+        try:
+            recorded_at = int(read_record()["recorded_at"])
+            if recorded_at <= 0:
+                return None
+
+            def timestamp(block_number: int) -> int:
+                return int(client.web3.eth.get_block(block_number)["timestamp"])
+
+            low = self._settings.deployment_block
+            high = latest_block
+            if high < low or timestamp(high) < recorded_at:
+                return None
+            while low < high:
+                middle = (low + high) // 2
+                if timestamp(middle) < recorded_at:
+                    low = middle + 1
+                else:
+                    high = middle
+            return low
+        except Exception:
+            return None
 
     def get_network_overview(self) -> dict[str, Any]:
         """Return safe V3 network metadata for the admin explorer."""
@@ -479,8 +549,45 @@ class BlockchainIntegrationService:
             "registry_events": self._decode_registry_events(client, receipt),
         }
 
-    def _event_scan_ranges(self, latest_block: int) -> list[tuple[int, int]]:
-        if latest_block < self._settings.deployment_block:
+    def _scan_evidence_events(
+        self,
+        client: BlockchainClient,
+        canonical_evidence_ref: str,
+        start_block: int,
+        latest_block: int,
+    ) -> tuple[Any, list[Any]]:
+        registration_event = None
+        access_events = []
+        # การเชื่อมต่อ Blockchain: แบ่งช่วง eth_getLogs เพื่อไม่เกินข้อจำกัด
+        # RPC ของ Besu และไม่อ่านก่อน deployment block ของสัญญา V3
+        for from_block, to_block in self._event_scan_ranges(latest_block, start_block):
+            chunk_registration = client.get_evidence_record_event(
+                canonical_evidence_ref,
+                from_block=from_block,
+                to_block=to_block,
+            )
+            if chunk_registration is not None:
+                if registration_event is not None:
+                    raise RuntimeError(
+                        "multiple EvidenceRecorded events found for evidence_ref"
+                    )
+                registration_event = chunk_registration
+            access_events.extend(
+                client.list_access_events(
+                    canonical_evidence_ref,
+                    from_block=from_block,
+                    to_block=to_block,
+                )
+            )
+        return registration_event, access_events
+
+    def _event_scan_ranges(
+        self,
+        latest_block: int,
+        start_block: int | None = None,
+    ) -> list[tuple[int, int]]:
+        start = max(start_block or 0, self._settings.deployment_block)
+        if latest_block < start:
             return []
         return [
             (
@@ -491,7 +598,7 @@ class BlockchainIntegrationService:
                 ),
             )
             for from_block in range(
-                self._settings.deployment_block,
+                start,
                 latest_block + 1,
                 self._event_scan_chunk_size,
             )
