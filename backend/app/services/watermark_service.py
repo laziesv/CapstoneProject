@@ -72,12 +72,29 @@ def _candidates(db: Session, system, y_suspect):
     หลักฐานได้ชิ้นเดียว ค้นผ่าน index แล้วลองแค่ชิ้นนั้น ไม่ต้องไล่ทั้งระบบ
     ถ้าถอดไม่ได้ (ภาพถูกครอป/หมุน/ย่อ) จึงถอยไปไล่ทุกชิ้นแบบเดิม ซึ่งมี Image
     Registration ช่วยจัดภาพให้ตรงกับต้นฉบับแต่ละชิ้นก่อนถอด
+
+    static_watermark_hash ใน DB เป็นแค่ทางลัด ไม่ใช่แหล่งความจริง ถ้าค้นไม่เจอหรือ
+    ค่าไม่ตรงกับ evidence_id (คอลัมน์ถูกแก้/ลบ) จะคำนวณ sha256(evidence_id) ของทุกแถว
+    ใหม่ ซึ่งไม่ต้องเปิดไฟล์ภาพ การแก้คอลัมน์จึงซ่อนหลักฐานจากการตรวจไม่ได้
     """
     blind_hash = _blind_static_hash(system, y_suspect)
     if blind_hash is not None:
+        indexed_id = None
         match = EvidenceRepository.get_by_static_watermark_hash(db, blind_hash)
-        if match is not None and _is_comparable(match):
+        if (
+            match is not None
+            and _is_comparable(match)
+            and static_watermark_hash(match.evidence_id) == blind_hash
+        ):
+            indexed_id = match.evidence_id
             yield match
+        for evidence in EvidenceRepository.get_all(db):
+            if (
+                evidence.evidence_id != indexed_id
+                and _is_comparable(evidence)
+                and static_watermark_hash(evidence.evidence_id) == blind_hash
+            ):
+                yield evidence
         return
 
     for evidence in EvidenceRepository.get_all(db):
@@ -150,6 +167,16 @@ class WatermarkService:
             database_access_user = None
             watermark_hash_integrity_status = None
             integrity_mismatches = list(original_integrity.mismatches)
+            stored_static_hash = getattr(ev, "static_watermark_hash", None)
+            if stored_static_hash != expected:
+                # คอลัมน์ทางลัดไม่ตรงกับ evidence_id = DB ถูกแก้ แจ้งให้เห็นแม้ยังหาเจอ
+                integrity_mismatches.append(
+                    IntegrityMismatch(
+                        field="static_watermark_hash",
+                        database_value=stored_static_hash,
+                        blockchain_value=expected,
+                    )
+                )
 
             # ตรวจสอบลายน้ำ: รูปแบบเดิมผูกกับ hash ไฟล์ ส่วนรูปแบบเฉพาะบุคคล
             # ตรวจสอบ session ผ่านข้อมูล DB และ Blockchain แบบ read-only

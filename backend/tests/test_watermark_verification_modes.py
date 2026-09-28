@@ -82,6 +82,7 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             watermarked_file=SimpleNamespace(file_path="watermarked.png"),
         )
         self.static_value = hashlib.sha256(str(EVIDENCE_ID).encode()).hexdigest()
+        self.evidence.static_watermark_hash = self.static_value
 
     @staticmethod
     def integrity_result(
@@ -606,12 +607,46 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         self.get_all.assert_not_called()
         self.codec.extract.assert_called_once()
 
-    def test_blind_static_hash_unknown_to_system_is_not_found_without_scan(self):
+    def test_blind_static_hash_unknown_to_system_is_not_found(self):
         result = self.identify(FILE_HASH, blind_hash="ef" * 32, indexed=None)
 
         self.assertEqual(result, {"found": False})
-        self.get_all.assert_not_called()
+        # ไล่แค่ค่าแฮชของ evidence_id ไม่เปิดไฟล์ภาพของหลักฐานชิ้นไหนเลย
         self.codec.extract.assert_not_called()
+
+    def test_deleted_index_value_cannot_hide_evidence(self):
+        self.evidence.static_watermark_hash = None
+
+        result = self.identify(FILE_HASH, blind_hash=self.static_value, indexed=None)
+
+        self.assertTrue(result["found"])
+        self.assertEqual(result["evidence_id"], EVIDENCE_ID)
+        self.assertIn(
+            {
+                "field": "static_watermark_hash",
+                "database_value": None,
+                "blockchain_value": self.static_value,
+            },
+            [m.model_dump() for m in result["original_integrity_mismatches"]],
+        )
+
+    def test_swapped_index_value_cannot_redirect_to_other_evidence(self):
+        other = SimpleNamespace(
+            evidence_id=UUID("99999999-9999-4999-8999-999999999999"),
+            original_file=SimpleNamespace(file_hash=FILE_HASH, file_path="other.png"),
+            watermarked_file=SimpleNamespace(file_path="other-wm.png"),
+            static_watermark_hash=self.static_value,
+        )
+        self.evidence.static_watermark_hash = "ab" * 32
+
+        result = self.identify(FILE_HASH, blind_hash=self.static_value, indexed=other)
+
+        self.assertEqual(result["evidence_id"], EVIDENCE_ID)
+        self.codec.extract.assert_called_once()
+        self.assertIn(
+            "static_watermark_hash",
+            [m.field for m in result["original_integrity_mismatches"]],
+        )
 
     def test_undecodable_blind_watermark_falls_back_to_full_scan(self):
         result = self.identify(FILE_HASH, blind_hash=None)
