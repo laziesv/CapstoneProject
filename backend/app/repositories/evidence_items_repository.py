@@ -59,6 +59,21 @@ class EvidenceRepository:
 
 
     @staticmethod
+    def get_by_static_watermark_hash(
+        db: Session,
+        static_watermark_hash: str,
+    ):
+        """หลักฐานที่ฝัง Static Watermark ค่านี้ (None = ไม่มีในระบบ)"""
+        return (
+            db.query(EvidenceItem)
+            .filter(
+                EvidenceItem.static_watermark_hash == static_watermark_hash
+            )
+            .first()
+        )
+
+
+    @staticmethod
     def get_by_number(
         db: Session,
         evidence_number: str

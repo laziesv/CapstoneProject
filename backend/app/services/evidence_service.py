@@ -14,7 +14,7 @@ from app.models.evidence_files import EvidenceFile
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.utils.ref_lookup import resolve_by_ref
 from app.repositories.evidence_files_repository import EvidenceFileRepository
-from app.utils.hash import calculate_sha256
+from app.utils.hash import calculate_sha256, static_watermark_hash
 from app.models.enums import BlockchainAction, FileType
 from app.integrations.blockchain import BlockchainIntegrationService
 from app.integrations.blockchain.transaction_repository import (
@@ -238,6 +238,7 @@ class EvidenceService:
             )
             if y_wm is None:
                 raise ValueError("ฝังลายน้ำไม่สำเร็จ")
+            evidence.static_watermark_hash = static_watermark_hash(evidence.evidence_id)
 
             wm_img = cv2.cvtColor(cv2.merge([y_wm, cr, cb]), cv2.COLOR_YCrCb2BGR)
 

@@ -15,3 +15,9 @@ def calculate_sha256(path: str):
 
 
     return sha256.hexdigest()
+
+
+def static_watermark_hash(evidence_id) -> str:
+    """ค่าที่ฝังใน Static Watermark ของหลักฐาน — ต้องตรงกับ embed_static() ใน mainyy.py"""
+
+    return hashlib.sha256(str(evidence_id).encode("utf-8")).hexdigest()

@@ -49,6 +49,11 @@ class EvidenceItem(Base):
     # nullable = คำขอเก่าหรือผู้เรียกที่ไม่ส่งค่ามายังใช้งานได้ตามเดิม
     upload_request_id = Column(UUID(as_uuid=True), unique=True, index=True)
 
+    # ค่าที่ฝังใน Static Watermark = sha256(str(evidence_id)) แบบ hex
+    # ตอนตรวจลายน้ำ ถอด QR จากภาพได้ค่านี้แล้วค้นผ่าน index ได้ทันที
+    # ไม่ต้องไล่เทียบกับต้นฉบับของหลักฐานทุกชิ้นในระบบ
+    static_watermark_hash = Column(String(64), unique=True, index=True)
+
     # ไฟล์ของหลักฐานชิ้นนี้ (ต้นฉบับ + ที่ฝังลายน้ำแล้ว)
     # selectin = โหลดมาพร้อมกันในคิวรีเดียว เลี่ยงปัญหา N+1 ตอน list ทั้งหมด
     files = relationship("EvidenceFile", lazy="selectin")

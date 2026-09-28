@@ -39,6 +39,8 @@ UPLOADER_ID = UUID("55555555-5555-4555-8555-555555555555")
 ACCESS_LOG_ID = UUID("33333333-3333-4333-8333-333333333333")
 FILE_HASH = "ab" * 32
 SESSION_REF = "0x" + "cd" * 32
+# ค่าเริ่มต้นของ identify(): การค้นด้วย index เจอหลักฐานของ setUp
+_INDEXED = object()
 
 
 class WatermarkVerificationModeTests(unittest.TestCase):
@@ -176,7 +178,7 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             ),
         )
 
-    def identify(self, dynamic_value, user_lookup=None):
+    def identify(self, dynamic_value, user_lookup=None, blind_hash=None, indexed=_INDEXED):
         image = np.zeros((8, 8, 3), dtype=np.uint8)
         qr = np.zeros((8, 8), dtype=np.uint8)
         codec = Mock()
@@ -188,6 +190,14 @@ class WatermarkVerificationModeTests(unittest.TestCase):
             patch(
                 "app.services.watermark_service.EvidenceRepository.get_all",
                 return_value=[self.evidence],
+            ) as get_all,
+            patch(
+                "app.services.watermark_service.EvidenceRepository.get_by_static_watermark_hash",
+                return_value=self.evidence if indexed is _INDEXED else indexed,
+            ) as lookup,
+            patch(
+                "app.services.watermark_service._blind_static_hash",
+                return_value=blind_hash,
             ),
             patch(
                 "app.services.watermark_service.cv2.imdecode",
@@ -222,12 +232,15 @@ class WatermarkVerificationModeTests(unittest.TestCase):
                 ),
             ),
         ):
-            return WatermarkService.identify(
+            result = WatermarkService.identify(
                 self.db,
                 b"synthetic-image",
                 attribution_service=self.attribution,
                 integrity_service=self.integrity,
             )
+            self.get_all = get_all
+            self.lookup = lookup
+            return result
 
     def test_canonical_dynamic_watermark_matches_original_hash(self):
         result = self.identify(FILE_HASH.upper())
@@ -583,6 +596,29 @@ class WatermarkVerificationModeTests(unittest.TestCase):
         self.assertFalse(result["dynamic_ok"])
         self.assertEqual(result["dynamic_mode"], "personalized")
         self.assertIsNone(result["access_session_ref"])
+
+    def test_blind_static_hash_looks_up_one_evidence_without_full_scan(self):
+        result = self.identify(FILE_HASH, blind_hash=self.static_value)
+
+        self.assertTrue(result["found"])
+        self.assertEqual(result["evidence_id"], EVIDENCE_ID)
+        self.lookup.assert_called_once_with(self.db, self.static_value)
+        self.get_all.assert_not_called()
+        self.codec.extract.assert_called_once()
+
+    def test_blind_static_hash_unknown_to_system_is_not_found_without_scan(self):
+        result = self.identify(FILE_HASH, blind_hash="ef" * 32, indexed=None)
+
+        self.assertEqual(result, {"found": False})
+        self.get_all.assert_not_called()
+        self.codec.extract.assert_not_called()
+
+    def test_undecodable_blind_watermark_falls_back_to_full_scan(self):
+        result = self.identify(FILE_HASH, blind_hash=None)
+
+        self.assertTrue(result["found"])
+        self.lookup.assert_not_called()
+        self.get_all.assert_called_once()
 
     def test_blockchain_read_failure_propagates_to_route_as_503(self):
         upload = SimpleNamespace(file=BytesIO(b"synthetic-image"))

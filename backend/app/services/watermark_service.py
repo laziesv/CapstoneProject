@@ -1,7 +1,6 @@
 import os
 import sys
 import base64
-import hashlib
 import re
 
 import cv2
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.repositories.evidence_items_repository import EvidenceRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.integrity import IntegrityMismatch
+from app.utils.hash import static_watermark_hash
 from app.services.leak_attribution_service import (
     BlockchainAttributionReadError,
     LeakAttributionError,
@@ -43,6 +43,46 @@ def _qr_data_uri(qr: np.ndarray) -> str:
     ok, buf = cv2.imencode(".png", qr)
     b64 = base64.b64encode(buf.tobytes()).decode("ascii")
     return f"data:image/png;base64,{b64}"
+
+
+def _is_comparable(evidence) -> bool:
+    """หลักฐานที่มีทั้งต้นฉบับ + ไฟล์ลายน้ำ + hash (เทียบได้)"""
+    return bool(
+        evidence.watermarked_file
+        and evidence.original_file
+        and evidence.original_file.file_hash
+    )
+
+
+def _blind_static_hash(system, y_suspect) -> str | None:
+    """ถอด Static Watermark โดยไม่ใช้ต้นฉบับ — None ถ้าถอดไม่ได้หรือไม่ใช่ค่าแฮชที่ระบบฝัง"""
+    try:
+        decoded = clQRcodec.decodeQR(system.extract_static_blind(y_suspect))
+    except Exception:
+        return None
+    if not decoded or not _CANONICAL_DYNAMIC_PATTERN.fullmatch(decoded):
+        return None
+    return decoded.lower()
+
+
+def _candidates(db: Session, system, y_suspect):
+    """หลักฐานที่ต้องลอง extract() กับต้นฉบับ เรียงตามลำดับที่ควรลอง
+
+    ถ้าถอด Static จากภาพได้ตรง ๆ แปลว่าเรขาคณิตของภาพยังเหมือนตอนฝัง ค่าที่ได้จึงชี้
+    หลักฐานได้ชิ้นเดียว ค้นผ่าน index แล้วลองแค่ชิ้นนั้น ไม่ต้องไล่ทั้งระบบ
+    ถ้าถอดไม่ได้ (ภาพถูกครอป/หมุน/ย่อ) จึงถอยไปไล่ทุกชิ้นแบบเดิม ซึ่งมี Image
+    Registration ช่วยจัดภาพให้ตรงกับต้นฉบับแต่ละชิ้นก่อนถอด
+    """
+    blind_hash = _blind_static_hash(system, y_suspect)
+    if blind_hash is not None:
+        match = EvidenceRepository.get_by_static_watermark_hash(db, blind_hash)
+        if match is not None and _is_comparable(match):
+            yield match
+        return
+
+    for evidence in EvidenceRepository.get_all(db):
+        if _is_comparable(evidence):
+            yield evidence
 
 
 def _user_profile(user):
@@ -80,20 +120,14 @@ class WatermarkService:
         y_suspect = _luminance(bgr).astype("float32")
         system = DigitalWatermarkingSystem()
 
-        # หลักฐานที่มีทั้งต้นฉบับ + ไฟล์ลายน้ำ + hash (เทียบได้)
-        candidates = [
-            e for e in EvidenceRepository.get_all(db)
-            if e.watermarked_file and e.original_file and e.original_file.file_hash
-        ]
-
-        for ev in candidates:
+        for ev in _candidates(db, system, y_suspect):
             ref = cv2.imread(ev.original_file.file_path, cv2.IMREAD_COLOR)
             if ref is None:
                 continue
             y_ref = _luminance(ref)
 
             qr_static, qr_dynamic = system.extract(y_suspect, y_ref)
-            expected = hashlib.sha256(str(ev.evidence_id).encode("utf-8")).hexdigest()
+            expected = static_watermark_hash(ev.evidence_id)
             if clQRcodec.decodeQR(qr_static) != expected:
                 continue  # ไม่ใช่หลักฐานชิ้นนี้
 

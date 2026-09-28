@@ -301,7 +301,23 @@ class DigitalWatermarkingSystem:
  
         roi_suspect = aligned_f32[row_off:row_off+size, col_off:col_off+size].copy()
  
-        dwt_ext = clTBwavelet.dwt(roi_suspect, level=self.level)
+        return self._extract_from_roi(roi_suspect, qr_size)
+ 
+    def extract_static_blind(self, suspected_image: np.ndarray) -> np.ndarray:
+        """
+        สกัดเฉพาะ QR ของ Static จากภาพที่ตรวจโดยไม่ใช้ภาพอ้างอิง
+        ตัด ROI จากตัวภาพที่ตรวจเองและข้าม Image Registration จึงถอดได้เฉพาะภาพที่
+        เรขาคณิตยังตรงกับตอนฝัง (ไฟล์ที่ดาวน์โหลดไปตรง ๆ ไม่ได้ครอป/หมุน/ย่อ)
+        ใช้หาว่าภาพเป็นหลักฐานชิ้นไหนก่อน แทนการไล่ extract() กับต้นฉบับทุกชิ้น
+        """
+        suspect_f32 = suspected_image.astype(np.float32)
+        roi, _, _, size = clTBwavelet.get_square_roi(suspect_f32, levels=self.level)
+        qr_static, _ = self._extract_from_roi(roi, self._band_qr_size(size))
+        return qr_static
+ 
+    def _extract_from_roi(self, roi: np.ndarray, qr_size: int) -> tuple[np.ndarray, np.ndarray]:
+        """ สกัด QR ทั้ง Static (LH) และ Dynamic (HL) จาก ROI ที่ตัดมาแล้ว """
+        dwt_ext = clTBwavelet.dwt(roi, level=self.level)
         lh_ext = clTBwavelet.get_subband(dwt_ext, "LH", self.level)
         hl_ext = clTBwavelet.get_subband(dwt_ext, "HL", self.level)
  
